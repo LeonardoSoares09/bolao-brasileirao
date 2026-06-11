@@ -285,7 +285,7 @@ async function acaoJogosHoje() {
   return { adicionados, atualizados, total: relevantes.length };
 }
 
-async function acaoResultados() {
+export async function acaoResultados() {
   const hoje = hojeEmSP();
   /* janela ampla dos últimos 14 dias só pra cobrir; status=FINISHED filtra o resto */
   const partidas = await buscarPartidas(

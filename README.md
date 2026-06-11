@@ -24,6 +24,7 @@ Em *Settings → Environment Variables*:
 | `DATABASE_URL` | string de conexão do Neon (automática se usou a integração) |
 | `FOOTBALL_DATA_KEY` | sua chave grátis de https://www.football-data.org/client/register (free tier cobre a Copa do Mundo) |
 | `ADMIN_TOKEN` | invente uma senha longa (ex: saída de `openssl rand -hex 16`) |
+| `CRON_SECRET` | outra senha longa — protege o endpoint `/api/cron-resultados` que a Vercel chama de 5 em 5 minutos pra atualizar placares sozinho |
 
 Depois de adicionar as variáveis, faça **Redeploy**.
 
@@ -42,6 +43,7 @@ Depois de adicionar as variáveis, faça **Redeploy**.
 | `POST/PUT/DELETE /api/jogo` | admin | criar / lançar resultado / remover |
 | `GET/POST/DELETE /api/participante` | admin | listar links / criar / remover |
 | `GET /api/futebol?acao=jogos-hoje\|resultados` | admin | busca jogos/resultados na football-data.org |
+| `GET /api/cron-resultados` | Vercel Cron | atualiza placares sozinho de 5 em 5 min (auth via `CRON_SECRET`) |
 
 ## Rodando localmente
 
