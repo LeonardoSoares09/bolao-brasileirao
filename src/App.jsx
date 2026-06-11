@@ -1,20 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 /* ============================================================
-   BOLÃO DA COPA 2026 — app simples para grupo de 9 amigos
+   BOLÃO DA COPA 2026 — versão compartilhada (Vercel + Neon)
+   Cada amigo acessa pelo seu link com token (?t=...).
    Regras: placar exato = 3 pts | resultado certo = 1 pt
-   Visual: campo de futebol + placar de estádio, animações CSS
-   leves (zero libs extras), respeita prefers-reduced-motion
+   Travamento de palpites validado NO SERVIDOR.
    ============================================================ */
 
-const KEY = "bolao_copa_2026";
 const PTS_EXATO = 3;
 const PTS_RESULTADO = 1;
-
-const vazio = { participants: [], matches: [], predictions: {} };
-
-const uid = () => Math.random().toString(36).slice(2, 9);
-const norm = (s) => String(s ?? "").trim().toLowerCase();
 
 const reduzMovimento = () =>
   typeof window !== "undefined" &&
@@ -24,28 +18,52 @@ const reduzMovimento = () =>
 function pontosDoPalpite(palpite, jogo) {
   if (!palpite || jogo.gh === null || jogo.ga === null) return null;
   const ph = Number(palpite.h), pa = Number(palpite.a);
-  if (palpite.h === "" || palpite.a === "" || Number.isNaN(ph) || Number.isNaN(pa)) return null;
+  if (Number.isNaN(ph) || Number.isNaN(pa)) return null;
   if (ph === jogo.gh && pa === jogo.ga) return PTS_EXATO;
   const sinal = (x, y) => (x > y ? 1 : x < y ? -1 : 0);
   if (sinal(ph, pa) === sinal(jogo.gh, jogo.ga)) return PTS_RESULTADO;
   return 0;
 }
 
-const iniciou = (m, agora) => !!m.kickoff && new Date(m.kickoff) <= agora;
 const temResultado = (m) => m.gh !== null && m.ga !== null;
-const palpiteCompleto = (pl) => !!pl && pl.h !== "" && pl.h != null && pl.a !== "" && pl.a != null;
 
 function fmtQuando(m) {
-  if (m.kickoff) {
-    const d = new Date(m.kickoff);
-    if (!Number.isNaN(d.getTime()))
-      return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-  }
-  return m.quando || "";
+  if (!m.kickoff) return "";
+  const d = new Date(m.kickoff);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
-function contarPendentes(m, participants, predictions) {
-  return participants.filter((p) => !palpiteCompleto(predictions[m.id]?.[p.id])).length;
+/* kickoff (ISO do banco) -> valor de input datetime-local */
+function kickoffParaInput(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+async function api(caminho, opts = {}) {
+  const r = await fetch(caminho, {
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+  });
+  const corpo = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(corpo.error || "Erro " + r.status);
+  return corpo;
+}
+
+function lerToken() {
+  try {
+    const t = new URLSearchParams(window.location.search).get("t");
+    if (t) {
+      localStorage.setItem("bolao_token", t);
+      return t;
+    }
+    return localStorage.getItem("bolao_token") || "";
+  } catch {
+    return "";
+  }
 }
 
 /* Contagem animada (placar de estádio subindo) */
@@ -61,7 +79,7 @@ function useCountUp(valor, dur = 800) {
     let raf;
     const tick = (t) => {
       const p = Math.min(1, (t - t0) / dur);
-      const e = 1 - Math.pow(1 - p, 3); /* easeOutCubic */
+      const e = 1 - Math.pow(1 - p, 3);
       setV(Math.round(de + (para - de) * e));
       if (p < 1) raf = requestAnimationFrame(tick);
     };
@@ -71,120 +89,85 @@ function useCountUp(valor, dur = 800) {
   return v;
 }
 
-/* Chamada à serverless function (/api/consultar), que fala com a API da Anthropic */
-async function consultarClaude(prompt) {
-  const response = await fetch("/api/consultar", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
-  });
-  if (!response.ok) throw new Error("API retornou " + response.status);
-  const { texto } = await response.json();
-  const limpo = texto.replace(/```json|```/g, "").trim();
-  const ini = limpo.indexOf("[");
-  const fim = limpo.lastIndexOf("]");
-  if (ini === -1 || fim === -1) throw new Error("resposta sem JSON");
-  return JSON.parse(limpo.slice(ini, fim + 1));
-}
-
-export default function BolaoCopa() {
-  const [data, setData] = useState(vazio);
+export default function App() {
+  const [token] = useState(lerToken);
+  const [estado, setEstado] = useState(null);
+  const [erroAuth, setErroAuth] = useState("");
   const [tab, setTab] = useState("ranking");
-  const [loaded, setLoaded] = useState(false);
-  const [salvo, setSalvo] = useState(true);
-  const [agora, setAgora] = useState(() => new Date());
-  const saveTimer = useRef(null);
+  const offsetRef = useRef(0);
+  const [, setTick] = useState(0);
 
-  useEffect(() => {
-    const t = setInterval(() => setAgora(new Date()), 30000);
-    return () => clearInterval(t);
-  }, []);
-
-  /* ---------- carregar (localStorage) ---------- */
-  useEffect(() => {
+  const carregar = useCallback(async () => {
+    if (!token) return;
     try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) setData({ ...vazio, ...JSON.parse(raw) });
-    } catch (e) {
-      console.error("Erro ao carregar:", e);
+      const e = await api(`/api/estado?t=${encodeURIComponent(token)}`);
+      offsetRef.current = Date.parse(e.agora) - Date.now();
+      setEstado(e);
+      setErroAuth("");
+    } catch (err) {
+      if (!estado) setErroAuth(err.message);
     }
-    setLoaded(true);
-  }, []);
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ---------- salvar (debounce) ---------- */
+  /* carga inicial + polling 30s + refetch ao voltar pra aba */
+  useEffect(() => { carregar(); }, [carregar]);
   useEffect(() => {
-    if (!loaded) return;
-    setSalvo(false);
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      try {
-        localStorage.setItem(KEY, JSON.stringify(data));
-        setSalvo(true);
-      } catch (e) {
-        console.error("Erro ao salvar:", e);
-      }
-    }, 600);
-    return () => clearTimeout(saveTimer.current);
-  }, [data, loaded]);
+    if (!token) return;
+    const poll = setInterval(carregar, 30000);
+    const tick = setInterval(() => setTick((n) => n + 1), 30000);
+    const onFoco = () => document.visibilityState === "visible" && carregar();
+    document.addEventListener("visibilitychange", onFoco);
+    return () => {
+      clearInterval(poll);
+      clearInterval(tick);
+      document.removeEventListener("visibilitychange", onFoco);
+    };
+  }, [token, carregar]);
 
-  /* ---------- mutações ---------- */
-  const addParticipante = (nome) => {
-    nome = nome.trim();
-    if (!nome) return;
-    setData((d) => ({ ...d, participants: [...d.participants, { id: uid(), nome }] }));
-  };
-  const delParticipante = (id) =>
-    setData((d) => {
-      const preds = {};
-      for (const [mid, byP] of Object.entries(d.predictions)) {
-        const { [id]: _, ...resto } = byP;
-        preds[mid] = resto;
-      }
-      return { ...d, participants: d.participants.filter((p) => p.id !== id), predictions: preds };
-    });
+  /* hora do SERVIDOR (relógio do celular do amigo não manda aqui) */
+  const agoraServ = () => new Date(Date.now() + offsetRef.current);
+  const comecou = (m) => !!m.kickoff && new Date(m.kickoff) <= agoraServ();
 
-  const addJogo = (casa, fora, kickoff) => {
-    casa = casa.trim(); fora = fora.trim();
-    if (!casa || !fora) return;
-    setData((d) => ({
-      ...d,
-      matches: [...d.matches, { id: uid(), casa, fora, kickoff: kickoff || "", gh: null, ga: null }],
-    }));
-  };
-  const delJogo = (id) =>
-    setData((d) => {
-      const { [id]: _, ...preds } = d.predictions;
-      return { ...d, matches: d.matches.filter((m) => m.id !== id), predictions: preds };
-    });
-  const setResultado = (id, campo, valor) =>
-    setData((d) => ({
-      ...d,
-      matches: d.matches.map((m) =>
-        m.id === id ? { ...m, [campo]: valor === "" || valor === null ? null : Math.max(0, parseInt(valor, 10) || 0) } : m
-      ),
-    }));
+  if (!token)
+    return (
+      <Casca>
+        <div className="vazio entra-1">
+          <span className="bola-quica" aria-hidden="true">⚽</span>
+          <span>Este bolão é por convite — peça seu link de acesso ao organizador do grupo.</span>
+        </div>
+      </Casca>
+    );
 
-  const setPalpite = (matchId, pid, campo, valor) =>
-    setData((d) => {
-      const atual = d.predictions[matchId]?.[pid] || { h: "", a: "" };
-      return {
-        ...d,
-        predictions: {
-          ...d.predictions,
-          [matchId]: {
-            ...(d.predictions[matchId] || {}),
-            [pid]: { ...atual, [campo]: valor },
-          },
-        },
-      };
-    });
+  if (erroAuth && !estado)
+    return (
+      <Casca>
+        <div className="vazio entra-1">
+          <span className="bola-quica" aria-hidden="true">⚽</span>
+          <span>{erroAuth}</span>
+        </div>
+      </Casca>
+    );
 
-  /* ---------- ranking ---------- */
-  const ranking = data.participants
+  if (!estado)
+    return (
+      <Casca>
+        <div className="carregando"><span className="bola-quica">⚽</span> Abrindo o bolão…</div>
+      </Casca>
+    );
+
+  /* mapa de palpites: jogoId -> participanteId -> {h, a} */
+  const palpitesMap = {};
+  for (const p of estado.palpites) {
+    (palpitesMap[p.jogo_id] ||= {})[p.participante_id] = { h: p.h, a: p.a };
+  }
+  const contagensMap = {};
+  for (const c of estado.contagens) contagensMap[c.jogo_id] = c.total;
+
+  const ranking = estado.participantes
     .map((p) => {
       let pontos = 0, exatos = 0, resultados = 0;
-      for (const m of data.matches) {
-        const pts = pontosDoPalpite(data.predictions[m.id]?.[p.id], m);
+      for (const m of estado.jogos) {
+        const pts = pontosDoPalpite(palpitesMap[m.id]?.[p.id], m);
         if (pts === PTS_EXATO) { exatos++; pontos += pts; }
         else if (pts === PTS_RESULTADO) { resultados++; pontos += pts; }
       }
@@ -192,22 +175,13 @@ export default function BolaoCopa() {
     })
     .sort((a, b) => b.pontos - a.pontos || b.exatos - a.exatos || a.nome.localeCompare(b.nome));
 
-  const jogosComResultado = data.matches.filter(temResultado).length;
-
-  if (!loaded)
-    return (
-      <div className="bolao-root">
-        <Estilo />
-        <div className="carregando"><span className="bola-quica">⚽</span> Abrindo o bolão…</div>
-      </div>
-    );
+  const encerrados = estado.jogos.filter(temResultado).length;
+  const ehAdmin = estado.eu.isAdmin;
 
   return (
-    <div className="bolao-root">
-      <Estilo />
-
+    <Casca>
       <header className="topo entra-1">
-        <div className="eyebrow">⚽ {data.participants.length} participante{data.participants.length === 1 ? "" : "s"} · {data.matches.length} jogo{data.matches.length === 1 ? "" : "s"} · {jogosComResultado} encerrado{jogosComResultado === 1 ? "" : "s"}</div>
+        <div className="eyebrow">⚽ Fala, {estado.eu.nome}! · {estado.participantes.length} na disputa · {encerrados} jogo{encerrados === 1 ? "" : "s"} encerrado{encerrados === 1 ? "" : "s"}</div>
         <h1>BOLÃO DA COPA</h1>
         <div className="sub">2026 · placar exato {PTS_EXATO} pts · resultado certo {PTS_RESULTADO} pt</div>
       </header>
@@ -232,30 +206,44 @@ export default function BolaoCopa() {
       </nav>
 
       <main key={tab} className="conteudo-aba">
-        {tab === "ranking" && <Ranking ranking={ranking} temJogos={jogosComResultado > 0} />}
+        {tab === "ranking" && <Ranking ranking={ranking} temJogos={encerrados > 0} />}
         {tab === "jogos" && (
           <Jogos
-            jogos={data.matches}
-            participants={data.participants}
-            predictions={data.predictions}
-            agora={agora}
-            addJogo={addJogo}
-            delJogo={delJogo}
-            setResultado={setResultado}
+            estado={estado}
+            contagensMap={contagensMap}
+            comecou={comecou}
+            ehAdmin={ehAdmin}
+            token={token}
+            recarregar={carregar}
           />
         )}
         {tab === "palpites" && (
-          <Palpites data={data} agora={agora} setPalpite={setPalpite} />
+          <Palpites
+            estado={estado}
+            palpitesMap={palpitesMap}
+            comecou={comecou}
+            token={token}
+            recarregar={carregar}
+          />
         )}
         {tab === "galera" && (
-          <Galera participantes={data.participants} add={addParticipante} del={delParticipante} />
+          <Galera estado={estado} ehAdmin={ehAdmin} token={token} recarregar={carregar} />
         )}
       </main>
 
       <footer className="rodape entra-3">
-        <span className={salvo ? "ponto-salvo" : "ponto-salvando"} aria-hidden="true"></span>
-        {salvo ? "Tudo salvo" : "Salvando…"}
+        <span className="ponto-salvo" aria-hidden="true"></span>
+        Placar compartilhado · atualiza sozinho
       </footer>
+    </Casca>
+  );
+}
+
+function Casca({ children }) {
+  return (
+    <div className="bolao-root">
+      <Estilo />
+      {children}
     </div>
   );
 }
@@ -268,7 +256,7 @@ function LedPontos({ valor }) {
 
 function Ranking({ ranking, temJogos }) {
   if (ranking.length === 0)
-    return <Vazio texto="Cadastre a galera na aba ao lado para montar o placar." />;
+    return <Vazio texto="O organizador ainda não cadastrou os participantes." />;
   return (
     <div>
       {!temJogos && (
@@ -301,7 +289,7 @@ function Ranking({ ranking, temJogos }) {
 }
 
 /* ================= JOGOS ================= */
-function Jogos({ jogos, participants, predictions, agora, addJogo, delJogo, setResultado }) {
+function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar }) {
   const [casa, setCasa] = useState("");
   const [fora, setFora] = useState("");
   const [kickoff, setKickoff] = useState("");
@@ -309,16 +297,53 @@ function Jogos({ jogos, participants, predictions, agora, addJogo, delJogo, setR
   const [buscandoResultados, setBuscandoResultados] = useState(false);
   const [aviso, setAviso] = useState("");
 
-  /* aviso some sozinho */
   useEffect(() => {
     if (!aviso) return;
     const t = setTimeout(() => setAviso(""), 6000);
     return () => clearTimeout(t);
   }, [aviso]);
 
-  const enviar = () => {
-    addJogo(casa, fora, kickoff);
-    setCasa(""); setFora(""); setKickoff("");
+  const consultarClaude = async (prompt) => {
+    const { texto } = await api("/api/consultar", {
+      method: "POST",
+      body: JSON.stringify({ t: token, prompt }),
+    });
+    const limpo = texto.replace(/```json|```/g, "").trim();
+    const ini = limpo.indexOf("[");
+    const fim = limpo.lastIndexOf("]");
+    if (ini === -1 || fim === -1) throw new Error("resposta sem JSON");
+    return JSON.parse(limpo.slice(ini, fim + 1));
+  };
+
+  const norm = (s) => String(s ?? "").trim().toLowerCase();
+
+  const addJogo = async () => {
+    if (!casa.trim() || !fora.trim()) return;
+    try {
+      await api("/api/jogo", {
+        method: "POST",
+        body: JSON.stringify({ t: token, casa, fora, kickoff: kickoff || null }),
+      });
+      setCasa(""); setFora(""); setKickoff("");
+      recarregar();
+    } catch (e) { setAviso(e.message); }
+  };
+
+  const delJogo = async (id) => {
+    try {
+      await api("/api/jogo", { method: "DELETE", body: JSON.stringify({ t: token, jogoId: id }) });
+      recarregar();
+    } catch (e) { setAviso(e.message); }
+  };
+
+  const salvarResultado = async (jogo, gh, ga) => {
+    try {
+      await api("/api/jogo", {
+        method: "PUT",
+        body: JSON.stringify({ t: token, jogoId: jogo.id, gh, ga }),
+      });
+      recarregar();
+    } catch (e) { setAviso(e.message); }
   };
 
   const buscarJogosDoDia = async () => {
@@ -330,22 +355,24 @@ function Jogos({ jogos, participants, predictions, agora, addJogo, delJogo, setR
         `Busque na web quais jogos da Copa do Mundo FIFA 2026 acontecem hoje, ${hoje}. Responda SOMENTE com um array JSON válido, sem markdown e sem nenhum texto extra, no formato: [{"casa":"Seleção A","fora":"Seleção B","kickoff":"YYYY-MM-DDTHH:mm"}], com o kickoff no horário de Brasília. Se não houver jogos da Copa hoje, responda [].`
       );
       const chave = (c, f) => norm(c) + "|" + norm(f);
-      const existentes = new Set(jogos.map((m) => chave(m.casa, m.fora)));
+      const existentes = new Set(estado.jogos.map((m) => chave(m.casa, m.fora)));
       let novos = 0;
       for (const j of lista) {
         if (!j || !j.casa || !j.fora) continue;
         const k = chave(j.casa, j.fora);
         if (existentes.has(k)) continue;
         existentes.add(k);
-        addJogo(String(j.casa), String(j.fora), String(j.kickoff || ""));
+        await api("/api/jogo", {
+          method: "POST",
+          body: JSON.stringify({ t: token, casa: String(j.casa), fora: String(j.fora), kickoff: j.kickoff || null }),
+        });
         novos++;
       }
+      recarregar();
       setAviso(
-        lista.length === 0
-          ? "Nenhum jogo da Copa hoje."
-          : novos === 0
-          ? "Os jogos de hoje já estão cadastrados."
-          : `${novos} jogo${novos === 1 ? "" : "s"} de hoje adicionado${novos === 1 ? "" : "s"} ⚽`
+        lista.length === 0 ? "Nenhum jogo da Copa hoje."
+        : novos === 0 ? "Os jogos de hoje já estão cadastrados."
+        : `${novos} jogo${novos === 1 ? "" : "s"} de hoje adicionado${novos === 1 ? "" : "s"} ⚽`
       );
     } catch (e) {
       console.error(e);
@@ -355,15 +382,15 @@ function Jogos({ jogos, participants, predictions, agora, addJogo, delJogo, setR
   };
 
   const buscarResultados = async () => {
-    const pendentesDeResultado = jogos.filter((m) => !temResultado(m) && (!m.kickoff || iniciou(m, agora)));
-    if (pendentesDeResultado.length === 0) {
+    const pendentes = estado.jogos.filter((m) => !temResultado(m) && (!m.kickoff || comecou(m)));
+    if (pendentes.length === 0) {
       setAviso("Nenhum jogo iniciado aguardando resultado.");
       return;
     }
     setBuscandoResultados(true);
     setAviso("");
     try {
-      const linhas = pendentesDeResultado
+      const linhas = pendentes
         .map((m) => `- ${m.casa} x ${m.fora}${fmtQuando(m) ? ` (${fmtQuando(m)})` : ""}`)
         .join("\n");
       const lista = await consultarClaude(
@@ -372,14 +399,15 @@ function Jogos({ jogos, participants, predictions, agora, addJogo, delJogo, setR
       let atualizados = 0;
       for (const r of lista) {
         if (!r || r.gh == null || r.ga == null) continue;
-        const m = pendentesDeResultado.find(
-          (j) => norm(j.casa) === norm(r.casa) && norm(j.fora) === norm(r.fora)
-        );
+        const m = pendentes.find((j) => norm(j.casa) === norm(r.casa) && norm(j.fora) === norm(r.fora));
         if (!m) continue;
-        setResultado(m.id, "gh", String(r.gh));
-        setResultado(m.id, "ga", String(r.ga));
+        await api("/api/jogo", {
+          method: "PUT",
+          body: JSON.stringify({ t: token, jogoId: m.id, gh: r.gh, ga: r.ga }),
+        });
         atualizados++;
       }
+      recarregar();
       setAviso(
         atualizados === 0
           ? "Nenhum resultado final encontrado ainda."
@@ -394,55 +422,43 @@ function Jogos({ jogos, participants, predictions, agora, addJogo, delJogo, setR
 
   return (
     <div>
-      <div className="linha-botoes">
-        <button className="botao botao-largo" onClick={buscarJogosDoDia} disabled={buscandoJogos || buscandoResultados}>
-          {buscandoJogos ? <><span className="spinner" aria-hidden="true"></span> Buscando…</> : "⚡ Jogos de hoje"}
-        </button>
-        <button className="botao botao-largo" onClick={buscarResultados} disabled={buscandoJogos || buscandoResultados}>
-          {buscandoResultados ? <><span className="spinner" aria-hidden="true"></span> Buscando…</> : "🏁 Buscar resultados"}
-        </button>
-      </div>
+      {ehAdmin && (
+        <>
+          <div className="linha-botoes">
+            <button className="botao botao-largo" onClick={buscarJogosDoDia} disabled={buscandoJogos || buscandoResultados}>
+              {buscandoJogos ? <><span className="spinner" aria-hidden="true"></span> Buscando…</> : "⚡ Jogos de hoje"}
+            </button>
+            <button className="botao botao-largo" onClick={buscarResultados} disabled={buscandoJogos || buscandoResultados}>
+              {buscandoResultados ? <><span className="spinner" aria-hidden="true"></span> Buscando…</> : "🏁 Buscar resultados"}
+            </button>
+          </div>
+
+          <div className="cartao form-jogo">
+            <div className="form-linha">
+              <input value={casa} onChange={(e) => setCasa(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addJogo()} placeholder="Time da casa" />
+              <span className="vs">×</span>
+              <input value={fora} onChange={(e) => setFora(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addJogo()} placeholder="Visitante" />
+            </div>
+            <div className="form-linha">
+              <input type="datetime-local" value={kickoff} onChange={(e) => setKickoff(e.target.value)} aria-label="Data e hora do jogo" />
+              <button className="botao" onClick={addJogo}>Adicionar jogo</button>
+            </div>
+          </div>
+        </>
+      )}
+
       {aviso && <p className="dica toast" role="status">{aviso}</p>}
 
-      <div className="cartao form-jogo">
-        <div className="form-linha">
-          <input
-            value={casa}
-            onChange={(e) => setCasa(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && enviar()}
-            placeholder="Time da casa"
-          />
-          <span className="vs">×</span>
-          <input
-            value={fora}
-            onChange={(e) => setFora(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && enviar()}
-            placeholder="Visitante"
-          />
-        </div>
-        <div className="form-linha">
-          <input
-            type="datetime-local"
-            value={kickoff}
-            onChange={(e) => setKickoff(e.target.value)}
-            aria-label="Data e hora do jogo"
-          />
-          <button className="botao" onClick={enviar}>Adicionar jogo</button>
-        </div>
-      </div>
+      {estado.jogos.length === 0 && (
+        <Vazio texto={ehAdmin ? "Nenhum jogo ainda. Use o botão de busca ou adicione manualmente." : "O organizador ainda não cadastrou os jogos."} />
+      )}
 
-      {jogos.length === 0 && <Vazio texto="Nenhum jogo ainda. Use o botão de busca ou adicione manualmente." />}
-
-      {jogos.map((m, i) => {
+      {estado.jogos.map((m, i) => {
         const encerrado = temResultado(m);
-        const travado = iniciou(m, agora);
-        const faltam = !encerrado && participants.length > 0 ? contarPendentes(m, participants, predictions) : 0;
+        const travado = comecou(m);
+        const faltam = !encerrado ? estado.participantes.length - (contagensMap[m.id] || 0) : 0;
         return (
-          <div
-            key={m.id}
-            className={"cartao jogo entra-cartao" + (encerrado ? " encerrado" : "")}
-            style={{ "--i": Math.min(i, 8) }}
-          >
+          <div key={m.id} className={"cartao jogo entra-cartao" + (encerrado ? " encerrado" : "")} style={{ "--i": Math.min(i, 8) }}>
             <div className="jogo-info">
               <div className="jogo-times">{m.casa} <span className="vs">×</span> {m.fora}</div>
               <div className="jogo-meta">
@@ -451,152 +467,297 @@ function Jogos({ jogos, participants, predictions, agora, addJogo, delJogo, setR
                 {!encerrado && !travado && faltam > 0 && (
                   <span className="tag tag-pendente">⚠ faltam {faltam} palpite{faltam === 1 ? "" : "s"}</span>
                 )}
-                {!encerrado && !travado && participants.length > 0 && faltam === 0 && (
+                {!encerrado && !travado && estado.participantes.length > 0 && faltam === 0 && (
                   <span className="tag tag-ok">✓ palpites completos</span>
                 )}
               </div>
             </div>
-            <div className="jogo-resultado">
-              <input
-                type="number" min="0" inputMode="numeric"
-                value={m.gh ?? ""} placeholder="–"
-                onChange={(e) => setResultado(m.id, "gh", e.target.value)}
-                aria-label={"Gols " + m.casa}
-              />
-              <span className="vs">:</span>
-              <input
-                type="number" min="0" inputMode="numeric"
-                value={m.ga ?? ""} placeholder="–"
-                onChange={(e) => setResultado(m.id, "ga", e.target.value)}
-                aria-label={"Gols " + m.fora}
-              />
-              <button className="apagar" onClick={() => delJogo(m.id)} aria-label="Remover jogo">✕</button>
-            </div>
+            {ehAdmin ? (
+              <ResultadoAdmin jogo={m} salvar={salvarResultado} remover={() => delJogo(m.id)} />
+            ) : (
+              encerrado && <div className="placar-final led-mini">{m.gh} : {m.ga}</div>
+            )}
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function ResultadoAdmin({ jogo, salvar, remover }) {
+  const [gh, setGh] = useState(jogo.gh ?? "");
+  const [ga, setGa] = useState(jogo.ga ?? "");
+  const timer = useRef(null);
+
+  useEffect(() => { setGh(jogo.gh ?? ""); setGa(jogo.ga ?? ""); }, [jogo.gh, jogo.ga]);
+
+  const mudar = (campo, valor) => {
+    const nh = campo === "gh" ? valor : gh;
+    const na = campo === "ga" ? valor : ga;
+    campo === "gh" ? setGh(valor) : setGa(valor);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      salvar(jogo, nh === "" ? null : nh, na === "" ? null : na);
+    }, 800);
+  };
+
+  return (
+    <div className="jogo-resultado">
+      <input type="number" min="0" inputMode="numeric" value={gh} placeholder="–"
+        onChange={(e) => mudar("gh", e.target.value)} aria-label={"Gols " + jogo.casa} />
+      <span className="vs">:</span>
+      <input type="number" min="0" inputMode="numeric" value={ga} placeholder="–"
+        onChange={(e) => mudar("ga", e.target.value)} aria-label={"Gols " + jogo.fora} />
+      <button className="apagar" onClick={remover} aria-label="Remover jogo">✕</button>
     </div>
   );
 }
 
 /* ================= PALPITES ================= */
-function Palpites({ data, agora, setPalpite }) {
+function Palpites({ estado, palpitesMap, comecou, token, recarregar }) {
   const [jogoSel, setJogoSel] = useState("");
-  const [destravados, setDestravados] = useState({});
-  const jogo = data.matches.find((m) => m.id === jogoSel) || data.matches[0];
+  const jogo = estado.jogos.find((m) => String(m.id) === String(jogoSel)) || estado.jogos[0];
 
-  if (data.matches.length === 0) return <Vazio texto="Cadastre os jogos primeiro, depois lance os palpites aqui." />;
-  if (data.participants.length === 0) return <Vazio texto="Cadastre a galera primeiro na aba Galera." />;
+  if (estado.jogos.length === 0) return <Vazio texto="Ainda não há jogos cadastrados." />;
+  if (estado.participantes.length === 0) return <Vazio texto="Ainda não há participantes cadastrados." />;
 
   const encerrado = temResultado(jogo);
-  const travado = iniciou(jogo, agora) && !destravados[jogo.id];
-  const faltam = contarPendentes(jogo, data.participants, data.predictions);
+  const travado = comecou(jogo) || encerrado;
+  const ehAdmin = estado.eu.isAdmin;
+  const revelado = travado; /* palpites dos outros só aparecem depois que começa */
 
   return (
     <div>
       <select className="seletor" value={jogo.id} onChange={(e) => setJogoSel(e.target.value)}>
-        {data.matches.map((m) => {
-          const n = !temResultado(m) ? contarPendentes(m, data.participants, data.predictions) : 0;
-          return (
-            <option key={m.id} value={m.id}>
-              {m.casa} × {m.fora}
-              {fmtQuando(m) ? ` — ${fmtQuando(m)}` : ""}
-              {temResultado(m) ? ` (${m.gh}:${m.ga})` : n > 0 ? ` — ⚠${n}` : ""}
-            </option>
-          );
-        })}
+        {estado.jogos.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.casa} × {m.fora}
+            {fmtQuando(m) ? ` — ${fmtQuando(m)}` : ""}
+            {temResultado(m) ? ` (${m.gh}:${m.ga})` : ""}
+          </option>
+        ))}
       </select>
 
       {encerrado && (
         <p className="dica">Resultado final: <strong>{jogo.casa} {jogo.gh} × {jogo.ga} {jogo.fora}</strong></p>
       )}
-      {!encerrado && faltam > 0 && (
-        <p className="dica">⚠ Faltam {faltam} palpite{faltam === 1 ? "" : "s"} neste jogo.</p>
+      {travado && !encerrado && (
+        <div className="trava-aviso"><span>🔒 Bola rolando — palpites travados pelo servidor.</span></div>
       )}
-      {iniciou(jogo, agora) && !encerrado && (
-        <div className="trava-aviso">
-          {travado ? (
-            <>
-              <span>🔒 Jogo iniciado — palpites travados.</span>
-              <button
-                className="botao-fantasma"
-                onClick={() => setDestravados((d) => ({ ...d, [jogo.id]: true }))}
-              >
-                Destravar p/ correção
-              </button>
-            </>
-          ) : (
-            <span>🔓 Destravado para correção (cuidado com a maracutaia 👀)</span>
-          )}
+
+      {/* seu palpite */}
+      {estado.eu.id !== null && (
+        <>
+          <div className="secao-titulo">SEU PALPITE</div>
+          <LinhaPalpite
+            jogo={jogo}
+            participante={{ id: estado.eu.id, nome: estado.eu.nome }}
+            palpite={palpitesMap[jogo.id]?.[estado.eu.id]}
+            bloqueado={travado && !ehAdmin}
+            destaque
+            token={token}
+            ehAdmin={ehAdmin}
+            recarregar={recarregar}
+          />
+        </>
+      )}
+
+      {/* palpites da galera */}
+      <div className="secao-titulo">{revelado ? "PALPITES DA GALERA" : "PALPITES DA GALERA (revelados quando a bola rolar)"}</div>
+      {!revelado && !ehAdmin && (
+        <div className="vazio">
+          <span aria-hidden="true">🤫</span>
+          <span>Segredo até o apito inicial — ninguém copia ninguém por aqui.</span>
         </div>
       )}
+      {(revelado || ehAdmin) &&
+        estado.participantes
+          .filter((p) => p.id !== estado.eu.id)
+          .map((p, i) => (
+            <LinhaPalpite
+              key={p.id}
+              jogo={jogo}
+              participante={p}
+              palpite={palpitesMap[jogo.id]?.[p.id]}
+              bloqueado={!ehAdmin}
+              token={token}
+              ehAdmin={ehAdmin}
+              recarregar={recarregar}
+              indice={i}
+            />
+          ))}
+    </div>
+  );
+}
 
-      {data.participants.map((p, i) => {
-        const palpite = data.predictions[jogo.id]?.[p.id] || { h: "", a: "" };
-        const pts = pontosDoPalpite(palpite, jogo);
-        const bloqueado = travado || (encerrado && !destravados[jogo.id]);
-        return (
-          <div key={p.id} className="cartao palpite-linha entra-cartao" style={{ "--i": Math.min(i, 8) }}>
-            <span className="palpite-nome">{p.nome}</span>
-            <div className="palpite-inputs">
-              <input
-                type="number" min="0" inputMode="numeric"
-                value={palpite.h} placeholder="–"
-                disabled={bloqueado}
-                onChange={(e) => setPalpite(jogo.id, p.id, "h", e.target.value)}
-                aria-label={`Palpite de ${p.nome} para ${jogo.casa}`}
-              />
-              <span className="vs">:</span>
-              <input
-                type="number" min="0" inputMode="numeric"
-                value={palpite.a} placeholder="–"
-                disabled={bloqueado}
-                onChange={(e) => setPalpite(jogo.id, p.id, "a", e.target.value)}
-                aria-label={`Palpite de ${p.nome} para ${jogo.fora}`}
-              />
-              {encerrado && pts !== null && (
-                <span className={"pts pts-" + pts}>{pts === PTS_EXATO ? "🎯 " : ""}{pts} pt{pts === 1 ? "" : "s"}</span>
-              )}
-              {encerrado && pts === null && <span className="pts pts-0">—</span>}
-            </div>
-          </div>
-        );
-      })}
+function LinhaPalpite({ jogo, participante, palpite, bloqueado, destaque, token, ehAdmin, recarregar, indice = 0 }) {
+  const [h, setH] = useState(palpite?.h ?? "");
+  const [a, setA] = useState(palpite?.a ?? "");
+  const [status, setStatus] = useState("");
+  const timer = useRef(null);
 
-      {encerrado && !destravados[jogo.id] && (
-        <button
-          className="botao-fantasma"
-          onClick={() => setDestravados((d) => ({ ...d, [jogo.id]: true }))}
-        >
-          🔓 Destravar palpites deste jogo p/ correção
-        </button>
-      )}
+  useEffect(() => {
+    setH(palpite?.h ?? "");
+    setA(palpite?.a ?? "");
+    setStatus("");
+  }, [jogo.id, participante.id, palpite?.h, palpite?.a]);
+
+  const pts = pontosDoPalpite(palpite, jogo);
+  const encerrado = temResultado(jogo);
+
+  const mudar = (campo, valor) => {
+    const nh = campo === "h" ? valor : h;
+    const na = campo === "a" ? valor : a;
+    campo === "h" ? setH(valor) : setA(valor);
+    clearTimeout(timer.current);
+    if (nh === "" || na === "") return;
+    setStatus("salvando");
+    timer.current = setTimeout(async () => {
+      try {
+        await api("/api/palpite", {
+          method: "POST",
+          body: JSON.stringify({
+            t: token,
+            jogoId: jogo.id,
+            h: Number(nh),
+            a: Number(na),
+            ...(ehAdmin && { participanteId: participante.id }),
+          }),
+        });
+        setStatus("salvo");
+        recarregar();
+      } catch (e) {
+        setStatus("erro");
+      }
+    }, 700);
+  };
+
+  return (
+    <div
+      className={"cartao palpite-linha entra-cartao" + (destaque ? " meu-palpite" : "")}
+      style={{ "--i": Math.min(indice, 8) }}
+    >
+      <span className="palpite-nome">{participante.nome}</span>
+      <div className="palpite-inputs">
+        {status === "salvando" && <span className="palpite-status">salvando…</span>}
+        {status === "salvo" && <span className="palpite-status ok">✓</span>}
+        {status === "erro" && <span className="palpite-status erro">não salvou ✕</span>}
+        <input type="number" min="0" inputMode="numeric" value={h} placeholder="–"
+          disabled={bloqueado}
+          onChange={(e) => mudar("h", e.target.value)}
+          aria-label={`Palpite de ${participante.nome} para ${jogo.casa}`} />
+        <span className="vs">:</span>
+        <input type="number" min="0" inputMode="numeric" value={a} placeholder="–"
+          disabled={bloqueado}
+          onChange={(e) => mudar("a", e.target.value)}
+          aria-label={`Palpite de ${participante.nome} para ${jogo.fora}`} />
+        {encerrado && pts !== null && (
+          <span className={"pts pts-" + pts}>{pts === PTS_EXATO ? "🎯 " : ""}{pts} pt{pts === 1 ? "" : "s"}</span>
+        )}
+        {encerrado && pts === null && <span className="pts pts-0">—</span>}
+      </div>
     </div>
   );
 }
 
 /* ================= GALERA ================= */
-function Galera({ participantes, add, del }) {
+function Galera({ estado, ehAdmin, token, recarregar }) {
   const [nome, setNome] = useState("");
-  const enviar = () => { add(nome); setNome(""); };
+  const [novoAdmin, setNovoAdmin] = useState(false);
+  const [lista, setLista] = useState(null); /* com tokens, só admin */
+  const [aviso, setAviso] = useState("");
+  const [copiado, setCopiado] = useState(null);
+
+  const carregarLista = useCallback(async () => {
+    if (!ehAdmin) return;
+    try {
+      const r = await api(`/api/participante?t=${encodeURIComponent(token)}`);
+      setLista(r.participantes);
+    } catch (e) { setAviso(e.message); }
+  }, [ehAdmin, token]);
+
+  useEffect(() => { carregarLista(); }, [carregarLista]);
+
+  useEffect(() => {
+    if (!aviso) return;
+    const t = setTimeout(() => setAviso(""), 6000);
+    return () => clearTimeout(t);
+  }, [aviso]);
+
+  const adicionar = async () => {
+    if (!nome.trim()) return;
+    try {
+      await api("/api/participante", {
+        method: "POST",
+        body: JSON.stringify({ t: token, nome, admin: novoAdmin }),
+      });
+      setNome(""); setNovoAdmin(false);
+      setAviso("Participante criado — copia o link e manda no WhatsApp 📲");
+      carregarLista();
+      recarregar();
+    } catch (e) { setAviso(e.message); }
+  };
+
+  const remover = async (id) => {
+    try {
+      await api("/api/participante", { method: "DELETE", body: JSON.stringify({ t: token, id }) });
+      carregarLista();
+      recarregar();
+    } catch (e) { setAviso(e.message); }
+  };
+
+  const copiarLink = async (p) => {
+    const url = `${window.location.origin}/?t=${p.token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiado(p.id);
+      setTimeout(() => setCopiado(null), 2000);
+    } catch {
+      setAviso(url); /* fallback: mostra o link pro admin copiar na mão */
+    }
+  };
+
+  if (!ehAdmin) {
+    return (
+      <div>
+        {estado.participantes.length === 0 && <Vazio texto="Ainda não há participantes." />}
+        {estado.participantes.map((p, i) => (
+          <div key={p.id} className="cartao palpite-linha entra-cartao" style={{ "--i": Math.min(i, 8) }}>
+            <span className="palpite-nome">{p.nome}{p.id === estado.eu.id ? " (você)" : ""}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div>
-      <div className="cartao form-linha">
-        <input
-          value={nome}
-          onChange={(e) => setNome(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && enviar()}
-          placeholder="Nome do amigo"
-        />
-        <button className="botao" onClick={enviar}>Adicionar</button>
-      </div>
-      {participantes.length === 0 && <Vazio texto="Adicione os 9 nomes do grupo para começar." />}
-      {participantes.map((p, i) => (
-        <div key={p.id} className="cartao palpite-linha entra-cartao" style={{ "--i": Math.min(i, 8) }}>
-          <span className="palpite-nome">{p.nome}</span>
-          <button className="apagar" onClick={() => del(p.id)} aria-label={`Remover ${p.nome}`}>✕</button>
+      <div className="cartao form-jogo">
+        <div className="form-linha">
+          <input value={nome} onChange={(e) => setNome(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && adicionar()} placeholder="Nome do amigo" />
+          <button className="botao" onClick={adicionar}>Adicionar</button>
         </div>
-      ))}
+        <label className="check-admin">
+          <input type="checkbox" checked={novoAdmin} onChange={(e) => setNovoAdmin(e.target.checked)} />
+          também é organizador (pode lançar jogos e resultados)
+        </label>
+      </div>
+
+      {aviso && <p className="dica toast" role="status">{aviso}</p>}
+
+      {lista === null && <p className="dica">Carregando…</p>}
+      {lista && lista.length === 0 && <Vazio texto="Adicione os 9 nomes do grupo — cada um ganha um link próprio." />}
+      {lista &&
+        lista.map((p, i) => (
+          <div key={p.id} className="cartao palpite-linha entra-cartao" style={{ "--i": Math.min(i, 8) }}>
+            <span className="palpite-nome">{p.nome}{p.is_admin ? " ⭐" : ""}</span>
+            <button className="botao-fantasma" onClick={() => copiarLink(p)}>
+              {copiado === p.id ? "✓ Copiado" : "📋 Copiar link"}
+            </button>
+            <button className="apagar" onClick={() => remover(p.id)} aria-label={`Remover ${p.nome}`}>✕</button>
+          </div>
+        ))}
     </div>
   );
 }
@@ -639,14 +800,12 @@ function Estilo() {
       }
       .bolao-root *, .bolao-root *::before, .bolao-root *::after { box-sizing: border-box; }
 
-      /* luz de refletor do estádio */
       .bolao-root::before {
         content: '';
         position: fixed; inset: 0; pointer-events: none;
         background: radial-gradient(ellipse 120% 60% at 50% -12%, rgba(255,255,255,.12), transparent 60%);
       }
 
-      /* ---------- entrada orquestrada ---------- */
       @keyframes sobe { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
       .entra-1 { animation: sobe .55s var(--t) both; }
       .entra-2 { animation: sobe .55s var(--t) .12s both; }
@@ -654,7 +813,6 @@ function Estilo() {
       .entra-3 { animation: sobe .55s var(--t) .3s both; }
       .entra-cartao { animation: sobe .45s var(--t) both; animation-delay: calc(var(--i, 0) * 50ms); }
 
-      /* ---------- topo com círculo central do campo ---------- */
       .topo { text-align: center; margin-bottom: 22px; position: relative; padding: 18px 0 14px; }
       .topo::before {
         content: ''; position: absolute; left: 50%; top: 50%;
@@ -681,7 +839,6 @@ function Estilo() {
       }
       .sub { font-size: 15px; letter-spacing: .06em; opacity: .85; margin-top: 6px; text-transform: uppercase; position: relative; z-index: 1; }
 
-      /* ---------- abas ---------- */
       .abas { display: flex; gap: 0; border: 2px solid var(--linha); margin-bottom: 18px; background: rgba(0,0,0,.18); }
       .aba {
         flex: 1; padding: 10px 4px; background: transparent; color: var(--giz);
@@ -689,7 +846,6 @@ function Estilo() {
         font: 600 16px 'Barlow Condensed', sans-serif; letter-spacing: .08em;
         text-transform: uppercase; cursor: pointer;
         transition: background-color var(--t), color var(--t), box-shadow var(--t);
-        position: relative;
       }
       .aba:last-child { border-right: none; }
       .aba:hover:not(.ativa) { background: rgba(255,255,255,.07); }
@@ -699,7 +855,6 @@ function Estilo() {
       }
       .aba:focus-visible { outline: 3px solid var(--ambar); outline-offset: -3px; }
 
-      /* ---------- cartões ---------- */
       .cartao {
         border: 2px solid var(--linha);
         background: rgba(0,0,0,.22);
@@ -707,11 +862,22 @@ function Estilo() {
         transition: border-color var(--t), transform var(--t), background-color var(--t);
       }
       .cartao:hover { border-color: rgba(255,255,255,.5); }
+      .meu-palpite { border-color: var(--ambar); background: rgba(255,197,61,.07); }
+
+      .secao-titulo {
+        font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+        letter-spacing: .14em; color: var(--ambar);
+        margin: 16px 0 8px;
+      }
 
       .form-linha { display: flex; gap: 8px; align-items: center; }
       .form-jogo .form-linha + .form-linha { margin-top: 8px; }
+      .check-admin {
+        display: flex; align-items: center; gap: 8px; margin-top: 8px;
+        font-size: 14px; letter-spacing: .03em; opacity: .85; cursor: pointer;
+      }
+      .check-admin input { width: auto; }
 
-      /* ---------- inputs ---------- */
       input, .seletor {
         width: 100%; min-width: 0;
         background: rgba(0,0,0,.35); color: var(--giz);
@@ -740,7 +906,6 @@ function Estilo() {
 
       .seletor { margin-bottom: 12px; cursor: pointer; }
 
-      /* ---------- botões ---------- */
       .botao {
         background: var(--ambar); color: var(--ambar-escuro);
         border: none; padding: 10px 18px; cursor: pointer;
@@ -766,7 +931,7 @@ function Estilo() {
         background: transparent; color: var(--ambar);
         border: 2px solid var(--ambar); padding: 6px 12px; cursor: pointer;
         font: 700 13px 'Barlow Condensed', sans-serif;
-        letter-spacing: .06em; text-transform: uppercase;
+        letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
         transition: background-color var(--t), transform var(--t);
       }
       .botao-fantasma:hover { background: rgba(255,197,61,.12); transform: translateY(-1px); }
@@ -775,14 +940,13 @@ function Estilo() {
       .apagar {
         background: transparent; color: var(--erro);
         border: 2px solid transparent; cursor: pointer;
-        font-size: 15px; padding: 4px 8px; margin-left: auto;
+        font-size: 15px; padding: 4px 8px;
         transition: border-color var(--t), transform var(--t); opacity: .75;
       }
       .apagar:hover { border-color: var(--erro); opacity: 1; transform: scale(1.06); }
 
       .vs { opacity: .6; font-weight: 800; }
 
-      /* ---------- jogos ---------- */
       .jogo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
       .jogo.encerrado { border-color: var(--ambar); }
       .jogo-info { flex: 1; min-width: 160px; }
@@ -790,6 +954,12 @@ function Estilo() {
       .jogo-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; flex-wrap: wrap; }
       .jogo-quando { font-family: 'IBM Plex Mono', monospace; font-size: 11px; opacity: .7; }
       .jogo-resultado { display: flex; align-items: center; gap: 6px; }
+
+      .placar-final {
+        font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 20px;
+        color: var(--ambar); text-shadow: 0 0 10px rgba(255,197,61,.5);
+        white-space: nowrap;
+      }
 
       .tag {
         font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
@@ -810,10 +980,15 @@ function Estilo() {
         animation: sobe .35s var(--t) both;
       }
 
-      /* ---------- palpites ---------- */
       .palpite-linha { display: flex; align-items: center; gap: 10px; }
       .palpite-nome { flex: 1; font-size: 18px; font-weight: 600; letter-spacing: .03em; }
       .palpite-inputs { display: flex; align-items: center; gap: 6px; }
+      .palpite-status {
+        font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+        letter-spacing: .06em; opacity: .7; white-space: nowrap;
+      }
+      .palpite-status.ok { color: #7ee2a0; opacity: 1; }
+      .palpite-status.erro { color: var(--erro); opacity: 1; }
 
       .pts {
         font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700;
@@ -824,7 +999,6 @@ function Estilo() {
       .pts-1 { border: 1.5px solid var(--ambar); color: var(--ambar); }
       .pts-0 { border: 1.5px solid var(--linha); opacity: .6; }
 
-      /* ---------- placar (assinatura) ---------- */
       .placar {
         border: 3px solid var(--giz); background: rgba(0,0,0,.45);
         box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 0 40px rgba(0,0,0,.4);
@@ -854,12 +1028,12 @@ function Estilo() {
       .col-num { text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 14px; }
       .col-pts { text-align: right; }
 
-      /* dígitos do placar "acendendo" como painel de estádio */
       .led {
         font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 22px;
         color: var(--ambar); text-shadow: 0 0 12px rgba(255,197,61,.55);
         animation: acende 1s ease-out both; animation-delay: calc(var(--i, 0) * 60ms + .2s);
       }
+      .led-mini { font-size: 20px; }
       @keyframes acende {
         0% { opacity: 0; text-shadow: none; }
         35% { opacity: .4; }
@@ -868,8 +1042,7 @@ function Estilo() {
         100% { opacity: 1; text-shadow: 0 0 12px rgba(255,197,61,.55); }
       }
 
-      /* ---------- avisos e estados ---------- */
-      .dica { font-size: 15px; opacity: .85; margin: 0 0 12px; letter-spacing: .02em; }
+      .dica { font-size: 15px; opacity: .85; margin: 0 0 12px; letter-spacing: .02em; word-break: break-all; }
       .toast {
         border-left: 3px solid var(--ambar); padding: 8px 12px;
         background: rgba(0,0,0,.3); animation: sobe .3s var(--t) both;
@@ -878,6 +1051,7 @@ function Estilo() {
         border: 2px dashed var(--linha); padding: 26px 18px; text-align: center;
         font-size: 17px; opacity: .85; letter-spacing: .03em;
         display: flex; flex-direction: column; align-items: center; gap: 8px;
+        margin-bottom: 10px;
       }
       .bola-quica { display: inline-block; font-size: 22px; animation: quica 1.6s cubic-bezier(.3,0,.4,1) infinite; }
       @keyframes quica {
@@ -895,14 +1069,11 @@ function Estilo() {
         letter-spacing: .12em; opacity: .6; text-transform: uppercase;
         display: flex; align-items: center; justify-content: center; gap: 7px;
       }
-      .ponto-salvo, .ponto-salvando {
+      .ponto-salvo {
         width: 7px; height: 7px; border-radius: 50%; flex: none;
-        background: #7ee2a0; transition: background-color var(--t);
+        background: #7ee2a0;
       }
-      .ponto-salvando { background: var(--ambar); animation: pulsa .8s ease-in-out infinite; }
-      @keyframes pulsa { 50% { opacity: .35; } }
 
-      /* ---------- responsivo ---------- */
       @media (max-width: 460px) {
         .placar-cab, .placar-linha { grid-template-columns: 26px 1fr 48px 48px 56px; padding: 9px 8px; }
         .jogo { flex-direction: column; align-items: stretch; }
@@ -911,7 +1082,6 @@ function Estilo() {
         .topo::before { width: 180px; height: 180px; }
       }
 
-      /* ---------- acessibilidade: sem movimento ---------- */
       @media (prefers-reduced-motion: reduce) {
         .bolao-root *, .bolao-root *::before, .bolao-root *::after {
           animation: none !important; transition: none !important;

@@ -1,9 +1,18 @@
 /* Serverless function da Vercel — proxy seguro pra API da Anthropic.
-   A ANTHROPIC_API_KEY fica em variável de ambiente (nunca chega ao navegador). */
+   A ANTHROPIC_API_KEY fica em variável de ambiente (nunca chega ao navegador).
+   Protegida por token de admin: só o organizador gasta créditos. */
+
+import { autenticar } from "../lib/db.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Use POST" });
+    return;
+  }
+
+  const eu = await autenticar(req.body?.t);
+  if (!eu || !eu.isAdmin) {
+    res.status(403).json({ error: "Só o organizador usa a busca automática" });
     return;
   }
 
