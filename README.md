@@ -7,13 +7,14 @@ Bolão para grupo de amigos: cada um acessa pelo **seu link** (com token), lanç
 - **Sem login/senha**: cada participante recebe uma URL única (`https://seu-app.vercel.app/?t=abc123`). O token identifica quem é.
 - **Palpites travam no kickoff, validado no servidor** — depois que a bola rola, a API rejeita.
 - **Palpites dos outros ficam ocultos até o jogo começar** (regra anti-cópia, aplicada no servidor).
-- **Organizador (admin)**: cadastra jogos, lança resultados, usa a busca automática (IA), gera os links da galera e pode corrigir palpites.
+- **Organizador (admin)**: cadastra jogos, lança resultados, usa a busca automática (football-data.org), gera os links da galera e pode corrigir palpites.
 
 ## Setup (uma vez só)
 
 ### 1. Banco — Neon Postgres
 1. Crie um projeto grátis em [neon.tech](https://neon.tech) (dá pra integrar direto pela aba *Storage* do projeto na Vercel, que já configura a `DATABASE_URL` sozinha).
 2. Abra o **SQL Editor** do Neon, cole o conteúdo de `schema.sql` e execute.
+3. Rode também `migrations/V2__external_id.sql` (adiciona a coluna `external_id` em `jogos`, usada pela busca automática). Pode rodar a qualquer momento — é não-destrutivo e idempotente.
 
 ### 2. Variáveis de ambiente na Vercel
 Em *Settings → Environment Variables*:
@@ -21,7 +22,7 @@ Em *Settings → Environment Variables*:
 | Variável | Valor |
 |---|---|
 | `DATABASE_URL` | string de conexão do Neon (automática se usou a integração) |
-| `ANTHROPIC_API_KEY` | sua chave de https://platform.claude.com |
+| `FOOTBALL_DATA_KEY` | sua chave grátis de https://www.football-data.org/client/register (free tier cobre a Copa do Mundo) |
 | `ADMIN_TOKEN` | invente uma senha longa (ex: saída de `openssl rand -hex 16`) |
 
 Depois de adicionar as variáveis, faça **Redeploy**.
@@ -40,7 +41,7 @@ Depois de adicionar as variáveis, faça **Redeploy**.
 | `POST /api/palpite` | todos | upsert do próprio palpite (admin: de qualquer um) |
 | `POST/PUT/DELETE /api/jogo` | admin | criar / lançar resultado / remover |
 | `GET/POST/DELETE /api/participante` | admin | listar links / criar / remover |
-| `POST /api/consultar` | admin | busca jogos/resultados via API da Anthropic |
+| `GET /api/futebol?acao=jogos-hoje\|resultados` | admin | busca jogos/resultados na football-data.org |
 
 ## Rodando localmente
 

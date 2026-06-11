@@ -303,20 +303,6 @@ function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar }) {
     return () => clearTimeout(t);
   }, [aviso]);
 
-  const consultarClaude = async (prompt) => {
-    const { texto } = await api("/api/consultar", {
-      method: "POST",
-      body: JSON.stringify({ t: token, prompt }),
-    });
-    const limpo = texto.replace(/```json|```/g, "").trim();
-    const ini = limpo.indexOf("[");
-    const fim = limpo.lastIndexOf("]");
-    if (ini === -1 || fim === -1) throw new Error("resposta sem JSON");
-    return JSON.parse(limpo.slice(ini, fim + 1));
-  };
-
-  const norm = (s) => String(s ?? "").trim().toLowerCase();
-
   const addJogo = async () => {
     if (!casa.trim() || !fora.trim()) return;
     try {
@@ -350,33 +336,21 @@ function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar }) {
     setBuscandoJogos(true);
     setAviso("");
     try {
-      const hoje = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-      const lista = await consultarClaude(
-        `Busque na web quais jogos da Copa do Mundo FIFA 2026 acontecem hoje, ${hoje}. Responda SOMENTE com um array JSON válido, sem markdown e sem nenhum texto extra, no formato: [{"casa":"Seleção A","fora":"Seleção B","kickoff":"YYYY-MM-DDTHH:mm"}], com o kickoff no horário de Brasília. Se não houver jogos da Copa hoje, responda [].`
-      );
-      const chave = (c, f) => norm(c) + "|" + norm(f);
-      const existentes = new Set(estado.jogos.map((m) => chave(m.casa, m.fora)));
-      let novos = 0;
-      for (const j of lista) {
-        if (!j || !j.casa || !j.fora) continue;
-        const k = chave(j.casa, j.fora);
-        if (existentes.has(k)) continue;
-        existentes.add(k);
-        await api("/api/jogo", {
-          method: "POST",
-          body: JSON.stringify({ t: token, casa: String(j.casa), fora: String(j.fora), kickoff: j.kickoff || null }),
-        });
-        novos++;
-      }
+      const r = await api(`/api/futebol?t=${encodeURIComponent(token)}&acao=jogos-hoje`);
       recarregar();
+      const adicionados = r.adicionados || 0;
+      const atualizados = r.atualizados || 0;
+      const total = r.total || 0;
       setAviso(
-        lista.length === 0 ? "Nenhum jogo da Copa hoje."
-        : novos === 0 ? "Os jogos de hoje já estão cadastrados."
-        : `${novos} jogo${novos === 1 ? "" : "s"} de hoje adicionado${novos === 1 ? "" : "s"} ⚽`
+        total === 0
+          ? "Nenhum jogo da Copa hoje."
+          : adicionados === 0 && atualizados === 0
+          ? "Os jogos de hoje já estão cadastrados."
+          : `${adicionados} adicionado${adicionados === 1 ? "" : "s"} · ${atualizados} atualizado${atualizados === 1 ? "" : "s"} ⚽`
       );
     } catch (e) {
       console.error(e);
-      setAviso("Não consegui buscar agora — tenta de novo ou adiciona manualmente.");
+      setAviso(e.message || "Não consegui buscar agora — tenta de novo ou adiciona manualmente.");
     }
     setBuscandoJogos(false);
   };
@@ -390,32 +364,17 @@ function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar }) {
     setBuscandoResultados(true);
     setAviso("");
     try {
-      const linhas = pendentes
-        .map((m) => `- ${m.casa} x ${m.fora}${fmtQuando(m) ? ` (${fmtQuando(m)})` : ""}`)
-        .join("\n");
-      const lista = await consultarClaude(
-        `Busque na web o placar final destes jogos da Copa do Mundo FIFA 2026:\n${linhas}\n\nResponda SOMENTE com um array JSON válido, sem markdown e sem texto extra, no formato: [{"casa":"Seleção A","fora":"Seleção B","gh":2,"ga":1}]. Inclua APENAS jogos já encerrados com placar final confirmado (gh = gols da primeira seleção listada, ga = gols da segunda). Se nenhum terminou ainda, responda [].`
-      );
-      let atualizados = 0;
-      for (const r of lista) {
-        if (!r || r.gh == null || r.ga == null) continue;
-        const m = pendentes.find((j) => norm(j.casa) === norm(r.casa) && norm(j.fora) === norm(r.fora));
-        if (!m) continue;
-        await api("/api/jogo", {
-          method: "PUT",
-          body: JSON.stringify({ t: token, jogoId: m.id, gh: r.gh, ga: r.ga }),
-        });
-        atualizados++;
-      }
+      const r = await api(`/api/futebol?t=${encodeURIComponent(token)}&acao=resultados`);
       recarregar();
+      const atualizados = r.atualizados || 0;
       setAviso(
         atualizados === 0
-          ? "Nenhum resultado final encontrado ainda."
+          ? "Nenhum resultado final novo — rode 'Jogos de hoje' antes se faltar carimbar o ID externo."
           : `${atualizados} resultado${atualizados === 1 ? "" : "s"} atualizado${atualizados === 1 ? "" : "s"} — confere o ranking! 🏆`
       );
     } catch (e) {
       console.error(e);
-      setAviso("Não consegui buscar os resultados — tenta de novo ou lança manualmente.");
+      setAviso(e.message || "Não consegui buscar os resultados — tenta de novo ou lança manualmente.");
     }
     setBuscandoResultados(false);
   };
