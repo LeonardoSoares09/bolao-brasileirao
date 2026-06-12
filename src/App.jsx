@@ -901,18 +901,22 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
 
 /* 46 classificados confirmados para a Copa 2026
    (faltam os 2 vencedores do playoff intercontinental — me diga quais são) */
-const BANDEIRAS = {
-  "Canadá":"🇨🇦","Costa Rica":"🇨🇷","Estados Unidos":"🇺🇸","Honduras":"🇭🇳","México":"🇲🇽","Panamá":"🇵🇦",
-  "Argentina":"🇦🇷","Brasil":"🇧🇷","Colômbia":"🇨🇴","Equador":"🇪🇨","Uruguai":"🇺🇾","Venezuela":"🇻🇪",
-  "Alemanha":"🇩🇪","Áustria":"🇦🇹","Bélgica":"🇧🇪","Croácia":"🇭🇷","Dinamarca":"🇩🇰","Escócia":"🏴󠁧󠁢󠁳󠁣󠁴󠁿",
-  "Espanha":"🇪🇸","França":"🇫🇷","Holanda":"🇳🇱","Hungria":"🇭🇺","Inglaterra":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","Itália":"🇮🇹",
-  "Portugal":"🇵🇹","Sérvia":"🇷🇸","Suíça":"🇨🇭","Turquia":"🇹🇷",
-  "África do Sul":"🇿🇦","Argélia":"🇩🇿","Camarões":"🇨🇲","Costa do Marfim":"🇨🇮",
-  "Egito":"🇪🇬","Mali":"🇲🇱","Marrocos":"🇲🇦","Nigéria":"🇳🇬","Senegal":"🇸🇳",
-  "Arábia Saudita":"🇸🇦","Austrália":"🇦🇺","Catar":"🇶🇦","Coreia do Sul":"🇰🇷",
-  "Irã":"🇮🇷","Iraque":"🇮🇶","Japão":"🇯🇵","Uzbequistão":"🇺🇿","Nova Zelândia":"🇳🇿",
+const FLAG_CODES = {
+  "Canadá":"ca","Costa Rica":"cr","Estados Unidos":"us","Honduras":"hn","México":"mx","Panamá":"pa",
+  "Argentina":"ar","Brasil":"br","Colômbia":"co","Equador":"ec","Uruguai":"uy","Venezuela":"ve",
+  "Alemanha":"de","Áustria":"at","Bélgica":"be","Croácia":"hr","Dinamarca":"dk","Escócia":"gb-sct",
+  "Espanha":"es","França":"fr","Holanda":"nl","Hungria":"hu","Inglaterra":"gb-eng","Itália":"it",
+  "Portugal":"pt","Sérvia":"rs","Suíça":"ch","Turquia":"tr",
+  "África do Sul":"za","Argélia":"dz","Camarões":"cm","Costa do Marfim":"ci",
+  "Egito":"eg","Mali":"ml","Marrocos":"ma","Nigéria":"ng","Senegal":"sn",
+  "Arábia Saudita":"sa","Austrália":"au","Catar":"qa","Coreia do Sul":"kr",
+  "Irã":"ir","Iraque":"iq","Japão":"jp","Uzbequistão":"uz","Nova Zelândia":"nz",
 };
-const fl = (nome) => BANDEIRAS[nome] ? `${BANDEIRAS[nome]} ` : "";
+const fl = (nome) => {
+  const code = FLAG_CODES[nome];
+  if (!code) return null;
+  return <img src={`https://flagcdn.com/20x15/${code}.png`} alt={nome} className="flag-img" />;
+};
 
 const SELECOES = [
   // CONCACAF
@@ -1636,6 +1640,8 @@ function Estilo() {
         border-bottom: 1px solid rgba(255,197,61,.2);
         position: sticky; top: 0; z-index: 1;
       }
+
+      .flag-img { display: inline-block; vertical-align: middle; border-radius: 2px; margin-right: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
 
       .jogo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
       .jogo.encerrado { border-color: var(--ambar); }
