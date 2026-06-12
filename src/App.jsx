@@ -184,19 +184,19 @@ export default function App() {
 
   const hojeKey = fmtSP(Date.now() + offsetRef.current);
 
+  const primeiroPalpiteMap = {};
+  for (const r of estado.primeiroPalpites || []) primeiroPalpiteMap[r.participante_id] = r.ts;
+
   const ranking = estado.participantes
     .map((p) => {
       let bonus = 0;
       const re = estado.resultadoEspecial;
-      if (re?.campeao?.confirmado) {
-        const ok = (estado.palpitesCampeao || []).some(
-          (pc) => pc.participante_id === p.id && pc.selecao === re.campeao.valor
-        );
-        if (ok) bonus += 15;
-      }
-      if (re?.artilheiro?.confirmado) {
-        if ((estado.premiadosArtilheiro || []).includes(p.id)) bonus += 9;
-      }
+      const acertouCampeao = !!(re?.campeao?.confirmado && (estado.palpitesCampeao || []).some(
+        (pc) => pc.participante_id === p.id && pc.selecao === re.campeao.valor
+      ));
+      if (acertouCampeao) bonus += 15;
+      const acertouArtilheiro = !!(re?.artilheiro?.confirmado && (estado.premiadosArtilheiro || []).includes(p.id));
+      if (acertouArtilheiro) bonus += 9;
       let pontos = bonus, exatos = 0, resultados = 0, exatosHoje = 0;
       for (const m of estado.jogos) {
         const pts = pontosDoPalpite(palpitesMap[m.id]?.[p.id], m);
@@ -205,9 +205,18 @@ export default function App() {
           if (m.kickoff && chaveData(m.kickoff) === hojeKey) exatosHoje++;
         } else if (pts === PTS_RESULTADO) { resultados++; pontos += pts; }
       }
-      return { ...p, pontos, exatos, resultados, bonus, exatosHoje };
+      return { ...p, pontos, exatos, resultados, bonus, exatosHoje, acertouCampeao, acertouArtilheiro };
     })
-    .sort((a, b) => b.pontos - a.pontos || b.exatos - a.exatos || a.nome.localeCompare(b.nome));
+    .sort((a, b) =>
+      b.pontos - a.pontos ||
+      b.exatos - a.exatos ||
+      (b.acertouCampeao ? 1 : 0) - (a.acertouCampeao ? 1 : 0) ||
+      (b.acertouArtilheiro ? 1 : 0) - (a.acertouArtilheiro ? 1 : 0) ||
+      b.resultados - a.resultados ||
+      (primeiroPalpiteMap[a.id] && primeiroPalpiteMap[b.id]
+        ? new Date(primeiroPalpiteMap[a.id]) - new Date(primeiroPalpiteMap[b.id])
+        : 0)
+    );
 
   /* posições antes dos jogos de hoje — para setas de tendência */
   const posAntes = {};
@@ -2018,6 +2027,13 @@ function ModalRegras({ onFechar }) {
             Quem palpitou 2×1 ganha <strong>0 pts</strong>,
             mesmo que o placar da prorrogação seja 2×1.
           </p>
+
+          <div className="regras-secao">Desempate (em caso de pontuação igual)</div>
+          <div className="regras-item"><span className="pts pts-3">1º</span><span>Mais placares exatos</span></div>
+          <div className="regras-item"><span className="pts pts-3">2º</span><span>Acertou a seleção campeã</span></div>
+          <div className="regras-item"><span className="pts pts-3">3º</span><span>Acertou o artilheiro da Copa</span></div>
+          <div className="regras-item"><span className="pts pts-1">4º</span><span>Mais resultados certos</span></div>
+          <div className="regras-item"><span className="pts pts-0">5º</span><span>Quem enviou o primeiro palpite mais cedo</span></div>
 
           <div className="regras-secao">Travamento de palpites</div>
           <p className="regras-p">
