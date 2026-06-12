@@ -469,7 +469,97 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickPar
           );
         })}
       </div>
+      <GraficoEvolucao ranking={ranking} palpitesMap={palpitesMap} jogos={jogos} />
       <EstatisticasInutils ranking={ranking} palpitesMap={palpitesMap} jogos={jogos} />
+    </div>
+  );
+}
+
+/* ================= GRÁFICO DE EVOLUÇÃO ================= */
+function GraficoEvolucao({ ranking, palpitesMap, jogos }) {
+  const [aberto, setAberto] = useState(false);
+
+  const jogosEncerrados = jogos
+    .filter(temResultado)
+    .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
+
+  if (jogosEncerrados.length < 2 || ranking.length < 2) return null;
+
+  const W = 560, H = 210;
+  const ml = 28, mr = 76, mt = 12, mb = 22;
+  const pw = W - ml - mr;
+  const ph = H - mt - mb;
+  const n = jogosEncerrados.length;
+
+  const xOf = (i) => ml + (n === 1 ? pw / 2 : (i * pw) / (n - 1));
+
+  const series = ranking.map((p) => {
+    let acum = p.bonus;
+    const pts = jogosEncerrados.map((j) => {
+      acum += pontosDoPalpite(palpitesMap[j.id]?.[p.id], j);
+      return acum;
+    });
+    return { ...p, pts };
+  });
+
+  const maxPts = Math.max(...series.flatMap((s) => s.pts), 1);
+  const yOf = (v) => mt + ph - (v / maxPts) * ph;
+
+  const CORES = ["#ffc53d","#4ade80","#60a5fa","#f472b6","#a78bfa","#fb923c","#34d399","#e879f9","#facc15","#94a3b8"];
+
+  return (
+    <div className="grafico-bloco">
+      <button className="grafico-toggle" onClick={() => setAberto((v) => !v)}>
+        📈 Evolução do ranking <span className="grafico-chevron">{aberto ? "▲" : "▼"}</span>
+      </button>
+      {aberto && (
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", marginTop: 8 }}>
+          {/* grade */}
+          {[0.25, 0.5, 0.75, 1].map((f) => (
+            <line key={f} x1={ml} y1={mt + ph * (1 - f)} x2={ml + pw} y2={mt + ph * (1 - f)}
+              stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4,4" />
+          ))}
+          {/* eixos */}
+          <line x1={ml} y1={mt} x2={ml} y2={mt + ph} stroke="rgba(255,255,255,0.18)" strokeWidth="1" />
+          <line x1={ml} y1={mt + ph} x2={ml + pw} y2={mt + ph} stroke="rgba(255,255,255,0.18)" strokeWidth="1" />
+
+          {/* linhas e pontos */}
+          {series.map((s, si) => {
+            const cor = s.avatarCor || CORES[si % CORES.length];
+            const pontos = s.pts.map((v, i) => `${xOf(i)},${yOf(v)}`).join(" ");
+            const ultimo = s.pts[n - 1];
+            return (
+              <g key={s.id}>
+                <polyline points={pontos} fill="none" stroke={cor} strokeWidth="2.5"
+                  strokeLinejoin="round" strokeLinecap="round" />
+                {s.pts.map((v, i) => (
+                  <circle key={i} cx={xOf(i)} cy={yOf(v)} r="3.5" fill={cor} />
+                ))}
+                <text x={ml + pw + 7} y={yOf(ultimo) + 4} fill={cor}
+                  fontSize="10" fontFamily="IBM Plex Mono, monospace" dominantBaseline="middle">
+                  {s.nome.split(" ")[0].slice(0, 9)}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* rótulos eixo X */}
+          {jogosEncerrados.map((j, i) => (
+            <text key={j.id} x={xOf(i)} y={mt + ph + 16} fill="rgba(255,255,255,0.35)"
+              fontSize="9" textAnchor="middle" fontFamily="IBM Plex Mono, monospace">
+              {i + 1}
+            </text>
+          ))}
+
+          {/* rótulos eixo Y */}
+          {[0, Math.round(maxPts / 2), maxPts].map((v) => (
+            <text key={v} x={ml - 4} y={yOf(v) + 3} fill="rgba(255,255,255,0.35)"
+              fontSize="9" textAnchor="end" fontFamily="IBM Plex Mono, monospace">
+              {v}
+            </text>
+          ))}
+        </svg>
+      )}
     </div>
   );
 }
@@ -2951,6 +3041,17 @@ function Estilo() {
       .botao-zap { border-color: rgba(37,211,102,.45); color: #5ddb85; }
       .botao-zap:hover:not(:disabled) { background: rgba(37,211,102,.12); border-color: rgba(37,211,102,.8); }
       .botao-zap:disabled { border-color: var(--linha); color: var(--giz); opacity: .35; }
+
+      .grafico-bloco { margin-top: 12px; margin-bottom: 4px; }
+      .grafico-toggle {
+        width: 100%; display: flex; align-items: center; justify-content: space-between;
+        background: rgba(0,0,0,.3); border: 2px solid var(--linha);
+        color: var(--ambar); font-family: 'IBM Plex Mono', monospace;
+        font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+        padding: 10px 14px; cursor: pointer; transition: background var(--t);
+      }
+      .grafico-toggle:hover { background: rgba(255,197,61,.08); }
+      .grafico-chevron { font-size: 9px; opacity: .7; }
 
       .stats-toggle {
         width: 100%; display: flex; align-items: center; justify-content: space-between;
