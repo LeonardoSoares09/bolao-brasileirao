@@ -491,15 +491,30 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar }) {
 
   return (
     <div>
-      <select className="seletor" value={jogo.id} onChange={(e) => setJogoSel(e.target.value)}>
-        {estado.jogos.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.casa} × {m.fora}
-            {fmtQuando(m) ? ` — ${fmtQuando(m)}` : ""}
-            {temResultado(m) ? ` (${m.gh}:${m.ga})` : ""}
-          </option>
-        ))}
-      </select>
+      <div className="seletor-jogos" role="listbox" aria-label="Selecionar jogo">
+        {estado.jogos.map((m) => {
+          const enc = temResultado(m);
+          const trav = comecou(m) || enc;
+          const ativo = String(m.id) === String(jogo.id);
+          const cls = "seletor-jogo" +
+            (ativo ? " sj-ativo" : "") +
+            (enc ? " sj-enc" : trav ? " sj-trav" : " sj-aberto");
+          return (
+            <button
+              key={m.id}
+              role="option"
+              aria-selected={ativo}
+              className={cls}
+              onClick={() => setJogoSel(String(m.id))}
+            >
+              <span className="sj-dot" aria-hidden="true" />
+              <span className="sj-nome">{m.casa} <span className="vs">×</span> {m.fora}</span>
+              {fmtQuando(m) && <span className="sj-quando">{fmtQuando(m)}</span>}
+              {enc && <span className="sj-placar">{m.gh}:{m.ga}</span>}
+            </button>
+          );
+        })}
+      </div>
 
       {encerrado && (
         <p className="dica">Resultado final: <strong>{jogo.casa} {jogo.gh} × {jogo.ga} {jogo.fora}</strong></p>
@@ -1086,6 +1101,53 @@ function Estilo() {
       }
 
       .seletor { margin-bottom: 12px; cursor: pointer; }
+
+      .seletor-jogos {
+        max-height: 210px;
+        overflow-y: auto;
+        border: 2px solid var(--linha);
+        margin-bottom: 14px;
+        background: rgba(0,0,0,.22);
+        scrollbar-width: thin;
+        scrollbar-color: var(--linha) transparent;
+      }
+      .seletor-jogos::-webkit-scrollbar { width: 6px; }
+      .seletor-jogos::-webkit-scrollbar-track { background: transparent; }
+      .seletor-jogos::-webkit-scrollbar-thumb { background: var(--linha); border-radius: 3px; }
+
+      .seletor-jogo {
+        display: flex; align-items: center; gap: 9px;
+        width: 100%; padding: 9px 12px;
+        border: none; border-bottom: 1px solid rgba(255,255,255,.07);
+        background: transparent; color: var(--giz); text-align: left;
+        cursor: pointer; font: 600 15px 'Barlow Condensed', sans-serif;
+        letter-spacing: .03em; transition: background-color var(--t);
+      }
+      .seletor-jogo:last-child { border-bottom: none; }
+      .seletor-jogo:hover:not(.sj-ativo) { background: rgba(255,255,255,.05); }
+      .seletor-jogo:focus-visible { outline: 2px solid var(--ambar); outline-offset: -2px; }
+
+      .sj-ativo { background: rgba(255,197,61,.1); border-left: 3px solid var(--ambar) !important; }
+
+      .sj-dot {
+        width: 8px; height: 8px; border-radius: 50%; flex: none;
+        transition: background-color var(--t);
+      }
+      .sj-aberto .sj-dot { background: #7ee2a0; box-shadow: 0 0 6px rgba(126,226,160,.5); }
+      .sj-trav   .sj-dot { background: var(--ambar); box-shadow: 0 0 6px rgba(255,197,61,.4); }
+      .sj-enc    .sj-dot { background: rgba(255,255,255,.25); }
+      .sj-enc { opacity: .65; }
+
+      .sj-nome { flex: 1; }
+      .sj-quando {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 11px; opacity: .6; white-space: nowrap; flex-shrink: 0;
+      }
+      .sj-placar {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 13px; font-weight: 700;
+        color: var(--ambar); white-space: nowrap; flex-shrink: 0;
+      }
 
       .botao {
         background: var(--ambar); color: var(--ambar-escuro);
