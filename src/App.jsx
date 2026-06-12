@@ -294,6 +294,37 @@ function Ranking({ ranking, temJogos }) {
   );
 }
 
+/* ================= AGRUPAMENTO POR DATA ================= */
+
+const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+const fmtSP = (ts) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date(ts));
+
+const chaveData = (iso) => (iso ? fmtSP(new Date(iso).getTime()) : "__semdata__");
+
+const labelData = (chave, offsetMs = 0) => {
+  if (chave === "__semdata__") return "Sem data definida";
+  const agora = Date.now() + offsetMs;
+  if (chave === fmtSP(agora))              return `Hoje · ${chave.slice(8)}/${chave.slice(5, 7)}`;
+  if (chave === fmtSP(agora + 86400000))   return `Amanhã · ${chave.slice(8)}/${chave.slice(5, 7)}`;
+  const dow = new Date(chave + "T12:00:00").getDay();
+  return `${DIAS_SEMANA[dow]} · ${chave.slice(8)}/${chave.slice(5, 7)}`;
+};
+
+const agruparPorData = (jogos) => {
+  const grupos = new Map();
+  for (const m of jogos) {
+    const chave = chaveData(m.kickoff);
+    if (!grupos.has(chave)) grupos.set(chave, []);
+    grupos.get(chave).push(m);
+  }
+  return [...grupos.entries()];
+};
+
 /* ================= COUNTDOWN ================= */
 
 const MSGS_CD = [
@@ -465,36 +496,41 @@ function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar, offs
         <Vazio texto={ehAdmin ? "Nenhum jogo ainda. Use o botão de busca ou adicione manualmente." : "O organizador ainda não cadastrou os jogos."} />
       )}
 
-      {estado.jogos.map((m, i) => {
-        const encerrado = temResultado(m);
-        const travado = comecou(m);
-        const faltam = !encerrado ? estado.participantes.length - (contagensMap[m.id] || 0) : 0;
-        return (
-          <div key={m.id} className={"cartao jogo entra-cartao" + (encerrado ? " encerrado" : "")} style={{ "--i": Math.min(i, 8) }}>
-            <div className="jogo-info">
-              <div className="jogo-times">{m.casa} <span className="vs">×</span> {m.fora}</div>
-              <div className="jogo-meta">
-                {fmtQuando(m) && <span className="jogo-quando">{fmtQuando(m)}</span>}
-                {!encerrado && travado && <span className="tag tag-travado">🔒 em jogo</span>}
-                {!encerrado && !travado && faltam > 0 && (
-                  <span className="tag tag-pendente">⚠ faltam {faltam} palpite{faltam === 1 ? "" : "s"}</span>
-                )}
-                {!encerrado && !travado && estado.participantes.length > 0 && faltam === 0 && (
-                  <span className="tag tag-ok">✓ palpites completos</span>
+      {agruparPorData(estado.jogos).map(([chave, grupo]) => (
+        <div key={chave}>
+          <div className="grupo-data-header">{labelData(chave, offsetMs)}</div>
+          {grupo.map((m, i) => {
+            const encerrado = temResultado(m);
+            const travado = comecou(m);
+            const faltam = !encerrado ? estado.participantes.length - (contagensMap[m.id] || 0) : 0;
+            return (
+              <div key={m.id} className={"cartao jogo entra-cartao" + (encerrado ? " encerrado" : "")} style={{ "--i": Math.min(i, 8) }}>
+                <div className="jogo-info">
+                  <div className="jogo-times">{m.casa} <span className="vs">×</span> {m.fora}</div>
+                  <div className="jogo-meta">
+                    {fmtQuando(m) && <span className="jogo-quando">{fmtQuando(m)}</span>}
+                    {!encerrado && travado && <span className="tag tag-travado">🔒 em jogo</span>}
+                    {!encerrado && !travado && faltam > 0 && (
+                      <span className="tag tag-pendente">⚠ faltam {faltam} palpite{faltam === 1 ? "" : "s"}</span>
+                    )}
+                    {!encerrado && !travado && estado.participantes.length > 0 && faltam === 0 && (
+                      <span className="tag tag-ok">✓ palpites completos</span>
+                    )}
+                  </div>
+                  {!encerrado && !travado && m.kickoff && (
+                    <Countdown kickoff={m.kickoff} offsetMs={offsetMs} />
+                  )}
+                </div>
+                {ehAdmin ? (
+                  <ResultadoAdmin jogo={m} salvar={salvarResultado} remover={() => delJogo(m.id)} />
+                ) : (
+                  encerrado && <div className="placar-final led-mini">{m.gh} : {m.ga}</div>
                 )}
               </div>
-              {!encerrado && !travado && m.kickoff && (
-                <Countdown kickoff={m.kickoff} offsetMs={offsetMs} />
-              )}
-            </div>
-            {ehAdmin ? (
-              <ResultadoAdmin jogo={m} salvar={salvarResultado} remover={() => delJogo(m.id)} />
-            ) : (
-              encerrado && <div className="placar-final led-mini">{m.gh} : {m.ga}</div>
-            )}
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
@@ -544,28 +580,33 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
   return (
     <div>
       <div className="seletor-jogos" role="listbox" aria-label="Selecionar jogo">
-        {estado.jogos.map((m) => {
-          const enc = temResultado(m);
-          const trav = comecou(m) || enc;
-          const ativo = String(m.id) === String(jogo.id);
-          const cls = "seletor-jogo" +
-            (ativo ? " sj-ativo" : "") +
-            (enc ? " sj-enc" : trav ? " sj-trav" : " sj-aberto");
-          return (
-            <button
-              key={m.id}
-              role="option"
-              aria-selected={ativo}
-              className={cls}
-              onClick={() => setJogoSel(String(m.id))}
-            >
-              <span className="sj-dot" aria-hidden="true" />
-              <span className="sj-nome">{m.casa} <span className="vs">×</span> {m.fora}</span>
-              {fmtQuando(m) && <span className="sj-quando">{fmtQuando(m)}</span>}
-              {enc && <span className="sj-placar">{m.gh}:{m.ga}</span>}
-            </button>
-          );
-        })}
+        {agruparPorData(estado.jogos).map(([chave, grupo]) => (
+          <div key={chave}>
+            <div className="seletor-data-header">{labelData(chave, offsetMs)}</div>
+            {grupo.map((m) => {
+              const enc = temResultado(m);
+              const trav = comecou(m) || enc;
+              const ativo = String(m.id) === String(jogo.id);
+              const cls = "seletor-jogo" +
+                (ativo ? " sj-ativo" : "") +
+                (enc ? " sj-enc" : trav ? " sj-trav" : " sj-aberto");
+              return (
+                <button
+                  key={m.id}
+                  role="option"
+                  aria-selected={ativo}
+                  className={cls}
+                  onClick={() => setJogoSel(String(m.id))}
+                >
+                  <span className="sj-dot" aria-hidden="true" />
+                  <span className="sj-nome">{m.casa} <span className="vs">×</span> {m.fora}</span>
+                  {fmtQuando(m) && <span className="sj-quando">{fmtQuando(m)}</span>}
+                  {enc && <span className="sj-placar">{m.gh}:{m.ga}</span>}
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       {!encerrado && !travado && jogo.kickoff && (
@@ -1263,6 +1304,24 @@ function Estilo() {
       .apagar:hover { border-color: var(--erro); opacity: 1; transform: scale(1.06); }
 
       .vs { opacity: .6; font-weight: 800; }
+
+      .grupo-data-header {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+        color: var(--ambar); padding: 16px 2px 6px;
+        border-bottom: 1px solid rgba(255,197,61,.25);
+        margin-bottom: 8px;
+      }
+      .grupo-data-header:first-child { padding-top: 4px; }
+
+      .seletor-data-header {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+        color: var(--ambar); padding: 6px 12px 5px;
+        background: rgba(0,0,0,.4);
+        border-bottom: 1px solid rgba(255,197,61,.2);
+        position: sticky; top: 0; z-index: 1;
+      }
 
       .jogo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
       .jogo.encerrado { border-color: var(--ambar); }
