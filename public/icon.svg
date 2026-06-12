@@ -1,35 +1,47 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Background -->
-  <rect width="512" height="512" rx="96" fill="#071a0e"/>
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="0%" r="110%">
+      <stop offset="0%" stop-color="#1d6b38"/>
+      <stop offset="100%" stop-color="#071a0e"/>
+    </radialGradient>
+    <radialGradient id="ball" cx="37%" cy="30%" r="68%">
+      <stop offset="0%"   stop-color="#ffffff"/>
+      <stop offset="50%"  stop-color="#efefef"/>
+      <stop offset="100%" stop-color="#b2b2b2"/>
+    </radialGradient>
+    <clipPath id="clip">
+      <circle cx="256" cy="242" r="165"/>
+    </clipPath>
+  </defs>
 
-  <!-- Field watermark -->
-  <circle cx="256" cy="256" r="210" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6"/>
-  <line x1="46" y1="256" x2="466" y2="256" stroke="rgba(255,255,255,0.06)" stroke-width="6"/>
+  <!-- Fundo verde -->
+  <rect width="512" height="512" fill="url(#bg)"/>
 
-  <!-- Football -->
-  <circle cx="256" cy="208" r="108" fill="white"/>
+  <!-- Sombra da bola no chão -->
+  <ellipse cx="256" cy="428" rx="118" ry="14" fill="rgba(0,0,0,0.30)"/>
 
-  <!-- Patches - classic Telstar pattern -->
-  <polygon points="256,122 233,152 242,182 270,182 279,152" fill="#1a1a1a"/>
-  <polygon points="164,184 153,217 178,238 207,227 208,195" fill="#1a1a1a"/>
-  <polygon points="348,184 304,195 305,227 334,238 359,217" fill="#1a1a1a"/>
-  <polygon points="194,258 183,287 208,301 235,285 230,255" fill="#1a1a1a"/>
-  <polygon points="318,258 282,255 277,285 304,301 329,287" fill="#1a1a1a"/>
+  <!-- Bola - base branca com gradiente 3D -->
+  <circle cx="256" cy="242" r="165" fill="url(#ball)"/>
 
-  <!-- BOLÃO -->
-  <text x="256" y="394"
-    font-size="74"
-    text-anchor="middle"
-    font-family="Impact, Arial Black, sans-serif"
-    fill="#ffc53d"
-    font-weight="900"
-    letter-spacing="4">BOLÃO</text>
+  <!-- Manchas pretas — padrão Telstar clássico -->
+  <g clip-path="url(#clip)" fill="#111111">
+    <!-- topo -->
+    <path d="M256,96 L224,126 L236,163 L276,163 L288,126 Z"/>
+    <!-- esquerda cima -->
+    <path d="M147,180 L132,220 L165,241 L198,226 L196,187 Z"/>
+    <!-- direita cima -->
+    <path d="M365,180 L316,187 L314,226 L347,241 L380,220 Z"/>
+    <!-- esquerda baixo -->
+    <path d="M176,277 L160,315 L195,333 L226,310 L218,273 Z"/>
+    <!-- direita baixo -->
+    <path d="M336,277 L294,273 L286,310 L317,333 L352,315 Z"/>
+    <!-- base -->
+    <path d="M256,342 L222,320 L202,352 L256,378 L310,352 L290,320 Z"/>
+  </g>
 
-  <!-- 2026 -->
-  <text x="256" y="458"
-    font-size="44"
-    text-anchor="middle"
-    font-family="monospace"
-    fill="rgba(255,255,255,0.32)"
-    letter-spacing="14">2026</text>
+  <!-- Highlight de luz (brilho) -->
+  <ellipse cx="204" cy="174" rx="56" ry="36"
+    fill="rgba(255,255,255,0.42)"
+    transform="rotate(-32,204,174)"
+    clip-path="url(#clip)"/>
 </svg>
