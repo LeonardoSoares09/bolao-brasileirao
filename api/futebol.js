@@ -4,6 +4,7 @@
    Somente admin. Auth via header X-Auth-Token (env FOOTBALL_DATA_KEY). */
 
 import { sql, autenticar } from "../lib/db.js";
+import { enviarPush } from "../lib/notificar.js";
 
 /* Mapa pt-BR das seleções que podem cair em Copa do Mundo.
    Não-mapeado cai no fallback: usa o próprio nome em inglês. */
@@ -312,9 +313,13 @@ export async function acaoResultados() {
          SET gh = ${gh}, ga = ${ga}
        WHERE external_id = ${externalId}
          AND (gh IS DISTINCT FROM ${gh} OR ga IS DISTINCT FROM ${ga})
-      RETURNING id
+      RETURNING id, casa, fora
     `;
-    if (rows.length > 0) atualizados++;
+    if (rows.length > 0) {
+      atualizados++;
+      const { casa, fora } = rows[0];
+      enviarPush("todos", "⚽ Resultado lançado!", `${casa} ${gh}×${ga} ${fora} — veja como ficou seu palpite!`, "/").catch(() => {});
+    }
   }
 
   return { atualizados };

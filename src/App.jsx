@@ -142,6 +142,12 @@ export default function App() {
     if (euP && !euP.pagou && !estado.eu.isAdmin) setAbrirPagamento(true);
   }, [estado]);
 
+  /* registra service worker uma vez */
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }, []);
+
   /* carga inicial + polling 30s + refetch ao voltar pra aba */
   useEffect(() => { carregar(); }, [carregar]);
   useEffect(() => {
@@ -1215,6 +1221,120 @@ function LinhaPalpite({ jogo, participante, palpite, bloqueado, destaque, token,
   );
 }
 
+/* ================= NOTIFICAÇÕES ================= */
+async function buscarVapidKey() {
+  try {
+    const r = await fetch("/api/push");
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d.vapidPublicKey || null;
+  } catch { return null; }
+}
+
+function urlBase64ToUint8Array(base64) {
+  const pad = "=".repeat((4 - (base64.length % 4)) % 4);
+  const b64 = (base64 + pad).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(b64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+function BotaoNotificacao({ token }) {
+  const [estado, setEstado] = useState("carregando");
+  // "carregando" | "nao-suportado" | "negado" | "ativo" | "inativo"
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setEstado("nao-suportado"); return;
+    }
+    if (Notification.permission === "denied") {
+      setEstado("negado"); return;
+    }
+    navigator.serviceWorker.ready.then(async (reg) => {
+      const sub = await reg.pushManager.getSubscription();
+      setEstado(sub ? "ativo" : "inativo");
+    }).catch(() => setEstado("nao-suportado"));
+  }, []);
+
+  const ativar = async () => {
+    setEstado("carregando");
+    try {
+      const vapidKey = await buscarVapidKey();
+      if (!vapidKey) { setEstado("nao-suportado"); return; }
+
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") { setEstado("negado"); return; }
+
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      });
+
+      await fetch("/api/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ t: token, subscription: sub.toJSON() }),
+      });
+      setEstado("ativo");
+    } catch { setEstado("inativo"); }
+  };
+
+  const desativar = async () => {
+    setEstado("carregando");
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await fetch("/api/push", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ t: token, endpoint: sub.endpoint }),
+        });
+        await sub.unsubscribe();
+      }
+      setEstado("inativo");
+    } catch { setEstado("inativo"); }
+  };
+
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+
+  if (estado === "nao-suportado") {
+    if (isIOS && !isStandalone) {
+      return (
+        <div className="notif-aviso">
+          📲 No iPhone, instale o app na tela de início (iOS 16.4+) para receber notificações.
+        </div>
+      );
+    }
+    return null;
+  }
+
+  return (
+    <div className="notif-bloco">
+      {estado === "negado" && (
+        <p className="notif-negado">
+          🔕 Notificações bloqueadas. Para ativar, vá em Configurações do navegador e permita notificações para este site.
+        </p>
+      )}
+      {estado !== "negado" && (
+        <button
+          className={"botao notif-btn" + (estado === "ativo" ? " notif-ativo" : "")}
+          onClick={estado === "ativo" ? desativar : ativar}
+          disabled={estado === "carregando"}
+        >
+          {estado === "carregando" && "⏳ Aguarde…"}
+          {estado === "inativo"    && "🔔 Ativar notificações"}
+          {estado === "ativo"      && "🔕 Desativar notificações"}
+        </button>
+      )}
+      {estado === "ativo" && (
+        <p className="notif-dica">Você receberá lembretes de palpites pendentes e resultados lançados.</p>
+      )}
+    </div>
+  );
+}
+
 /* ================= TIMER PAGAMENTO ================= */
 function TimerPagamento() {
   const DEADLINE = new Date("2026-06-13T21:59:00Z"); // 18:59 BRT (UTC-3)
@@ -1323,6 +1443,7 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
     return (
       <div>
         <TimerPagamento />
+        <BotaoNotificacao token={token} />
         {estado.participantes.length === 0 && <Vazio texto="Ainda não há participantes." />}
         {estado.participantes.map((p, i) => (
           <div key={p.id} className="cartao palpite-linha entra-cartao" style={{ "--i": Math.min(i, 8) }}>
@@ -1352,6 +1473,7 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
       </div>
 
       <TimerPagamento />
+      <BotaoNotificacao token={token} />
 
       {aviso && <p className="dica toast" role="status">{aviso}</p>}
 
@@ -3067,6 +3189,18 @@ function Estilo() {
         background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15);
         color: rgba(255,255,255,0.45); padding: 1px 5px; border-radius: 3px;
         white-space: nowrap; letter-spacing: .03em;
+      }
+
+      .notif-bloco { margin: 8px 0 12px; }
+      .notif-btn { width: 100%; justify-content: center; }
+      .notif-ativo { background: rgba(74,222,128,.12); border-color: #4ade80; color: #4ade80; }
+      .notif-ativo:hover { background: rgba(74,222,128,.2); }
+      .notif-dica { font-size: 12px; color: rgba(255,255,255,.4); margin: 6px 0 0; text-align: center; }
+      .notif-negado { font-size: 12px; color: var(--erro); margin: 0; line-height: 1.5; }
+      .notif-aviso {
+        font-size: 12px; color: rgba(255,255,255,.5); background: rgba(0,0,0,.2);
+        border: 1px solid var(--linha); border-radius: 6px; padding: 10px 12px;
+        margin: 8px 0 12px; line-height: 1.5;
       }
 
       .grafico-bloco { margin-top: 12px; margin-bottom: 4px; }
