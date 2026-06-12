@@ -96,11 +96,13 @@ export default function App() {
   const [tab, setTab] = useState("ranking");
   const [abrirPerfil, setAbrirPerfil] = useState(false);
   const [abrirRegras, setAbrirRegras] = useState(false);
+  const [abrirPagamento, setAbrirPagamento] = useState(false);
   const [participanteModal, setParticipanteModal] = useState(null);
   const [proximoFechado, setProximoFechado] = useState(false);
   const [jogoPreSel, setJogoPreSel] = useState(null);
   const offsetRef = useRef(0);
   const rankingJaAbriu = useRef(false);
+  const pagamentoVerificado = useRef(false);
   const [, setTick] = useState(0);
 
   const carregar = useCallback(async () => {
@@ -122,6 +124,14 @@ export default function App() {
     });
     await carregar();
   }, [token, carregar]);
+
+  /* abre popup de pagamento na primeira carga, uma vez por sessão */
+  useEffect(() => {
+    if (!estado || pagamentoVerificado.current) return;
+    pagamentoVerificado.current = true;
+    const euP = estado.participantes.find((p) => p.id === estado.eu.id);
+    if (euP && !euP.pagou && !estado.eu.isAdmin) setAbrirPagamento(true);
+  }, [estado]);
 
   /* carga inicial + polling 30s + refetch ao voltar pra aba */
   useEffect(() => { carregar(); }, [carregar]);
@@ -281,6 +291,7 @@ export default function App() {
       </header>
 
       {abrirRegras && <ModalRegras onFechar={() => setAbrirRegras(false)} />}
+      {abrirPagamento && <ModalPagamento onFechar={() => setAbrirPagamento(false)} />}
 
       {abrirPerfil && estado.eu.id !== null && (
         <PerfilPicker
@@ -2055,6 +2066,78 @@ function Campeao({ token, euId }) {
 }
 
 /* ================= MODAL REGRAS ================= */
+/* ================= MODAL PAGAMENTO ================= */
+function ModalPagamento({ onFechar }) {
+  const DEADLINE = new Date("2026-06-13T21:59:00Z");
+  const [seg, setSeg] = useState(() => Math.max(0, Math.floor((DEADLINE - Date.now()) / 1000)));
+  const [copiado, setCopiado] = useState(false);
+  const PIX = "04554360024";
+
+  useEffect(() => {
+    if (seg <= 0) return;
+    const id = setInterval(() => setSeg(Math.max(0, Math.floor((DEADLINE - Date.now()) / 1000))), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const copiarPix = async () => {
+    try {
+      await navigator.clipboard.writeText(PIX);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2500);
+    } catch { /* silencioso */ }
+  };
+
+  const pad = (n) => String(n).padStart(2, "0");
+  const h = Math.floor(seg / 3600);
+  const m = Math.floor((seg % 3600) / 60);
+  const s = seg % 60;
+
+  return (
+    <div className="modal-overlay" onClick={onFechar}>
+      <div className="modal-painel modal-pagamento" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-nome">💸 Pagamento pendente</div>
+          <button className="apagar" onClick={onFechar} aria-label="Fechar">✕</button>
+        </div>
+
+        <div className="pagamento-corpo">
+          <p className="pagamento-aviso">Você ainda não confirmou seu pagamento.<br/>Garante sua vaga no bolão!</p>
+
+          <div className="pagamento-valor">R$ 20,00</div>
+
+          <div className="pagamento-pix-bloco">
+            <span className="pagamento-pix-label">Chave PIX (CPF)</span>
+            <div className="pagamento-pix-linha">
+              <span className="pagamento-pix-chave">{PIX}</span>
+              <button className="botao pagamento-copiar" onClick={copiarPix}>
+                {copiado ? "✓ Copiado!" : "📋 Copiar"}
+              </button>
+            </div>
+          </div>
+
+          {seg > 0 && (
+            <div className="pagamento-timer">
+              <span className="timer-label">⏰ Prazo encerra em</span>
+              <div className="timer-display">
+                <span className="timer-bloco"><span className="timer-num">{pad(h)}</span><span className="timer-unidade">h</span></span>
+                <span className="timer-sep">:</span>
+                <span className="timer-bloco"><span className="timer-num">{pad(m)}</span><span className="timer-unidade">m</span></span>
+                <span className="timer-sep">:</span>
+                <span className="timer-bloco"><span className="timer-num">{pad(s)}</span><span className="timer-unidade">s</span></span>
+              </div>
+              <span className="timer-data">13/06 às 18:59</span>
+            </div>
+          )}
+
+          <button className="botao-fantasma pagamento-fechar" onClick={onFechar}>
+            Já paguei / fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ModalRegras({ onFechar }) {
   return (
     <div className="modal-overlay" onClick={onFechar}>
@@ -2576,6 +2659,34 @@ function Estilo() {
       .timer-unidade { font-size: 11px; color: #d97706; font-weight: 600; }
       .timer-sep { font-family: 'IBM Plex Mono', monospace; font-size: 22px; color: #92400e; font-weight: 700; padding: 0 2px; }
       .timer-data { font-size: 11px; color: #78350f; }
+
+      .modal-pagamento { max-width: 340px; }
+      .pagamento-corpo {
+        display: flex; flex-direction: column; align-items: center;
+        gap: 18px; padding: 4px 0 8px;
+      }
+      .pagamento-aviso { text-align: center; font-size: 14px; color: #ccc; line-height: 1.5; margin: 0; }
+      .pagamento-valor {
+        font-family: 'IBM Plex Mono', monospace; font-size: 42px; font-weight: 700;
+        color: #4ade80; letter-spacing: -.02em;
+      }
+      .pagamento-pix-bloco {
+        width: 100%; background: #111; border: 1px solid #333;
+        border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
+      }
+      .pagamento-pix-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; color: #888; text-transform: uppercase; }
+      .pagamento-pix-linha { display: flex; align-items: center; gap: 10px; }
+      .pagamento-pix-chave {
+        font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #e2e8f0; flex: 1;
+        letter-spacing: .04em;
+      }
+      .pagamento-copiar { padding: 6px 12px; font-size: 13px; white-space: nowrap; }
+      .pagamento-timer {
+        width: 100%; background: linear-gradient(135deg, #1a0a00, #2a1200);
+        border: 1px solid #92400e; border-radius: 10px;
+        padding: 12px 16px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+      }
+      .pagamento-fechar { width: 100%; justify-content: center; opacity: .6; font-size: 13px; }
 
       .vs { opacity: .6; font-weight: 800; }
 
