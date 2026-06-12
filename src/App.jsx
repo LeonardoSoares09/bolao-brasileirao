@@ -1094,6 +1094,42 @@ function LinhaPalpite({ jogo, participante, palpite, bloqueado, destaque, token,
   );
 }
 
+/* ================= TIMER PAGAMENTO ================= */
+function TimerPagamento() {
+  const DEADLINE = new Date("2026-06-13T21:59:00Z"); // 18:59 BRT (UTC-3)
+  const [seg, setSeg] = useState(() => Math.max(0, Math.floor((DEADLINE - Date.now()) / 1000)));
+
+  useEffect(() => {
+    if (seg <= 0) return;
+    const id = setInterval(() => {
+      const diff = Math.max(0, Math.floor((DEADLINE - Date.now()) / 1000));
+      setSeg(diff);
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (seg <= 0) return null;
+
+  const h = Math.floor(seg / 3600);
+  const m = Math.floor((seg % 3600) / 60);
+  const s = seg % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+
+  return (
+    <div className="timer-pagamento">
+      <span className="timer-label">⏰ Prazo para pagamento</span>
+      <div className="timer-display">
+        <span className="timer-bloco"><span className="timer-num">{pad(h)}</span><span className="timer-unidade">h</span></span>
+        <span className="timer-sep">:</span>
+        <span className="timer-bloco"><span className="timer-num">{pad(m)}</span><span className="timer-unidade">m</span></span>
+        <span className="timer-sep">:</span>
+        <span className="timer-bloco"><span className="timer-num">{pad(s)}</span><span className="timer-unidade">s</span></span>
+      </div>
+      <span className="timer-data">13/06 às 18:59</span>
+    </div>
+  );
+}
+
 /* ================= GALERA ================= */
 function Galera({ estado, ehAdmin, token, recarregar }) {
   const [nome, setNome] = useState("");
@@ -1165,6 +1201,7 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
   if (!ehAdmin) {
     return (
       <div>
+        <TimerPagamento />
         {estado.participantes.length === 0 && <Vazio texto="Ainda não há participantes." />}
         {estado.participantes.map((p, i) => (
           <div key={p.id} className="cartao palpite-linha entra-cartao" style={{ "--i": Math.min(i, 8) }}>
@@ -1192,6 +1229,8 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
           também é organizador (pode lançar jogos e resultados)
         </label>
       </div>
+
+      <TimerPagamento />
 
       {aviso && <p className="dica toast" role="status">{aviso}</p>}
 
@@ -2520,6 +2559,23 @@ function Estilo() {
         padding: 10px 14px; margin-bottom: 8px;
       }
       .resumo-pagamento-txt { font-size: 13px; color: #ccc; }
+
+      .timer-pagamento {
+        background: linear-gradient(135deg, #1a0a00, #2a1200);
+        border: 1px solid #92400e; border-radius: 10px;
+        padding: 12px 16px; margin-bottom: 12px;
+        display: flex; flex-direction: column; align-items: center; gap: 6px;
+      }
+      .timer-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: #fbbf24; text-transform: uppercase; }
+      .timer-display { display: flex; align-items: center; gap: 4px; }
+      .timer-bloco { display: flex; align-items: baseline; gap: 1px; }
+      .timer-num {
+        font-family: 'IBM Plex Mono', monospace; font-size: 28px; font-weight: 700;
+        color: #fcd34d; line-height: 1;
+      }
+      .timer-unidade { font-size: 11px; color: #d97706; font-weight: 600; }
+      .timer-sep { font-family: 'IBM Plex Mono', monospace; font-size: 22px; color: #92400e; font-weight: 700; padding: 0 2px; }
+      .timer-data { font-size: 11px; color: #78350f; }
 
       .vs { opacity: .6; font-weight: 800; }
 
