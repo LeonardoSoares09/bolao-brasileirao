@@ -2357,8 +2357,8 @@ function Estilo() {
       @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=IBM+Plex+Mono:wght@500;700&display=swap');
 
       .bolao-root {
-        --grama: #0d3a21;
-        --grama2: #114a2a;
+        --grama: #0b3320;
+        --grama2: #134f2d;
         --linha: rgba(255,255,255,.28);
         --giz: #f2f6ef;
         --ambar: #ffc53d;
@@ -2367,7 +2367,7 @@ function Estilo() {
         --t: .22s cubic-bezier(.2,.7,.3,1);
         min-height: 100vh;
         background:
-          repeating-linear-gradient(90deg, var(--grama) 0 72px, var(--grama2) 72px 144px);
+          repeating-linear-gradient(180deg, var(--grama) 0 52px, var(--grama2) 52px 104px);
         color: var(--giz);
         font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
         padding: 28px 16px 64px;
