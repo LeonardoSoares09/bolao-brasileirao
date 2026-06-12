@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   }
 
   const [participantes, jogos, contagens, palpitesCampeao, palpitesArtilheiro, resultadoEspecialRows, premiadosArtilheiro, primeiroPalpitesRows] = await Promise.all([
-    sql`SELECT id, nome, is_admin, avatar_emoji, avatar_cor FROM participantes ORDER BY nome`,
+    sql`SELECT id, nome, is_admin, avatar_emoji, avatar_cor, pagou FROM participantes ORDER BY nome`,
     sql`SELECT id, casa, fora, kickoff, gh, ga, fase FROM jogos ORDER BY kickoff NULLS LAST, id`,
     sql`SELECT jogo_id, COUNT(*)::int AS total FROM palpites GROUP BY jogo_id`,
     sql`SELECT participante_id, selecao FROM palpite_campeao WHERE confirmado = TRUE`,
@@ -44,7 +44,7 @@ export default async function handler(req, res) {
     eu: { id: eu.id, nome: eu.nome, isAdmin: eu.isAdmin },
     participantes: participantes.map((p) => ({
       id: p.id, nome: p.nome,
-      avatarEmoji: p.avatar_emoji, avatarCor: p.avatar_cor,
+      avatarEmoji: p.avatar_emoji, avatarCor: p.avatar_cor, pagou: p.pagou,
     })),
     jogos,
     palpites,

@@ -38,15 +38,28 @@ export default async function handler(req, res) {
 
   if (req.method === "GET") {
     const rows = await sql`
-      SELECT id, nome, token, is_admin, avatar_emoji, avatar_cor
+      SELECT id, nome, token, is_admin, avatar_emoji, avatar_cor, pagou
       FROM participantes ORDER BY nome
     `;
     res.status(200).json({
       participantes: rows.map((p) => ({
         id: p.id, nome: p.nome, token: p.token,
         isAdmin: p.is_admin, avatarEmoji: p.avatar_emoji, avatarCor: p.avatar_cor,
+        pagou: p.pagou,
       })),
     });
+    return;
+  }
+
+  if (req.method === "PUT") {
+    const id = intOuNull(req.body?.id);
+    if (id === null) {
+      res.status(400).json({ error: "id obrigatório" });
+      return;
+    }
+    const pagou = req.body?.pagou === true;
+    await sql`UPDATE participantes SET pagou = ${pagou} WHERE id = ${id}`;
+    res.status(200).json({ ok: true });
     return;
   }
 

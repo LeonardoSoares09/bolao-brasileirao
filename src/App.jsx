@@ -1101,6 +1101,7 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
   const [lista, setLista] = useState(null); /* com tokens, só admin */
   const [aviso, setAviso] = useState("");
   const [copiado, setCopiado] = useState(null);
+  const [toggling, setToggling] = useState(null);
 
   const carregarLista = useCallback(async () => {
     if (!ehAdmin) return;
@@ -1140,6 +1141,16 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
     } catch (e) { setAviso(e.message); }
   };
 
+  const togglePagou = async (p) => {
+    setToggling(p.id);
+    try {
+      await api("/api/participante", { method: "PUT", body: JSON.stringify({ t: token, id: p.id, pagou: !p.pagou }) });
+      await carregarLista();
+      recarregar();
+    } catch (e) { setAviso(e.message); }
+    finally { setToggling(null); }
+  };
+
   const copiarLink = async (p) => {
     const url = `${window.location.origin}/?t=${p.token}`;
     try {
@@ -1159,6 +1170,9 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
           <div key={p.id} className="cartao palpite-linha entra-cartao" style={{ "--i": Math.min(i, 8) }}>
             <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={30} />
             <span className="palpite-nome">{p.nome}{p.id === estado.eu.id ? " (você)" : ""}</span>
+            <span className={p.pagou ? "badge-pago" : "badge-pendente"}>
+              {p.pagou ? "✅ Pago" : "⏳ Pendente"}
+            </span>
           </div>
         ))}
       </div>
@@ -1183,11 +1197,31 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
 
       {lista === null && <p className="dica">Carregando…</p>}
       {lista && lista.length === 0 && <Vazio texto="Adicione os 9 nomes do grupo — cada um ganha um link próprio." />}
+      {lista && lista.length > 0 && (() => {
+        const pagos = lista.filter((p) => p.pagou).length;
+        const total = lista.length;
+        const caixa = pagos * 20;
+        return (
+          <div className="resumo-pagamento">
+            <span className="resumo-pagamento-txt">
+              💰 {pagos}/{total} pagaram · <strong>R$ {caixa} em caixa</strong>
+            </span>
+          </div>
+        );
+      })()}
       {lista &&
         lista.map((p, i) => (
           <div key={p.id} className="cartao palpite-linha entra-cartao" style={{ "--i": Math.min(i, 8) }}>
             <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={30} />
             <span className="palpite-nome">{p.nome}{p.isAdmin ? " ⭐" : ""}</span>
+            <button
+              className={p.pagou ? "badge-pago badge-btn" : "badge-pendente badge-btn"}
+              onClick={() => togglePagou(p)}
+              disabled={toggling === p.id}
+              title={p.pagou ? "Clique para desmarcar" : "Clique para marcar como pago"}
+            >
+              {p.pagou ? "✅ Pago" : "⏳ Pendente"}
+            </button>
             <button className="botao-fantasma" onClick={() => copiarLink(p)}>
               {copiado === p.id ? "✓ Copiado" : "📋 Copiar link"}
             </button>
@@ -2467,6 +2501,25 @@ function Estilo() {
         transition: border-color var(--t), transform var(--t); opacity: .75;
       }
       .apagar:hover { border-color: var(--erro); opacity: 1; transform: scale(1.06); }
+
+      .badge-pago, .badge-pendente {
+        font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700;
+        padding: 3px 8px; border-radius: 4px; white-space: nowrap;
+      }
+      .badge-pago { background: #14532d; color: #86efac; }
+      .badge-pendente { background: #451a03; color: #fcd34d; }
+      .badge-btn {
+        border: none; cursor: pointer;
+        transition: opacity var(--t), transform var(--t);
+      }
+      .badge-btn:hover { opacity: .8; transform: scale(1.05); }
+      .badge-btn:disabled { opacity: .5; cursor: default; transform: none; }
+
+      .resumo-pagamento {
+        background: #1a1a1a; border: 1px solid #333; border-radius: 8px;
+        padding: 10px 14px; margin-bottom: 8px;
+      }
+      .resumo-pagamento-txt { font-size: 13px; color: #ccc; }
 
       .vs { opacity: .6; font-weight: 800; }
 
