@@ -95,6 +95,7 @@ export default function App() {
   const [erroAuth, setErroAuth] = useState("");
   const [tab, setTab] = useState("ranking");
   const [abrirPerfil, setAbrirPerfil] = useState(false);
+  const [participanteModal, setParticipanteModal] = useState(null);
   const offsetRef = useRef(0);
   const rankingJaAbriu = useRef(false);
   const [, setTick] = useState(0);
@@ -267,6 +268,16 @@ export default function App() {
         />
       )}
 
+      {participanteModal && (
+        <ModalPalpites
+          participante={participanteModal}
+          jogos={estado.jogos}
+          palpitesMap={palpitesMap}
+          euId={estado.eu.id}
+          onFechar={() => setParticipanteModal(null)}
+        />
+      )}
+
       <nav className="abas entra-2" role="tablist">
         {[
           ["ranking", "Ranking"],
@@ -295,6 +306,7 @@ export default function App() {
             primeiraVez={!rankingJaAbriu.current}
             aoAbrir={() => { rankingJaAbriu.current = true; }}
             posAntes={posAntes}
+            onClickParticipante={setParticipanteModal}
           />
         )}
         {tab === "jogos" && (
@@ -349,7 +361,7 @@ function LedPontos({ valor }) {
   return <span className="col-pts led">{v}</span>;
 }
 
-function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes }) {
+function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickParticipante }) {
   useEffect(() => { aoAbrir(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (ranking.length === 0)
     return <Vazio texto="O organizador ainda não cadastrou os participantes." />;
@@ -377,7 +389,9 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes }) {
           <div
             key={p.id}
             className={cls}
-            style={{ "--i": Math.min(i, 10), position: "relative", overflow: "visible" }}
+            style={{ "--i": Math.min(i, 10), position: "relative", overflow: "visible", cursor: "pointer" }}
+            onClick={() => onClickParticipante(p)}
+            title={`Ver palpites de ${p.nome}`}
           >
             {p.exatosHoje > 0 && primeiraVez && (
               <span
@@ -1744,6 +1758,76 @@ function Campeao({ token, euId }) {
   );
 }
 
+/* ================= MODAL PALPITES ================= */
+function ModalPalpites({ participante, jogos, palpitesMap, euId, onFechar }) {
+  const encerrados = [...jogos]
+    .filter(temResultado)
+    .sort((a, b) => {
+      if (!a.kickoff && !b.kickoff) return 0;
+      if (!a.kickoff) return 1;
+      if (!b.kickoff) return -1;
+      return new Date(b.kickoff) - new Date(a.kickoff);
+    });
+
+  let totalPts = 0, totalExatos = 0, totalResultados = 0;
+  for (const m of encerrados) {
+    const pts = pontosDoPalpite(palpitesMap[m.id]?.[participante.id], m);
+    if (pts === PTS_EXATO) { totalExatos++; totalPts += pts; }
+    else if (pts === PTS_RESULTADO) { totalResultados++; totalPts += pts; }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onFechar}>
+      <div className="modal-painel" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <Avatar nome={participante.nome} emoji={participante.avatarEmoji} cor={participante.avatarCor} size={44} />
+            <div>
+              <div className="modal-nome">
+                {participante.nome}{participante.id === euId ? " (você)" : ""}
+              </div>
+              <div className="modal-stats">
+                {totalPts} pts · {totalExatos} exato{totalExatos !== 1 ? "s" : ""} · {totalResultados} resultado{totalResultados !== 1 ? "s" : ""}
+              </div>
+            </div>
+          </div>
+          <button className="apagar" onClick={onFechar} aria-label="Fechar">✕</button>
+        </div>
+
+        {encerrados.length === 0 && <Vazio texto="Nenhum jogo encerrado ainda." />}
+
+        {encerrados.map((m, i) => {
+          const palpite = palpitesMap[m.id]?.[participante.id];
+          const pts = pontosDoPalpite(palpite, m);
+          const cls = "modal-jogo"
+            + (pts === PTS_EXATO ? " modal-jogo-exato" : "")
+            + (pts === PTS_RESULTADO ? " modal-jogo-ok" : "")
+            + (pts === 0 ? " modal-jogo-miss" : "");
+          return (
+            <div key={m.id} className={cls} style={{ "--i": Math.min(i, 14) }}>
+              <div className="modal-jogo-times">
+                {fl(m.casa)}{m.casa}
+                <span className="modal-placar-final">{m.gh}–{m.ga}</span>
+                {fl(m.fora)}{m.fora}
+              </div>
+              <div className="modal-jogo-direita">
+                {palpite
+                  ? <span className="modal-palpite">{palpite.h}–{palpite.a}</span>
+                  : <span className="modal-sem-palpite">sem palpite</span>
+                }
+                {pts === PTS_EXATO    && <span className="pts pts-3">🎯</span>}
+                {pts === PTS_RESULTADO && <span className="pts pts-1">✓</span>}
+                {pts === 0            && <span className="pts pts-0">✕</span>}
+                {pts === null         && <span className="pts pts-0">—</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Vazio({ texto }) {
   return (
     <div className="vazio">
@@ -2138,6 +2222,45 @@ function Estilo() {
       }
       .trend-up   { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; color: #7ee2a0; white-space: nowrap; flex: none; }
       .trend-down { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; color: var(--erro); white-space: nowrap; flex: none; }
+
+      .modal-overlay {
+        position: fixed; inset: 0; z-index: 100;
+        background: rgba(0,0,0,.7); backdrop-filter: blur(3px);
+        display: flex; align-items: flex-end; justify-content: center;
+        animation: fade-modal .2s ease both;
+      }
+      @keyframes fade-modal { from { opacity: 0; } to { opacity: 1; } }
+      .modal-painel {
+        width: 100%; max-width: 680px; max-height: 84vh; overflow-y: auto;
+        background: var(--grama); border: 2px solid var(--linha); border-bottom: none;
+        padding: 18px 16px 48px;
+        animation: sobe .28s var(--t) both;
+        scrollbar-width: thin; scrollbar-color: var(--linha) transparent;
+      }
+      .modal-painel::-webkit-scrollbar { width: 5px; }
+      .modal-painel::-webkit-scrollbar-thumb { background: var(--linha); border-radius: 3px; }
+      .modal-header {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; margin-bottom: 16px; padding-bottom: 14px;
+        border-bottom: 1px solid var(--linha);
+      }
+      .modal-nome { font-size: 22px; font-weight: 800; letter-spacing: .03em; }
+      .modal-stats { font-family: 'IBM Plex Mono', monospace; font-size: 10px; opacity: .7; letter-spacing: .1em; margin-top: 3px; }
+      .modal-jogo {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        padding: 9px 10px; border-bottom: 1px solid rgba(255,255,255,.07);
+        font-size: 14px; font-weight: 600;
+        animation: sobe .35s var(--t) both; animation-delay: calc(var(--i, 0) * 22ms);
+      }
+      .modal-jogo:last-child { border-bottom: none; }
+      .modal-jogo-exato { background: rgba(255,197,61,.08); border-left: 3px solid var(--ambar); }
+      .modal-jogo-ok    { border-left: 3px solid rgba(255,255,255,.2); }
+      .modal-jogo-miss  { opacity: .45; }
+      .modal-jogo-times { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+      .modal-placar-final { font-family: 'IBM Plex Mono', monospace; font-size: 12px; opacity: .55; margin: 0 4px; }
+      .modal-jogo-direita { display: flex; align-items: center; gap: 8px; flex: none; }
+      .modal-palpite { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 700; color: var(--ambar); }
+      .modal-sem-palpite { font-family: 'IBM Plex Mono', monospace; font-size: 11px; opacity: .3; }
 
       @keyframes gol {
         0%   { opacity: 0; transform: translate(-50%, 4px) scale(.6); }
