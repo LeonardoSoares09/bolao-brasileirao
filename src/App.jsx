@@ -200,6 +200,36 @@ export default function App() {
     })
     .sort((a, b) => b.pontos - a.pontos || b.exatos - a.exatos || a.nome.localeCompare(b.nome));
 
+  /* posições antes dos jogos de hoje — para setas de tendência */
+  const posAntes = {};
+  const temJogoEncerradoHoje = estado.jogos.some(
+    (m) => temResultado(m) && m.kickoff && chaveData(m.kickoff) === hojeKey
+  );
+  if (temJogoEncerradoHoje) {
+    const re = estado.resultadoEspecial;
+    const antesLista = estado.participantes.map((p) => {
+      let bonus = 0;
+      if (re?.campeao?.confirmado) {
+        const ok = (estado.palpitesCampeao || []).some(
+          (pc) => pc.participante_id === p.id && pc.selecao === re.campeao.valor
+        );
+        if (ok) bonus += 15;
+      }
+      if (re?.artilheiro?.confirmado) {
+        if ((estado.premiadosArtilheiro || []).includes(p.id)) bonus += 9;
+      }
+      let pontos = bonus, exatos = 0;
+      for (const m of estado.jogos) {
+        if (m.kickoff && chaveData(m.kickoff) === hojeKey) continue;
+        const pts = pontosDoPalpite(palpitesMap[m.id]?.[p.id], m);
+        if (pts === PTS_EXATO) { exatos++; pontos += pts; }
+        else if (pts === PTS_RESULTADO) { pontos += pts; }
+      }
+      return { id: p.id, nome: p.nome, pontos, exatos };
+    }).sort((a, b) => b.pontos - a.pontos || b.exatos - a.exatos || a.nome.localeCompare(b.nome));
+    antesLista.forEach((p, i) => { posAntes[p.id] = i; });
+  }
+
   const encerrados = estado.jogos.filter(temResultado).length;
   const ehAdmin = estado.eu.isAdmin;
   const euParticipante = estado.participantes.find((p) => p.id === estado.eu.id);
@@ -264,6 +294,7 @@ export default function App() {
             temJogos={encerrados > 0}
             primeiraVez={!rankingJaAbriu.current}
             aoAbrir={() => { rankingJaAbriu.current = true; }}
+            posAntes={posAntes}
           />
         )}
         {tab === "jogos" && (
@@ -318,7 +349,7 @@ function LedPontos({ valor }) {
   return <span className="col-pts led">{v}</span>;
 }
 
-function Ranking({ ranking, temJogos, primeiraVez, aoAbrir }) {
+function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes }) {
   useEffect(() => { aoAbrir(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (ranking.length === 0)
     return <Vazio texto="O organizador ainda não cadastrou os participantes." />;
@@ -362,6 +393,12 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir }) {
               <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={24} />
               <span>{p.nome}{i === 0 && p.pontos > 0 ? " 🏆" : ""}</span>
               {p.bonus > 0 && <span className="bonus-badge" title={`bônus: +${p.bonus} pts`}>+{p.bonus}</span>}
+              {posAntes[p.id] !== undefined && posAntes[p.id] > i && (
+                <span className="trend-up">↑{posAntes[p.id] - i}</span>
+              )}
+              {posAntes[p.id] !== undefined && posAntes[p.id] < i && (
+                <span className="trend-down">↓{i - posAntes[p.id]}</span>
+              )}
             </span>
             <span className="col-num">{p.exatos}</span>
             <span className="col-num">{p.resultados}</span>
@@ -2018,6 +2055,8 @@ function Estilo() {
         color: #7ee2a0; border: 1.5px solid #7ee2a0; padding: 1px 5px;
         white-space: nowrap; flex: none;
       }
+      .trend-up   { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; color: #7ee2a0; white-space: nowrap; flex: none; }
+      .trend-down { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; color: var(--erro); white-space: nowrap; flex: none; }
 
       @keyframes gol {
         0%   { opacity: 0; transform: translate(-50%, 4px) scale(.6); }
