@@ -96,6 +96,8 @@ export default function App() {
   const [tab, setTab] = useState("ranking");
   const [abrirPerfil, setAbrirPerfil] = useState(false);
   const [participanteModal, setParticipanteModal] = useState(null);
+  const [proximoFechado, setProximoFechado] = useState(false);
+  const [jogoPreSel, setJogoPreSel] = useState(null);
   const offsetRef = useRef(0);
   const rankingJaAbriu = useRef(false);
   const [, setTick] = useState(0);
@@ -134,6 +136,11 @@ export default function App() {
       document.removeEventListener("visibilitychange", onFoco);
     };
   }, [token, carregar]);
+
+  const irParaPalpites = useCallback((jogoId) => {
+    setJogoPreSel(jogoId);
+    setTab("palpites");
+  }, []);
 
   /* hora do SERVIDOR (relógio do celular do amigo não manda aqui) */
   const agoraServ = () => new Date(Date.now() + offsetRef.current);
@@ -267,7 +274,14 @@ export default function App() {
         />
       )}
 
-      <ProximoJogo jogos={estado.jogos} offsetMs={offsetRef.current} />
+      {!proximoFechado && (
+        <ProximoJogo
+          jogos={estado.jogos}
+          offsetMs={offsetRef.current}
+          onFechar={() => setProximoFechado(true)}
+          onNavegar={irParaPalpites}
+        />
+      )}
 
       {participanteModal && (
         <ModalPalpites
@@ -329,6 +343,7 @@ export default function App() {
             token={token}
             recarregar={carregar}
             offsetMs={offsetRef.current}
+            jogoInicial={jogoPreSel}
           />
         )}
         {tab === "campeao" && (
@@ -699,9 +714,28 @@ function ResultadoAdmin({ jogo, salvar, remover }) {
 }
 
 /* ================= PALPITES ================= */
-function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 0 }) {
-  const [jogoSel, setJogoSel] = useState("");
+function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 0, jogoInicial = null }) {
+  const [jogoSel, setJogoSel] = useState(jogoInicial ? String(jogoInicial) : "");
   const jogo = estado.jogos.find((m) => String(m.id) === String(jogoSel)) || estado.jogos[0];
+
+  const hoje = fmtSP(Date.now() + offsetMs);
+  const [gruposAbertos, setGruposAbertos] = useState(() => {
+    const abertos = new Set();
+    for (const [chave] of agruparPorData(estado.jogos)) {
+      if (chave >= hoje || chave === "__semdata__") abertos.add(chave);
+    }
+    if (jogoInicial) {
+      const j = estado.jogos.find((m) => m.id === jogoInicial);
+      if (j?.kickoff) abertos.add(chaveData(j.kickoff));
+    }
+    return abertos;
+  });
+  const toggleGrupo = (chave) =>
+    setGruposAbertos((prev) => {
+      const s = new Set(prev);
+      s.has(chave) ? s.delete(chave) : s.add(chave);
+      return s;
+    });
 
   if (estado.jogos.length === 0) return <Vazio texto="Ainda não há jogos cadastrados." />;
   if (estado.participantes.length === 0) return <Vazio texto="Ainda não há participantes cadastrados." />;
@@ -714,33 +748,47 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
   return (
     <div>
       <div className="seletor-jogos" role="listbox" aria-label="Selecionar jogo">
-        {agruparPorData(estado.jogos).map(([chave, grupo]) => (
-          <div key={chave}>
-            <div className="seletor-data-header">{labelData(chave, offsetMs)}</div>
-            {grupo.map((m) => {
-              const enc = temResultado(m);
-              const trav = comecou(m) || enc;
-              const ativo = String(m.id) === String(jogo.id);
-              const cls = "seletor-jogo" +
-                (ativo ? " sj-ativo" : "") +
-                (enc ? " sj-enc" : trav ? " sj-trav" : " sj-aberto");
-              return (
-                <button
-                  key={m.id}
-                  role="option"
-                  aria-selected={ativo}
-                  className={cls}
-                  onClick={() => setJogoSel(String(m.id))}
-                >
-                  <span className="sj-dot" aria-hidden="true" />
-                  <span className="sj-nome">{fl(m.casa)}{m.casa} <span className="vs">×</span> {fl(m.fora)}{m.fora}</span>
-                  {fmtQuando(m) && <span className="sj-quando">{fmtQuando(m)}</span>}
-                  {enc && <span className="sj-placar">{m.gh}:{m.ga}</span>}
-                </button>
-              );
-            })}
-          </div>
-        ))}
+        {agruparPorData(estado.jogos).map(([chave, grupo]) => {
+          const aberto = gruposAbertos.has(chave);
+          const encGrupo = grupo.filter(temResultado).length;
+          return (
+            <div key={chave}>
+              <button
+                className="seletor-data-header"
+                onClick={() => toggleGrupo(chave)}
+                aria-expanded={aberto}
+              >
+                <span>{labelData(chave, offsetMs)}</span>
+                <span className="seletor-data-info">
+                  {encGrupo > 0 && <span className="seletor-data-cnt">{encGrupo}/{grupo.length}</span>}
+                  <span className="seletor-data-chevron">{aberto ? "▾" : "▸"}</span>
+                </span>
+              </button>
+              {aberto && grupo.map((m) => {
+                const enc = temResultado(m);
+                const trav = comecou(m) || enc;
+                const ativo = String(m.id) === String(jogo.id);
+                const cls = "seletor-jogo" +
+                  (ativo ? " sj-ativo" : "") +
+                  (enc ? " sj-enc" : trav ? " sj-trav" : " sj-aberto");
+                return (
+                  <button
+                    key={m.id}
+                    role="option"
+                    aria-selected={ativo}
+                    className={cls}
+                    onClick={() => setJogoSel(String(m.id))}
+                  >
+                    <span className="sj-dot" aria-hidden="true" />
+                    <span className="sj-nome">{fl(m.casa)}{m.casa} <span className="vs">×</span> {fl(m.fora)}{m.fora}</span>
+                    {fmtQuando(m) && <span className="sj-quando">{fmtQuando(m)}</span>}
+                    {enc && <span className="sj-placar">{m.gh}:{m.ga}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
       </div>
 
       {!encerrado && !travado && jogo.kickoff && (
@@ -1783,7 +1831,7 @@ function ProximoCountdown({ kickoff, offsetMs }) {
   return <span className="prox-tempo">⏱ {tempo}</span>;
 }
 
-function ProximoJogo({ jogos, offsetMs = 0 }) {
+function ProximoJogo({ jogos, offsetMs = 0, onFechar, onNavegar }) {
   const agora = () => new Date(Date.now() + offsetMs);
 
   const aoVivo = jogos
@@ -1794,23 +1842,30 @@ function ProximoJogo({ jogos, offsetMs = 0 }) {
     .filter((m) => !temResultado(m) && m.kickoff && new Date(m.kickoff) > agora())
     .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))[0];
 
-  if (aoVivo) {
-    return (
-      <div className="prox-jogo prox-jogo-vivo entra-2">
-        <span className="prox-vivo-dot" aria-hidden="true" />
-        <span className="prox-label">AO VIVO</span>
-        <span className="prox-times">{fl(aoVivo.casa)}{aoVivo.casa} <span className="vs">×</span> {fl(aoVivo.fora)}{aoVivo.fora}</span>
-      </div>
-    );
-  }
-
-  if (!proximo) return null;
+  const jogo = aoVivo || proximo;
+  if (!jogo) return null;
 
   return (
-    <div className="prox-jogo entra-2">
-      <span className="prox-label">PRÓXIMO</span>
-      <span className="prox-times">{fl(proximo.casa)}{proximo.casa} <span className="vs">×</span> {fl(proximo.fora)}{proximo.fora}</span>
-      <ProximoCountdown kickoff={proximo.kickoff} offsetMs={offsetMs} />
+    <div
+      className={"prox-jogo entra-2" + (aoVivo ? " prox-jogo-vivo" : "")}
+      onClick={() => onNavegar(jogo.id)}
+      style={{ cursor: "pointer" }}
+      title="Abrir palpites deste jogo"
+    >
+      {aoVivo ? (
+        <><span className="prox-vivo-dot" aria-hidden="true" /><span className="prox-label">AO VIVO</span></>
+      ) : (
+        <span className="prox-label">PRÓXIMO</span>
+      )}
+      <span className="prox-times">
+        {fl(jogo.casa)}{jogo.casa} <span className="vs">×</span> {fl(jogo.fora)}{jogo.fora}
+      </span>
+      {proximo && !aoVivo && <ProximoCountdown kickoff={proximo.kickoff} offsetMs={offsetMs} />}
+      <button
+        className="prox-fechar"
+        onClick={(e) => { e.stopPropagation(); onFechar(); }}
+        aria-label="Fechar banner"
+      >✕</button>
     </div>
   );
 }
@@ -1981,6 +2036,12 @@ function Estilo() {
         font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700;
         color: var(--ambar); flex: none; margin-left: auto;
       }
+      .prox-fechar {
+        flex: none; background: transparent; border: none; cursor: pointer;
+        color: var(--giz); opacity: .45; font-size: 13px; padding: 0 2px; line-height: 1;
+        transition: opacity var(--t);
+      }
+      .prox-fechar:hover { opacity: 1; }
 
       .abas { display: flex; gap: 0; border: 2px solid var(--linha); margin-bottom: 18px; background: rgba(0,0,0,.18); }
       .aba {
@@ -2083,7 +2144,7 @@ function Estilo() {
       }
 
       .seletor-jogos {
-        max-height: 210px;
+        max-height: 50vh;
         overflow-y: auto;
         border: 2px solid var(--linha);
         margin-bottom: 14px;
@@ -2180,13 +2241,22 @@ function Estilo() {
       .grupo-data-header:first-child { padding-top: 4px; }
 
       .seletor-data-header {
+        width: 100%; display: flex; align-items: center; justify-content: space-between;
         font-family: 'IBM Plex Mono', monospace;
         font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
         color: var(--ambar); padding: 6px 12px 5px;
         background: rgba(0,0,0,.4);
-        border-bottom: 1px solid rgba(255,197,61,.2);
+        border: none; border-bottom: 1px solid rgba(255,197,61,.2);
         position: sticky; top: 0; z-index: 1;
+        cursor: pointer;
       }
+      .seletor-data-header:hover { background: rgba(255,197,61,.08); }
+      .seletor-data-info { display: flex; align-items: center; gap: 7px; }
+      .seletor-data-cnt {
+        font-size: 9px; opacity: .65;
+        background: rgba(255,197,61,.15); border-radius: 3px; padding: 1px 5px;
+      }
+      .seletor-data-chevron { font-size: 11px; opacity: .8; }
 
       .flag-img { display: inline-block; vertical-align: middle; border-radius: 2px; margin-right: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
 
