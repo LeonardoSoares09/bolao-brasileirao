@@ -1,0 +1,24 @@
+{
+  "name": "Bolão da Copa 2026",
+  "short_name": "Bolão Copa",
+  "description": "Acompanhe o bolão da Copa do Mundo 2026",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#071a0e",
+  "theme_color": "#071a0e",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

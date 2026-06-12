@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#071a0e"/>
+
+  <!-- Field watermark -->
+  <circle cx="256" cy="256" r="210" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6"/>
+  <line x1="46" y1="256" x2="466" y2="256" stroke="rgba(255,255,255,0.06)" stroke-width="6"/>
+
+  <!-- Football -->
+  <circle cx="256" cy="208" r="108" fill="white"/>
+
+  <!-- Patches - classic Telstar pattern -->
+  <polygon points="256,122 233,152 242,182 270,182 279,152" fill="#1a1a1a"/>
+  <polygon points="164,184 153,217 178,238 207,227 208,195" fill="#1a1a1a"/>
+  <polygon points="348,184 304,195 305,227 334,238 359,217" fill="#1a1a1a"/>
+  <polygon points="194,258 183,287 208,301 235,285 230,255" fill="#1a1a1a"/>
+  <polygon points="318,258 282,255 277,285 304,301 329,287" fill="#1a1a1a"/>
+
+  <!-- BOLÃO -->
+  <text x="256" y="394"
+    font-size="74"
+    text-anchor="middle"
+    font-family="Impact, Arial Black, sans-serif"
+    fill="#ffc53d"
+    font-weight="900"
+    letter-spacing="4">BOLÃO</text>
+
+  <!-- 2026 -->
+  <text x="256" y="458"
+    font-size="44"
+    text-anchor="middle"
+    font-family="monospace"
+    fill="rgba(255,255,255,0.32)"
+    letter-spacing="14">2026</text>
+</svg>
