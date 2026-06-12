@@ -742,34 +742,35 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
 
 /* ================= CAMPEÃO ================= */
 
+/* 46 classificados confirmados para a Copa 2026
+   (faltam os 2 vencedores do playoff intercontinental — me diga quais são) */
 const SELECOES = [
-  "África do Sul", "Albânia", "Alemanha", "Argélia", "Argentina",
-  "Arábia Saudita", "Austrália", "Áustria",
-  "Bélgica", "Bolívia", "Bósnia e Herzegovina", "Brasil", "Bulgária",
-  "Camarões", "Canadá", "Catar", "Chile", "China", "Colômbia",
-  "Coreia do Sul", "Costa do Marfim", "Costa Rica", "Croácia",
-  "Dinamarca",
-  "Egito", "El Salvador", "Emirados Árabes Unidos", "Equador", "Escócia",
-  "Eslováquia", "Eslovênia", "Espanha", "Estados Unidos",
-  "França",
-  "Gana", "Grécia", "Guatemala",
-  "Haiti", "Honduras", "Holanda", "Hungria",
-  "Inglaterra", "Irã", "Iraque", "Irlanda", "Irlanda do Norte", "Islândia",
-  "Jamaica", "Japão", "Jordânia",
-  "Mali", "Marrocos", "México", "Montenegro",
-  "Nigéria", "Noruega", "Nova Zelândia",
-  "País de Gales", "Panamá", "Paraguai", "Peru", "Polônia", "Portugal",
-  "República Democrática do Congo", "República Tcheca", "Romênia",
-  "Senegal", "Sérvia", "Suécia", "Suíça",
-  "Trinidad e Tobago", "Tunísia", "Turquia",
-  "Ucrânia", "Uruguai", "Uzbequistão",
-  "Venezuela",
-];
+  // CONCACAF
+  "Canadá", "Costa Rica", "Estados Unidos", "Honduras", "México", "Panamá",
+  // CONMEBOL
+  "Argentina", "Brasil", "Colômbia", "Equador", "Uruguai", "Venezuela",
+  // UEFA
+  "Alemanha", "Áustria", "Bélgica", "Croácia", "Dinamarca", "Escócia",
+  "Espanha", "França", "Holanda", "Hungria", "Inglaterra", "Itália",
+  "Portugal", "Sérvia", "Suíça", "Turquia",
+  // CAF
+  "África do Sul", "Argélia", "Camarões", "Costa do Marfim",
+  "Egito", "Mali", "Marrocos", "Nigéria", "Senegal",
+  // AFC
+  "Arábia Saudita", "Austrália", "Catar", "Coreia do Sul",
+  "Irã", "Iraque", "Japão", "Uzbequistão",
+  // OFC
+  "Nova Zelândia",
+].sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+const normBusca = (s) =>
+  s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
 
 function Campeao({ token, euId }) {
   const [meu, setMeu] = useState(null);
   const [confirmados, setConfirmados] = useState([]);
   const [selecao, setSelecao] = useState("");
+  const [filtro, setFiltro] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [pedindoConfirm, setPedindoConfirm] = useState(false);
@@ -790,23 +791,23 @@ function Campeao({ token, euId }) {
   }, [token]);
 
   useEffect(() => { carregar(); }, [carregar]);
-
   useEffect(() => {
     if (!aviso) return;
     const t = setTimeout(() => setAviso(""), 5000);
     return () => clearTimeout(t);
   }, [aviso]);
 
-  const salvar = async () => {
-    if (!selecao) return;
+  const selecionarTime = async (time) => {
+    setSelecao(time);
+    setFiltro("");
+    setPedindoConfirm(false);
     setSalvando(true);
     try {
       await api("/api/campeao", {
         method: "POST",
-        body: JSON.stringify({ t: token, selecao }),
+        body: JSON.stringify({ t: token, selecao: time }),
       });
-      setMeu((prev) => ({ selecao, confirmado: prev?.confirmado ?? false }));
-      setAviso("Salvo ✓ — você pode alterar antes de confirmar.");
+      setMeu((prev) => ({ selecao: time, confirmado: prev?.confirmado ?? false }));
     } catch (e) {
       setAviso(e.message);
     }
@@ -816,16 +817,7 @@ function Campeao({ token, euId }) {
   const confirmar = async () => {
     setConfirmando(true);
     try {
-      if (!meu || meu.selecao !== selecao) {
-        await api("/api/campeao", {
-          method: "POST",
-          body: JSON.stringify({ t: token, selecao }),
-        });
-      }
-      await api("/api/campeao", {
-        method: "PUT",
-        body: JSON.stringify({ t: token }),
-      });
+      await api("/api/campeao", { method: "PUT", body: JSON.stringify({ t: token }) });
       await carregar();
       setPedindoConfirm(false);
     } catch (e) {
@@ -841,7 +833,9 @@ function Campeao({ token, euId }) {
 
   const isMaster = euId === null;
   const confirmado = meu?.confirmado;
-  const mudou = selecao !== (meu?.selecao ?? "");
+  const filtradas = filtro
+    ? SELECOES.filter((s) => normBusca(s).includes(normBusca(filtro)))
+    : SELECOES;
 
   return (
     <div>
@@ -864,71 +858,62 @@ function Campeao({ token, euId }) {
             </div>
           ) : (
             <div className="cartao form-jogo">
-              <select
-                className="seletor"
-                value={selecao}
-                onChange={(e) => { setSelecao(e.target.value); setPedindoConfirm(false); }}
-              >
-                <option value="">— Escolha a seleção campeã —</option>
-                {SELECOES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-
-              <div className="form-linha">
-                <button
-                  className="botao"
-                  onClick={salvar}
-                  disabled={!mudou || !selecao || salvando || confirmando}
-                >
-                  {salvando ? "Salvando…" : "Salvar"}
-                </button>
-
-                {pedindoConfirm ? (
-                  <>
-                    <button
-                      className="botao"
-                      style={{ flex: 1 }}
-                      onClick={confirmar}
-                      disabled={confirmando}
-                    >
-                      {confirmando ? "Travando…" : "Sim, travar!"}
-                    </button>
-                    <button
-                      className="botao-fantasma"
-                      onClick={() => setPedindoConfirm(false)}
-                      disabled={confirmando}
-                    >
-                      Cancelar
-                    </button>
-                  </>
-                ) : (
+              <input
+                type="text"
+                placeholder="Buscar seleção…"
+                value={filtro}
+                onChange={(e) => { setFiltro(e.target.value); setPedindoConfirm(false); }}
+              />
+              <div className="lista-campeao">
+                {filtradas.map((s) => (
                   <button
-                    className="botao"
-                    style={{ flex: 1 }}
-                    onClick={() => selecao && setPedindoConfirm(true)}
-                    disabled={!selecao || salvando}
+                    key={s}
+                    className={"campeao-item" + (s === selecao ? " campeao-item-ativo" : "")}
+                    onClick={() => selecionarTime(s)}
+                    disabled={salvando || confirmando}
                   >
-                    🔒 Confirmar e travar
+                    <span className="campeao-item-nome">{s}</span>
+                    {s === selecao && (
+                      salvando
+                        ? <span className="palpite-status">salvando…</span>
+                        : <span className="palpite-status ok">✓ salvo</span>
+                    )}
                   </button>
+                ))}
+                {filtradas.length === 0 && (
+                  <p className="campeao-vazio">Nenhuma seleção encontrada.</p>
                 )}
               </div>
 
-              {meu && !mudou && (
-                <p style={{
-                  fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px",
-                  letterSpacing: ".06em", color: "var(--ambar)",
-                  marginTop: "8px", marginBottom: 0, opacity: .8,
-                }}>
-                  Salvo: {meu.selecao}
-                </p>
+              {selecao && !pedindoConfirm && (
+                <button
+                  className="botao botao-largo"
+                  style={{ marginTop: "10px" }}
+                  onClick={() => setPedindoConfirm(true)}
+                  disabled={salvando || confirmando}
+                >
+                  🔒 Confirmar e travar
+                </button>
               )}
+
               {pedindoConfirm && (
-                <p style={{
-                  fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px",
-                  letterSpacing: ".06em", color: "var(--erro)",
-                  marginTop: "8px", marginBottom: 0,
-                }}>
-                  ⚠ Após confirmar não será possível alterar.
-                </p>
+                <>
+                  <p style={{
+                    fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px",
+                    letterSpacing: ".06em", color: "var(--erro)",
+                    marginTop: "10px", marginBottom: "8px",
+                  }}>
+                    ⚠ <strong>{selecao}</strong> será seu palpite definitivo — não poderá alterar.
+                  </p>
+                  <div className="form-linha">
+                    <button className="botao" style={{ flex: 1 }} onClick={confirmar} disabled={confirmando}>
+                      {confirmando ? "Travando…" : "Sim, travar!"}
+                    </button>
+                    <button className="botao-fantasma" onClick={() => setPedindoConfirm(false)} disabled={confirmando}>
+                      Cancelar
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -1101,6 +1086,39 @@ function Estilo() {
       }
 
       .seletor { margin-bottom: 12px; cursor: pointer; }
+
+      .lista-campeao {
+        max-height: 230px; overflow-y: auto;
+        border: 2px solid var(--linha); border-top: none;
+        background: rgba(0,0,0,.28);
+        scrollbar-width: thin; scrollbar-color: var(--linha) transparent;
+        margin-bottom: 0;
+      }
+      .lista-campeao::-webkit-scrollbar { width: 5px; }
+      .lista-campeao::-webkit-scrollbar-track { background: transparent; }
+      .lista-campeao::-webkit-scrollbar-thumb { background: var(--linha); border-radius: 3px; }
+
+      .campeao-item {
+        display: flex; align-items: center; gap: 8px;
+        width: 100%; padding: 10px 14px;
+        border: none; border-bottom: 1px solid rgba(255,255,255,.06);
+        background: transparent; color: var(--giz); text-align: left;
+        cursor: pointer; font: 600 16px 'Barlow Condensed', sans-serif;
+        letter-spacing: .04em; transition: background-color var(--t);
+      }
+      .campeao-item:last-child { border-bottom: none; }
+      .campeao-item:hover:not(:disabled):not(.campeao-item-ativo) { background: rgba(255,255,255,.06); }
+      .campeao-item:disabled { cursor: wait; }
+      .campeao-item-ativo {
+        background: rgba(255,197,61,.13);
+        border-left: 3px solid var(--ambar);
+        color: var(--ambar); font-weight: 800;
+      }
+      .campeao-item-nome { flex: 1; }
+      .campeao-vazio {
+        padding: 12px 14px; margin: 0;
+        font-family: 'IBM Plex Mono', monospace; font-size: 12px; opacity: .5;
+      }
 
       .seletor-jogos {
         max-height: 210px;
