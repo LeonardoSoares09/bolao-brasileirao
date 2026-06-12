@@ -331,6 +331,8 @@ export default function App() {
             aoAbrir={() => { rankingJaAbriu.current = true; }}
             posAntes={posAntes}
             onClickParticipante={setParticipanteModal}
+            palpitesMap={palpitesMap}
+            jogos={estado.jogos}
           />
         )}
         {tab === "jogos" && (
@@ -387,7 +389,7 @@ function LedPontos({ valor }) {
   return <span className="col-pts led">{v}</span>;
 }
 
-function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickParticipante }) {
+function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickParticipante, palpitesMap, jogos }) {
   useEffect(() => { aoAbrir(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (ranking.length === 0)
     return <Vazio texto="O organizador ainda não cadastrou os participantes." />;
@@ -447,6 +449,87 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickPar
           );
         })}
       </div>
+      <EstatisticasInutils ranking={ranking} palpitesMap={palpitesMap} jogos={jogos} />
+    </div>
+  );
+}
+
+/* ================= ESTATÍSTICAS INÚTEIS ================= */
+function EstatisticasInutils({ ranking, palpitesMap, jogos }) {
+  const [aberto, setAberto] = useState(false);
+
+  const jogosEncerrados = jogos.filter(temResultado);
+  if (jogosEncerrados.length < 5 || ranking.length < 2) return null;
+
+  /* 🥄 Lanterna */
+  const lanterna = ranking[ranking.length - 1];
+
+  /* 🧊 Pé Frio — mais zeros em jogos encerrados */
+  const comZeros = [...ranking].sort((a, b) => {
+    const az = jogosEncerrados.filter((m) => pontosDoPalpite(palpitesMap[m.id]?.[a.id], m) === 0).length;
+    const bz = jogosEncerrados.filter((m) => pontosDoPalpite(palpitesMap[m.id]?.[b.id], m) === 0).length;
+    return bz - az || a.nome.localeCompare(b.nome);
+  });
+  const qtdZerosPF = jogosEncerrados.filter((m) => pontosDoPalpite(palpitesMap[m.id]?.[comZeros[0].id], m) === 0).length;
+  const peFrio = qtdZerosPF > 0 ? { ...comZeros[0], qtdZeros: qtdZerosPF } : null;
+
+  /* 🔮 Otimista — maior média de gols palpitados (mín. 3 palpites em jogos encerrados) */
+  const comMedia = ranking.map((p) => {
+    const pals = jogosEncerrados.filter((m) => palpitesMap[m.id]?.[p.id]);
+    if (pals.length < 3) return { ...p, media: -1, qtdPals: pals.length };
+    const soma = pals.reduce((acc, m) => acc + Number(palpitesMap[m.id][p.id].h) + Number(palpitesMap[m.id][p.id].a), 0);
+    return { ...p, media: soma / pals.length, qtdPals: pals.length };
+  }).sort((a, b) => b.media - a.media || a.nome.localeCompare(b.nome));
+  const otimista = comMedia[0]?.media >= 0 ? comMedia[0] : null;
+
+  /* 🎯 Sniper — maior % de exatos entre quem palpitou mín. 3 jogos encerrados */
+  const comPct = ranking.map((p) => {
+    const comPalpite = jogosEncerrados.filter((m) => palpitesMap[m.id]?.[p.id]);
+    if (comPalpite.length < 3) return { ...p, pct: -1 };
+    return { ...p, pct: (p.exatos / comPalpite.length) * 100 };
+  }).sort((a, b) => b.pct - a.pct || a.nome.localeCompare(b.nome));
+  const sniper = comPct[0]?.pct >= 0 ? comPct[0] : null;
+
+  /* ⚽ Sr. 1×0 — palpitou 1×0 mais vezes */
+  const com1x0 = [...ranking].sort((a, b) => {
+    const ac = jogos.filter((m) => { const pal = palpitesMap[m.id]?.[a.id]; return pal && Number(pal.h) === 1 && Number(pal.a) === 0; }).length;
+    const bc = jogos.filter((m) => { const pal = palpitesMap[m.id]?.[b.id]; return pal && Number(pal.h) === 1 && Number(pal.a) === 0; }).length;
+    return bc - ac || a.nome.localeCompare(b.nome);
+  });
+  const cnt1x0 = jogos.filter((m) => { const pal = palpitesMap[m.id]?.[com1x0[0].id]; return pal && Number(pal.h) === 1 && Number(pal.a) === 0; }).length;
+  const sr1x0 = cnt1x0 > 0 ? { ...com1x0[0], cnt: cnt1x0 } : null;
+
+  const premios = [
+    { emoji: "🥄", titulo: "Lanterna", p: lanterna, detalhe: `${lanterna.pontos} pt${lanterna.pontos === 1 ? "" : "s"}` },
+    peFrio && { emoji: "🧊", titulo: "Pé Frio", p: peFrio, detalhe: `${peFrio.qtdZeros} zero${peFrio.qtdZeros === 1 ? "" : "s"} em jogos encerrados` },
+    otimista && { emoji: "🔮", titulo: "Otimista", p: otimista, detalhe: `média ${otimista.media.toFixed(1)} gols/jogo` },
+    sniper && { emoji: "🎯", titulo: "Sniper", p: sniper, detalhe: `${sniper.pct.toFixed(0)}% de placares exatos` },
+    sr1x0 && { emoji: "⚽", titulo: "Sr. 1×0", p: sr1x0, detalhe: `palpitou 1×0 em ${sr1x0.cnt} jogo${sr1x0.cnt === 1 ? "" : "s"}` },
+  ].filter(Boolean);
+
+  return (
+    <div style={{ marginTop: "20px" }}>
+      <button className="stats-toggle" onClick={() => setAberto((v) => !v)} aria-expanded={aberto}>
+        <span>🏅 ESTATÍSTICAS INÚTEIS</span>
+        <span className="seletor-data-chevron">{aberto ? "▾" : "▸"}</span>
+      </button>
+      {aberto && (
+        <div className="stats-grid">
+          {premios.map(({ emoji, titulo, p, detalhe }, i) => (
+            <div key={titulo} className="stats-card entra-cartao" style={{ "--i": i }}>
+              <div className="stats-emoji">{emoji}</div>
+              <div className="stats-info">
+                <div className="stats-titulo">{titulo}</div>
+                <div className="stats-nome">
+                  <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={20} />
+                  {p.nome}
+                </div>
+                <div className="stats-detalhe">{detalhe}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -2621,6 +2704,35 @@ function Estilo() {
       .botao-zap { border-color: rgba(37,211,102,.45); color: #5ddb85; }
       .botao-zap:hover:not(:disabled) { background: rgba(37,211,102,.12); border-color: rgba(37,211,102,.8); }
       .botao-zap:disabled { border-color: var(--linha); color: var(--giz); opacity: .35; }
+
+      .stats-toggle {
+        width: 100%; display: flex; align-items: center; justify-content: space-between;
+        background: rgba(0,0,0,.3); border: 2px solid var(--linha);
+        color: var(--ambar); font-family: 'IBM Plex Mono', monospace;
+        font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+        padding: 10px 14px; cursor: pointer; transition: background var(--t);
+      }
+      .stats-toggle:hover { background: rgba(255,197,61,.08); }
+      .stats-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;
+      }
+      @media (max-width: 480px) { .stats-grid { grid-template-columns: 1fr; } }
+      .stats-card {
+        background: rgba(0,0,0,.25); border: 2px solid var(--linha);
+        padding: 12px 14px; display: flex; gap: 12px; align-items: flex-start;
+      }
+      .stats-emoji { font-size: 26px; flex: none; line-height: 1; padding-top: 2px; }
+      .stats-info { flex: 1; min-width: 0; }
+      .stats-titulo {
+        font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: .12em;
+        text-transform: uppercase; color: var(--ambar); margin-bottom: 5px;
+      }
+      .stats-nome {
+        display: flex; align-items: center; gap: 6px;
+        font-size: 14px; font-weight: 700; margin-bottom: 3px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .stats-detalhe { font-size: 11px; opacity: .55; font-family: 'IBM Plex Mono', monospace; }
 
       .perfil-picker {
         background: rgba(0,0,0,.32); border: 2px solid var(--linha);
