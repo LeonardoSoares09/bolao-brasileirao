@@ -1021,7 +1021,7 @@ const FLAG_CODES = {
   "Eslováquia":"sk","Slovakia":"sk",
   "Eslovênia":"si","Slovenia":"si",
   "Albânia":"al","Albania":"al",
-  "Bósnia e Herzegovina":"ba","Bosnia and Herzegovina":"ba",
+  "Bósnia e Herzegovina":"ba","Bosnia and Herzegovina":"ba","Bosnia-Herzegovina":"ba",
   "Islândia":"is","Iceland":"is",
   "Finlândia":"fi","Finland":"fi",
   "Bulgária":"bg","Bulgaria":"bg",

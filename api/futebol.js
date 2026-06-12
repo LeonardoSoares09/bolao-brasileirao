@@ -69,6 +69,7 @@ const TRADUCAO = {
   "Slovenia": "Eslovênia",
   "Albania": "Albânia",
   "Bosnia and Herzegovina": "Bósnia e Herzegovina",
+  "Bosnia-Herzegovina": "Bósnia e Herzegovina",
   "Iceland": "Islândia",
   "Finland": "Finlândia",
   "Bulgaria": "Bulgária",
