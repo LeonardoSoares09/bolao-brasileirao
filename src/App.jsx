@@ -216,6 +216,7 @@ export default function App() {
             ehAdmin={ehAdmin}
             token={token}
             recarregar={carregar}
+            offsetMs={offsetRef.current}
           />
         )}
         {tab === "palpites" && (
@@ -225,6 +226,7 @@ export default function App() {
             comecou={comecou}
             token={token}
             recarregar={carregar}
+            offsetMs={offsetRef.current}
           />
         )}
         {tab === "campeao" && (
@@ -292,8 +294,55 @@ function Ranking({ ranking, temJogos }) {
   );
 }
 
+/* ================= COUNTDOWN ================= */
+
+const MSGS_CD = [
+  { min: 24 * 60, msg: "Calma, ainda dá pra palpitar ☕",                cls: "cd-ok" },
+  { min: 12 * 60, msg: "Hoje tem jogo! Não esquece o palpite 👊",        cls: "cd-ok" },
+  { min:  6 * 60, msg: "O palpite não vai se fazer sozinho 😤",          cls: "cd-ok" },
+  { min:  2 * 60, msg: "Tic tac… hora de decidir! ⏰",                   cls: "cd-atencao" },
+  { min:      60, msg: "Corre que vai fechar! 🏃💨",                     cls: "cd-atencao" },
+  { min:      30, msg: "MENOS DE 1 HORA! Vai deixar pra quando?! 🚨",    cls: "cd-alerta" },
+  { min:      15, msg: "Você vai deixar pra última hora mesmo?? 😅🔥",   cls: "cd-alerta" },
+  { min:       5, msg: "TÁ FECHANDO!! ENTRA LOGO PELO AMOR!! 💀🔥",      cls: "cd-critico" },
+  { min:       1, msg: "ÚLTIMO MINUTO!!! QUE SUFOCO!!! 😱",              cls: "cd-critico" },
+  { min:       0, msg: "FECHA EM SEGUNDOS!!! MISERICÓRDIA!! 🆘",         cls: "cd-critico" },
+];
+
+function Countdown({ kickoff, offsetMs = 0 }) {
+  const calc = useCallback(
+    () => new Date(kickoff).getTime() - (Date.now() + offsetMs),
+    [kickoff, offsetMs]
+  );
+  const [restante, setRestante] = useState(calc);
+  useEffect(() => {
+    const id = setInterval(() => setRestante(calc()), 1000);
+    return () => clearInterval(id);
+  }, [calc]);
+
+  if (restante <= 0) return null;
+
+  const totalMin = restante / 60000;
+  const { msg, cls } = MSGS_CD.find((m) => totalMin > m.min) ?? MSGS_CD.at(-1);
+  const h = Math.floor(restante / 3600000);
+  const min = Math.floor((restante % 3600000) / 60000);
+  const seg = Math.floor((restante % 60000) / 1000);
+  const tempo = h > 0
+    ? `${h}h ${String(min).padStart(2, "0")}min`
+    : min > 0
+    ? `${min}min ${String(seg).padStart(2, "0")}s`
+    : `${seg}s`;
+
+  return (
+    <div className={`countdown ${cls}`} aria-live="polite">
+      <span className="cd-msg">{msg}</span>
+      <span className="cd-tempo">{tempo}</span>
+    </div>
+  );
+}
+
 /* ================= JOGOS ================= */
-function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar }) {
+function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar, offsetMs = 0 }) {
   const [casa, setCasa] = useState("");
   const [fora, setFora] = useState("");
   const [kickoff, setKickoff] = useState("");
@@ -434,6 +483,9 @@ function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar }) {
                   <span className="tag tag-ok">✓ palpites completos</span>
                 )}
               </div>
+              {!encerrado && !travado && m.kickoff && (
+                <Countdown kickoff={m.kickoff} offsetMs={offsetMs} />
+              )}
             </div>
             {ehAdmin ? (
               <ResultadoAdmin jogo={m} salvar={salvarResultado} remover={() => delJogo(m.id)} />
@@ -477,7 +529,7 @@ function ResultadoAdmin({ jogo, salvar, remover }) {
 }
 
 /* ================= PALPITES ================= */
-function Palpites({ estado, palpitesMap, comecou, token, recarregar }) {
+function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 0 }) {
   const [jogoSel, setJogoSel] = useState("");
   const jogo = estado.jogos.find((m) => String(m.id) === String(jogoSel)) || estado.jogos[0];
 
@@ -515,6 +567,10 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar }) {
           );
         })}
       </div>
+
+      {!encerrado && !travado && jogo.kickoff && (
+        <Countdown kickoff={jogo.kickoff} offsetMs={offsetMs} />
+      )}
 
       {encerrado && (
         <p className="dica">Resultado final: <strong>{jogo.casa} {jogo.gh} × {jogo.ga} {jogo.fora}</strong></p>
@@ -1231,6 +1287,26 @@ function Estilo() {
       .tag-pendente { border: 1.5px solid var(--erro); color: var(--erro); }
       .tag-ok { border: 1.5px solid rgba(255,255,255,.35); opacity: .8; }
       .tag-travado { background: var(--ambar); color: var(--ambar-escuro); }
+
+      .countdown {
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        padding: 5px 8px; margin-top: 6px;
+        font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: .05em;
+        border-left: 3px solid; animation: sobe .3s var(--t) both;
+      }
+      .cd-ok      { border-color: rgba(255,255,255,.25); opacity: .7; }
+      .cd-atencao { border-color: var(--ambar); color: var(--ambar); }
+      .cd-alerta  { border-color: var(--ambar); color: var(--ambar); background: rgba(255,197,61,.07); padding: 6px 8px; }
+      .cd-critico {
+        border-color: var(--erro); color: var(--erro); background: rgba(255,123,107,.1); padding: 6px 8px;
+        animation: pulsa-cd .85s ease-in-out infinite;
+      }
+      @keyframes pulsa-cd {
+        0%, 100% { opacity: 1; }
+        50%       { opacity: .55; }
+      }
+      .cd-msg   { flex: 1; }
+      .cd-tempo { font-weight: 700; white-space: nowrap; }
 
       .trava-aviso {
         display: flex; align-items: center; justify-content: space-between;
