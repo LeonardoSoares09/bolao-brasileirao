@@ -2357,8 +2357,8 @@ function Estilo() {
       @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=IBM+Plex+Mono:wght@500;700&display=swap');
 
       .bolao-root {
-        --grama: #0b3320;
-        --grama2: #134f2d;
+        --grama: #071a0e;
+        --grama2: #0b2a17;
         --linha: rgba(255,255,255,.28);
         --giz: #f2f6ef;
         --ambar: #ffc53d;
@@ -2366,8 +2366,13 @@ function Estilo() {
         --erro: #ff7b6b;
         --t: .22s cubic-bezier(.2,.7,.3,1);
         min-height: 100vh;
-        background:
-          repeating-linear-gradient(180deg, var(--grama) 0 52px, var(--grama2) 52px 104px);
+        background-color: #071a0e;
+        background-image:
+          radial-gradient(ellipse 110% 55% at 50% 48%, rgba(18,72,38,0.7) 0%, transparent 68%),
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 68 105'%3E%3Cg stroke='white' stroke-width='0.6' fill='none' opacity='0.13'%3E%3Crect x='1' y='1' width='66' height='103'/%3E%3Cline x1='1' y1='52.5' x2='67' y2='52.5'/%3E%3Ccircle cx='34' cy='52.5' r='9.15'/%3E%3Ccircle cx='34' cy='52.5' r='0.8' fill='white'/%3E%3Crect x='13.84' y='1' width='40.32' height='16.5'/%3E%3Crect x='13.84' y='87.5' width='40.32' height='16.5'/%3E%3Crect x='24.84' y='1' width='18.32' height='5.5'/%3E%3Crect x='24.84' y='98' width='18.32' height='5.5'/%3E%3Ccircle cx='34' cy='12' r='0.8' fill='white'/%3E%3Ccircle cx='34' cy='93' r='0.8' fill='white'/%3E%3Cpath d='M27 17.5 A9.15 9.15 0 0 1 41 17.5'/%3E%3Cpath d='M27 87.5 A9.15 9.15 0 0 0 41 87.5'/%3E%3Cpath d='M1 4 A3 3 0 0 1 4 1'/%3E%3Cpath d='M64 1 A3 3 0 0 1 67 4'/%3E%3Cpath d='M67 101 A3 3 0 0 1 64 104'/%3E%3Cpath d='M4 104 A3 3 0 0 1 1 101'/%3E%3C/g%3E%3C/svg%3E");
+        background-size: auto, 100%;
+        background-position: center, center top;
+        background-repeat: no-repeat, no-repeat;
         color: var(--giz);
         font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
         padding: 28px 16px 64px;
