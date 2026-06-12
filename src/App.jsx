@@ -315,8 +315,17 @@ function Ranking({ ranking, temJogos }) {
           <div
             key={p.id}
             className={"placar-linha" + (i === 0 && p.pontos > 0 ? " lider" : "")}
-            style={{ "--i": Math.min(i, 10) }}
+            style={{ "--i": Math.min(i, 10), position: "relative", overflow: "visible" }}
           >
+            {p.exatos > 0 && (
+              <span
+                className="gol-burst"
+                style={{ animationDelay: `${0.25 + i * 0.12}s` }}
+                aria-hidden="true"
+              >
+                ⚽ GOOOL!
+              </span>
+            )}
             <span className="col-pos">{i + 1}</span>
             <span className="col-nome">
               <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={24} />
@@ -1704,6 +1713,22 @@ function Estilo() {
       .placar-linha:last-child { border-bottom: none; }
       .placar-linha.lider { background: rgba(255,197,61,.12); }
       .placar-linha.lider:hover { background: rgba(255,197,61,.18); }
+
+      @keyframes gol {
+        0%   { opacity: 0; transform: translate(-50%, 4px) scale(.6); }
+        18%  { opacity: 1; transform: translate(-50%, -8px) scale(1.25); }
+        55%  { opacity: 1; transform: translate(-50%, -6px) scale(1); }
+        100% { opacity: 0; transform: translate(-50%, -20px) scale(.85); }
+      }
+      .gol-burst {
+        position: absolute; left: 50%; top: 50%;
+        transform: translate(-50%, 0);
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 800; font-size: 20px; letter-spacing: .12em;
+        color: var(--ambar); text-shadow: 0 2px 10px rgba(0,0,0,.6);
+        pointer-events: none; white-space: nowrap; z-index: 4;
+        animation: gol 1.8s ease-out forwards;
+      }
       .col-pos { font-family: 'IBM Plex Mono', monospace; font-size: 13px; opacity: .7; }
       .col-nome { display: flex; align-items: center; gap: 7px; overflow: hidden; min-width: 0; }
       .col-num { text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 14px; }
