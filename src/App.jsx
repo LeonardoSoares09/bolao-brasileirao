@@ -173,6 +173,8 @@ export default function App() {
   const contagensMap = {};
   for (const c of estado.contagens) contagensMap[c.jogo_id] = c.total;
 
+  const hojeKey = fmtSP(Date.now() + offsetRef.current);
+
   const ranking = estado.participantes
     .map((p) => {
       let bonus = 0;
@@ -186,13 +188,15 @@ export default function App() {
       if (re?.artilheiro?.confirmado) {
         if ((estado.premiadosArtilheiro || []).includes(p.id)) bonus += 9;
       }
-      let pontos = bonus, exatos = 0, resultados = 0;
+      let pontos = bonus, exatos = 0, resultados = 0, exatosHoje = 0;
       for (const m of estado.jogos) {
         const pts = pontosDoPalpite(palpitesMap[m.id]?.[p.id], m);
-        if (pts === PTS_EXATO) { exatos++; pontos += pts; }
-        else if (pts === PTS_RESULTADO) { resultados++; pontos += pts; }
+        if (pts === PTS_EXATO) {
+          exatos++; pontos += pts;
+          if (m.kickoff && chaveData(m.kickoff) === hojeKey) exatosHoje++;
+        } else if (pts === PTS_RESULTADO) { resultados++; pontos += pts; }
       }
-      return { ...p, pontos, exatos, resultados, bonus };
+      return { ...p, pontos, exatos, resultados, bonus, exatosHoje };
     })
     .sort((a, b) => b.pontos - a.pontos || b.exatos - a.exatos || a.nome.localeCompare(b.nome));
 
@@ -344,7 +348,7 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir }) {
             className={cls}
             style={{ "--i": Math.min(i, 10), position: "relative", overflow: "visible" }}
           >
-            {p.exatos > 0 && primeiraVez && (
+            {p.exatosHoje > 0 && primeiraVez && (
               <span
                 className="gol-burst"
                 style={{ animationDelay: `${0.25 + i * 0.12}s` }}
