@@ -311,10 +311,17 @@ function Ranking({ ranking, temJogos }) {
           <span className="col-num">RESULT.</span>
           <span className="col-pts">PTS</span>
         </div>
-        {ranking.map((p, i) => (
+        {ranking.map((p, i) => {
+          const podio = p.pontos > 0 && i < 3;
+          const cls = "placar-linha"
+            + (podio && i === 0 ? " podio-ouro" : "")
+            + (podio && i === 1 ? " podio-prata" : "")
+            + (podio && i === 2 ? " podio-bronze" : "");
+          const medalha = podio ? ["🥇", "🥈", "🥉"][i] : i + 1;
+          return (
           <div
             key={p.id}
-            className={"placar-linha" + (i === 0 && p.pontos > 0 ? " lider" : "")}
+            className={cls}
             style={{ "--i": Math.min(i, 10), position: "relative", overflow: "visible" }}
           >
             {p.exatos > 0 && (
@@ -326,7 +333,7 @@ function Ranking({ ranking, temJogos }) {
                 ⚽ GOOOL!
               </span>
             )}
-            <span className="col-pos">{i + 1}</span>
+            <span className={"col-pos" + (podio ? " col-pos-medal" : "")}>{medalha}</span>
             <span className="col-nome">
               <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={24} />
               <span>{p.nome}{i === 0 && p.pontos > 0 ? " 🏆" : ""}</span>
@@ -335,7 +342,8 @@ function Ranking({ ranking, temJogos }) {
             <span className="col-num">{p.resultados}</span>
             <LedPontos valor={p.pontos} />
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1711,8 +1719,13 @@ function Estilo() {
       }
       .placar-linha:hover { background: rgba(255,255,255,.05); }
       .placar-linha:last-child { border-bottom: none; }
-      .placar-linha.lider { background: rgba(255,197,61,.12); }
-      .placar-linha.lider:hover { background: rgba(255,197,61,.18); }
+      .podio-ouro  { background: rgba(255,197,61,.14); border-left: 3px solid #ffc53d; }
+      .podio-prata { background: rgba(200,200,210,.08); border-left: 3px solid #b8b8cc; }
+      .podio-bronze{ background: rgba(180,100,40,.08);  border-left: 3px solid #b87040; }
+      .podio-ouro:hover  { background: rgba(255,197,61,.22) !important; }
+      .podio-prata:hover { background: rgba(200,200,210,.14) !important; }
+      .podio-bronze:hover{ background: rgba(180,100,40,.14) !important; }
+      .col-pos-medal { font-size: 18px; opacity: 1; }
 
       @keyframes gol {
         0%   { opacity: 0; transform: translate(-50%, 4px) scale(.6); }
