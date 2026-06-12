@@ -561,7 +561,7 @@ function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar, offs
             return (
               <div key={m.id} className={"cartao jogo entra-cartao" + (encerrado ? " encerrado" : "")} style={{ "--i": Math.min(i, 8) }}>
                 <div className="jogo-info">
-                  <div className="jogo-times">{m.casa} <span className="vs">×</span> {m.fora}</div>
+                  <div className="jogo-times">{fl(m.casa)}{m.casa} <span className="vs">×</span> {fl(m.fora)}{m.fora}</div>
                   <div className="jogo-meta">
                     {fmtQuando(m) && <span className="jogo-quando">{fmtQuando(m)}</span>}
                     {!encerrado && travado && <span className="tag tag-travado">🔒 em jogo</span>}
@@ -654,7 +654,7 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
                   onClick={() => setJogoSel(String(m.id))}
                 >
                   <span className="sj-dot" aria-hidden="true" />
-                  <span className="sj-nome">{m.casa} <span className="vs">×</span> {m.fora}</span>
+                  <span className="sj-nome">{fl(m.casa)}{m.casa} <span className="vs">×</span> {fl(m.fora)}{m.fora}</span>
                   {fmtQuando(m) && <span className="sj-quando">{fmtQuando(m)}</span>}
                   {enc && <span className="sj-placar">{m.gh}:{m.ga}</span>}
                 </button>
@@ -669,7 +669,7 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
       )}
 
       {encerrado && (
-        <p className="dica">Resultado final: <strong>{jogo.casa} {jogo.gh} × {jogo.ga} {jogo.fora}</strong></p>
+        <p className="dica">Resultado final: <strong>{fl(jogo.casa)}{jogo.casa} {jogo.gh} × {jogo.ga} {fl(jogo.fora)}{jogo.fora}</strong></p>
       )}
       {travado && !encerrado && (
         <div className="trava-aviso"><span>🔒 Bola rolando — palpites travados pelo servidor.</span></div>
@@ -901,6 +901,19 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
 
 /* 46 classificados confirmados para a Copa 2026
    (faltam os 2 vencedores do playoff intercontinental — me diga quais são) */
+const BANDEIRAS = {
+  "Canadá":"🇨🇦","Costa Rica":"🇨🇷","Estados Unidos":"🇺🇸","Honduras":"🇭🇳","México":"🇲🇽","Panamá":"🇵🇦",
+  "Argentina":"🇦🇷","Brasil":"🇧🇷","Colômbia":"🇨🇴","Equador":"🇪🇨","Uruguai":"🇺🇾","Venezuela":"🇻🇪",
+  "Alemanha":"🇩🇪","Áustria":"🇦🇹","Bélgica":"🇧🇪","Croácia":"🇭🇷","Dinamarca":"🇩🇰","Escócia":"🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+  "Espanha":"🇪🇸","França":"🇫🇷","Holanda":"🇳🇱","Hungria":"🇭🇺","Inglaterra":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","Itália":"🇮🇹",
+  "Portugal":"🇵🇹","Sérvia":"🇷🇸","Suíça":"🇨🇭","Turquia":"🇹🇷",
+  "África do Sul":"🇿🇦","Argélia":"🇩🇿","Camarões":"🇨🇲","Costa do Marfim":"🇨🇮",
+  "Egito":"🇪🇬","Mali":"🇲🇱","Marrocos":"🇲🇦","Nigéria":"🇳🇬","Senegal":"🇸🇳",
+  "Arábia Saudita":"🇸🇦","Austrália":"🇦🇺","Catar":"🇶🇦","Coreia do Sul":"🇰🇷",
+  "Irã":"🇮🇷","Iraque":"🇮🇶","Japão":"🇯🇵","Uzbequistão":"🇺🇿","Nova Zelândia":"🇳🇿",
+};
+const fl = (nome) => BANDEIRAS[nome] ? `${BANDEIRAS[nome]} ` : "";
+
 const SELECOES = [
   // CONCACAF
   "Canadá", "Costa Rica", "Estados Unidos", "Honduras", "México", "Panamá",
