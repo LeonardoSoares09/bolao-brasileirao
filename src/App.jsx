@@ -253,9 +253,8 @@ export default function App() {
             />
           </button>
         )}
-        <div className="eyebrow">⚽ Fala, {estado.eu.nome}! · {estado.participantes.length} na disputa · {encerrados} jogo{encerrados === 1 ? "" : "s"} encerrado{encerrados === 1 ? "" : "s"}</div>
-        <h1>BOLÃO DA COPA</h1>
-        <div className="sub">2026 · placar exato {PTS_EXATO} pts · resultado certo {PTS_RESULTADO} pt</div>
+        <div className="eyebrow">⚽ {estado.participantes.length} jogadores · {encerrados} encerrado{encerrados === 1 ? "" : "s"}</div>
+        <h1>BOLÃO DA COPA 2026</h1>
       </header>
 
       {abrirPerfil && estado.eu.id !== null && (
@@ -267,6 +266,8 @@ export default function App() {
           onFechar={() => setAbrirPerfil(false)}
         />
       )}
+
+      <ProximoJogo jogos={estado.jogos} offsetMs={offsetRef.current} />
 
       {participanteModal && (
         <ModalPalpites
@@ -1758,6 +1759,62 @@ function Campeao({ token, euId }) {
   );
 }
 
+/* ================= PRÓXIMO JOGO ================= */
+function ProximoCountdown({ kickoff, offsetMs }) {
+  const calc = useCallback(
+    () => new Date(kickoff).getTime() - (Date.now() + offsetMs),
+    [kickoff, offsetMs]
+  );
+  const [restante, setRestante] = useState(calc);
+  useEffect(() => {
+    const id = setInterval(() => setRestante(calc()), 1000);
+    return () => clearInterval(id);
+  }, [calc]);
+
+  if (restante <= 0) return <span className="prox-tempo">em breve</span>;
+  const h = Math.floor(restante / 3600000);
+  const min = Math.floor((restante % 3600000) / 60000);
+  const seg = Math.floor((restante % 60000) / 1000);
+  const tempo = h > 0
+    ? `${h}h ${String(min).padStart(2, "0")}min`
+    : min > 0
+    ? `${min}m ${String(seg).padStart(2, "0")}s`
+    : `${seg}s`;
+  return <span className="prox-tempo">⏱ {tempo}</span>;
+}
+
+function ProximoJogo({ jogos, offsetMs = 0 }) {
+  const agora = () => new Date(Date.now() + offsetMs);
+
+  const aoVivo = jogos
+    .filter((m) => !temResultado(m) && m.kickoff && new Date(m.kickoff) <= agora())
+    .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))[0];
+
+  const proximo = jogos
+    .filter((m) => !temResultado(m) && m.kickoff && new Date(m.kickoff) > agora())
+    .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))[0];
+
+  if (aoVivo) {
+    return (
+      <div className="prox-jogo prox-jogo-vivo entra-2">
+        <span className="prox-vivo-dot" aria-hidden="true" />
+        <span className="prox-label">AO VIVO</span>
+        <span className="prox-times">{fl(aoVivo.casa)}{aoVivo.casa} <span className="vs">×</span> {fl(aoVivo.fora)}{aoVivo.fora}</span>
+      </div>
+    );
+  }
+
+  if (!proximo) return null;
+
+  return (
+    <div className="prox-jogo entra-2">
+      <span className="prox-label">PRÓXIMO</span>
+      <span className="prox-times">{fl(proximo.casa)}{proximo.casa} <span className="vs">×</span> {fl(proximo.fora)}{proximo.fora}</span>
+      <ProximoCountdown kickoff={proximo.kickoff} offsetMs={offsetMs} />
+    </div>
+  );
+}
+
 /* ================= MODAL PALPITES ================= */
 function ModalPalpites({ participante, jogos, palpitesMap, euId, onFechar }) {
   const encerrados = [...jogos]
@@ -1903,7 +1960,27 @@ function Estilo() {
         text-shadow: 0 3px 0 rgba(0,0,0,.35);
         position: relative; z-index: 1;
       }
-      .sub { font-size: 15px; letter-spacing: .06em; opacity: .85; margin-top: 6px; text-transform: uppercase; position: relative; z-index: 1; }
+      .prox-jogo {
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        padding: 9px 14px; margin-bottom: 10px;
+        background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.18);
+        animation: sobe .4s var(--t) .15s both;
+      }
+      .prox-jogo-vivo { border-color: var(--erro); background: rgba(255,123,107,.07); }
+      .prox-vivo-dot {
+        width: 8px; height: 8px; border-radius: 50%; background: var(--erro); flex: none;
+        animation: pulsa-cd .85s ease-in-out infinite;
+      }
+      .prox-label {
+        font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
+        letter-spacing: .14em; color: var(--ambar); flex: none;
+      }
+      .prox-jogo-vivo .prox-label { color: var(--erro); }
+      .prox-times { font-size: 17px; font-weight: 800; letter-spacing: .03em; flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+      .prox-tempo {
+        font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700;
+        color: var(--ambar); flex: none; margin-left: auto;
+      }
 
       .abas { display: flex; gap: 0; border: 2px solid var(--linha); margin-bottom: 18px; background: rgba(0,0,0,.18); }
       .aba {
