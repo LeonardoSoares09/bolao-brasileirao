@@ -10,6 +10,15 @@ import { useState, useEffect, useRef, useCallback } from "react";
 const PTS_EXATO = 3;
 const PTS_RESULTADO = 1;
 
+function criterioDesempate(a, b) {
+  if (a.pontos !== b.pontos) return null;
+  if (a.exatos !== b.exatos) return { icon: "🎯", label: "mais exatos" };
+  if (!!a.acertouCampeao !== !!b.acertouCampeao) return { icon: "🏆", label: "acertou a campeã" };
+  if (!!a.acertouArtilheiro !== !!b.acertouArtilheiro) return { icon: "⚽", label: "acertou o artilheiro" };
+  if (a.resultados !== b.resultados) return { icon: "✅", label: "mais resultados" };
+  return { icon: "⏱", label: "palpitou antes" };
+}
+
 const reduzMovimento = () =>
   typeof window !== "undefined" &&
   window.matchMedia &&
@@ -461,6 +470,17 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickPar
               {posAntes[p.id] !== undefined && posAntes[p.id] < i && (
                 <span className="trend-down">↓{i - posAntes[p.id]}</span>
               )}
+              {(() => {
+                const prox = ranking[i + 1];
+                if (!prox) return null;
+                const c = criterioDesempate(p, prox);
+                if (!c) return null;
+                return (
+                  <span className="desempate-badge" title={`Desempatado por: ${c.label}`}>
+                    {c.icon} {c.label}
+                  </span>
+                );
+              })()}
             </span>
             <span className="col-num">{p.exatos}</span>
             <span className="col-num">{p.resultados}</span>
@@ -3041,6 +3061,13 @@ function Estilo() {
       .botao-zap { border-color: rgba(37,211,102,.45); color: #5ddb85; }
       .botao-zap:hover:not(:disabled) { background: rgba(37,211,102,.12); border-color: rgba(37,211,102,.8); }
       .botao-zap:disabled { border-color: var(--linha); color: var(--giz); opacity: .35; }
+
+      .desempate-badge {
+        font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 700;
+        background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15);
+        color: rgba(255,255,255,0.45); padding: 1px 5px; border-radius: 3px;
+        white-space: nowrap; letter-spacing: .03em;
+      }
 
       .grafico-bloco { margin-top: 12px; margin-bottom: 4px; }
       .grafico-toggle {
