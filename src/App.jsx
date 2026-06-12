@@ -94,6 +94,7 @@ export default function App() {
   const [estado, setEstado] = useState(null);
   const [erroAuth, setErroAuth] = useState("");
   const [tab, setTab] = useState("ranking");
+  const [abrirPerfil, setAbrirPerfil] = useState(false);
   const offsetRef = useRef(0);
   const [, setTick] = useState(0);
 
@@ -108,6 +109,14 @@ export default function App() {
       if (!estado) setErroAuth(err.message);
     }
   }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const salvarAvatar = useCallback(async (emoji, cor) => {
+    await api("/api/participante", {
+      method: "PATCH",
+      body: JSON.stringify({ t: token, emoji, cor }),
+    });
+    await carregar();
+  }, [token, carregar]);
 
   /* carga inicial + polling 30s + refetch ao voltar pra aba */
   useEffect(() => { carregar(); }, [carregar]);
@@ -177,14 +186,40 @@ export default function App() {
 
   const encerrados = estado.jogos.filter(temResultado).length;
   const ehAdmin = estado.eu.isAdmin;
+  const euParticipante = estado.participantes.find((p) => p.id === estado.eu.id);
 
   return (
     <Casca>
       <header className="topo entra-1">
+        {estado.eu.id !== null && (
+          <button
+            className="avatar-header-btn"
+            onClick={() => setAbrirPerfil((v) => !v)}
+            title="Editar perfil"
+            aria-label="Editar avatar"
+          >
+            <Avatar
+              nome={estado.eu.nome}
+              emoji={euParticipante?.avatarEmoji}
+              cor={euParticipante?.avatarCor}
+              size={38}
+            />
+          </button>
+        )}
         <div className="eyebrow">⚽ Fala, {estado.eu.nome}! · {estado.participantes.length} na disputa · {encerrados} jogo{encerrados === 1 ? "" : "s"} encerrado{encerrados === 1 ? "" : "s"}</div>
         <h1>BOLÃO DA COPA</h1>
         <div className="sub">2026 · placar exato {PTS_EXATO} pts · resultado certo {PTS_RESULTADO} pt</div>
       </header>
+
+      {abrirPerfil && estado.eu.id !== null && (
+        <PerfilPicker
+          nome={estado.eu.nome}
+          emoji={euParticipante?.avatarEmoji || ""}
+          cor={euParticipante?.avatarCor || ""}
+          onSalvar={salvarAvatar}
+          onFechar={() => setAbrirPerfil(false)}
+        />
+      )}
 
       <nav className="abas entra-2" role="tablist">
         {[
@@ -283,7 +318,10 @@ function Ranking({ ranking, temJogos }) {
             style={{ "--i": Math.min(i, 10) }}
           >
             <span className="col-pos">{i + 1}</span>
-            <span className="col-nome">{p.nome}{i === 0 && p.pontos > 0 ? " 🏆" : ""}</span>
+            <span className="col-nome">
+              <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={24} />
+              <span>{p.nome}{i === 0 && p.pontos > 0 ? " 🏆" : ""}</span>
+            </span>
             <span className="col-num">{p.exatos}</span>
             <span className="col-num">{p.resultados}</span>
             <LedPontos valor={p.pontos} />
@@ -712,7 +750,10 @@ function LinhaPalpite({ jogo, participante, palpite, bloqueado, destaque, token,
       className={"cartao palpite-linha entra-cartao" + (destaque ? " meu-palpite" : "")}
       style={{ "--i": Math.min(indice, 8) }}
     >
-      <span className="palpite-nome">{participante.nome}</span>
+      <span className="palpite-nome">
+        <Avatar nome={participante.nome} emoji={participante.avatarEmoji} cor={participante.avatarCor} size={28} />
+        {participante.nome}
+      </span>
       <div className="palpite-inputs">
         {status === "salvando" && <span className="palpite-status">salvando…</span>}
         {status === "salvo" && <span className="palpite-status ok">✓</span>}
@@ -798,6 +839,7 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
         {estado.participantes.length === 0 && <Vazio texto="Ainda não há participantes." />}
         {estado.participantes.map((p, i) => (
           <div key={p.id} className="cartao palpite-linha entra-cartao" style={{ "--i": Math.min(i, 8) }}>
+            <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={30} />
             <span className="palpite-nome">{p.nome}{p.id === estado.eu.id ? " (você)" : ""}</span>
           </div>
         ))}
@@ -826,7 +868,8 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
       {lista &&
         lista.map((p, i) => (
           <div key={p.id} className="cartao palpite-linha entra-cartao" style={{ "--i": Math.min(i, 8) }}>
-            <span className="palpite-nome">{p.nome}{p.is_admin ? " ⭐" : ""}</span>
+            <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={30} />
+            <span className="palpite-nome">{p.nome}{p.isAdmin ? " ⭐" : ""}</span>
             <button className="botao-fantasma" onClick={() => copiarLink(p)}>
               {copiado === p.id ? "✓ Copiado" : "📋 Copiar link"}
             </button>
@@ -862,6 +905,107 @@ const SELECOES = [
 
 const normBusca = (s) =>
   s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
+
+/* ================= AVATAR ================= */
+
+const PALETA_CORES = [
+  "#e05c3a", "#e8a838", "#5cb85c", "#3a9de0",
+  "#9b59b6", "#e91e8c", "#00bcd4", "#607d8b",
+];
+
+const EMOJIS_AVATAR = [
+  "⚽", "🏆", "🎯", "🔥", "⚡", "💪", "🦁", "🐉",
+  "👑", "🦊", "🐺", "🦅", "🚀", "🌟", "💎", "🎩",
+  "🧠", "🐍", "🦈", "🎭", "🌙", "🎪", "🥇", "🏅",
+];
+
+function corDoNome(nome) {
+  let h = 0;
+  for (let i = 0; i < nome.length; i++) h = (h * 31 + nome.charCodeAt(i)) >>> 0;
+  return PALETA_CORES[h % PALETA_CORES.length];
+}
+
+function Avatar({ nome, emoji, cor, size = 36 }) {
+  const iniciais = nome.split(" ").filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join("");
+  const bg = cor || corDoNome(nome);
+  const fontSize = emoji ? Math.round(size * 0.56) : Math.round(size * 0.4);
+  return (
+    <div className="avatar" style={{ width: size, height: size, background: bg, fontSize }}>
+      {emoji || iniciais}
+    </div>
+  );
+}
+
+function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, onFechar }) {
+  const [emojiSel, setEmojiSel] = useState(emojiInicial || "");
+  const [corSel, setCorSel] = useState(corInicial || corDoNome(nome));
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    setEmojiSel(emojiInicial || "");
+    setCorSel(corInicial || corDoNome(nome));
+  }, [emojiInicial, corInicial, nome]);
+
+  const pick = async (novoEmoji, novaCor) => {
+    setEmojiSel(novoEmoji);
+    setCorSel(novaCor);
+    setSalvando(true);
+    try { await onSalvar(novoEmoji || null, novaCor); } catch {}
+    setSalvando(false);
+  };
+
+  const iniciais = nome.split(" ").filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join("");
+
+  return (
+    <div className="perfil-picker entra-2">
+      <div className="perfil-picker-topo">
+        <div className="perfil-picker-preview">
+          <Avatar nome={nome} emoji={emojiSel} cor={corSel} size={48} />
+          <span className="perfil-picker-nome">{nome}</span>
+        </div>
+        <button className="apagar" onClick={onFechar} aria-label="Fechar perfil">✕</button>
+      </div>
+
+      <div className="secao-titulo" style={{ marginTop: "12px" }}>COR</div>
+      <div className="paleta">
+        {PALETA_CORES.map((c) => (
+          <button
+            key={c}
+            className={"paleta-cor" + (c === corSel ? " paleta-cor-ativa" : "")}
+            style={{ background: c }}
+            onClick={() => pick(emojiSel, c)}
+            disabled={salvando}
+            aria-label={"Cor " + c}
+          />
+        ))}
+      </div>
+
+      <div className="secao-titulo" style={{ marginTop: "12px" }}>EMOJI</div>
+      <div className="emoji-grid">
+        <button
+          className={"emoji-item" + (!emojiSel ? " emoji-item-ativo" : "")}
+          onClick={() => pick("", corSel)}
+          disabled={salvando}
+          title="Usar iniciais"
+        >
+          <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "13px", fontWeight: 800 }}>
+            {iniciais}
+          </span>
+        </button>
+        {EMOJIS_AVATAR.map((e) => (
+          <button
+            key={e}
+            className={"emoji-item" + (e === emojiSel ? " emoji-item-ativo" : "")}
+            onClick={() => pick(e, corSel)}
+            disabled={salvando}
+          >
+            {e}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function Campeao({ token, euId }) {
   // — campeão —
@@ -1517,7 +1661,7 @@ function Estilo() {
       }
 
       .palpite-linha { display: flex; align-items: center; gap: 10px; }
-      .palpite-nome { flex: 1; font-size: 18px; font-weight: 600; letter-spacing: .03em; }
+      .palpite-nome { flex: 1; font-size: 18px; font-weight: 600; letter-spacing: .03em; display: flex; align-items: center; gap: 8px; overflow: hidden; min-width: 0; }
       .palpite-inputs { display: flex; align-items: center; gap: 6px; }
       .palpite-status {
         font-family: 'IBM Plex Mono', monospace; font-size: 10px;
@@ -1561,8 +1705,54 @@ function Estilo() {
       .placar-linha.lider { background: rgba(255,197,61,.12); }
       .placar-linha.lider:hover { background: rgba(255,197,61,.18); }
       .col-pos { font-family: 'IBM Plex Mono', monospace; font-size: 13px; opacity: .7; }
+      .col-nome { display: flex; align-items: center; gap: 7px; overflow: hidden; min-width: 0; }
       .col-num { text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 14px; }
       .col-pts { text-align: right; }
+
+      .avatar {
+        border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        font-weight: 800; font-family: 'Barlow Condensed', sans-serif; letter-spacing: .02em;
+        flex: none; user-select: none; color: rgba(0,0,0,.72);
+        box-shadow: 0 1px 5px rgba(0,0,0,.35); overflow: hidden;
+      }
+
+      .avatar-header-btn {
+        position: absolute; top: 14px; right: 0; z-index: 2;
+        background: transparent; border: none; cursor: pointer; padding: 0;
+        transition: transform var(--t);
+      }
+      .avatar-header-btn:hover { transform: scale(1.1); }
+
+      .perfil-picker {
+        background: rgba(0,0,0,.32); border: 2px solid var(--linha);
+        padding: 14px; margin-bottom: 16px;
+      }
+      .perfil-picker-topo {
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .perfil-picker-preview { display: flex; align-items: center; gap: 12px; }
+      .perfil-picker-nome { font-size: 20px; font-weight: 800; letter-spacing: .03em; }
+
+      .paleta { display: flex; gap: 8px; flex-wrap: wrap; }
+      .paleta-cor {
+        width: 28px; height: 28px; border-radius: 50%;
+        border: 2.5px solid transparent; cursor: pointer; flex: none;
+        transition: transform var(--t), border-color var(--t);
+      }
+      .paleta-cor:hover:not(:disabled) { transform: scale(1.18); }
+      .paleta-cor-ativa { border-color: var(--giz) !important; transform: scale(1.12); }
+
+      .emoji-grid {
+        display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px;
+      }
+      .emoji-item {
+        aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+        font-size: 18px; background: transparent; border: 2px solid transparent;
+        cursor: pointer; border-radius: 4px; transition: background-color var(--t), border-color var(--t);
+      }
+      .emoji-item:hover:not(:disabled) { background: rgba(255,255,255,.08); }
+      .emoji-item-ativo { border-color: var(--ambar); background: rgba(255,197,61,.1); }
+      .emoji-item:disabled { opacity: .5; cursor: wait; }
 
       .led {
         font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 22px;

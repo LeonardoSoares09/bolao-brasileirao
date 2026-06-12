@@ -2,11 +2,13 @@
 -- Cole este arquivo inteiro no SQL Editor do Neon e execute uma vez.
 
 CREATE TABLE IF NOT EXISTS participantes (
-  id        SERIAL PRIMARY KEY,
-  nome      TEXT NOT NULL,
-  token     TEXT UNIQUE NOT NULL,
-  is_admin  BOOLEAN NOT NULL DEFAULT FALSE,
-  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+  id           SERIAL PRIMARY KEY,
+  nome         TEXT NOT NULL,
+  token        TEXT UNIQUE NOT NULL,
+  is_admin     BOOLEAN NOT NULL DEFAULT FALSE,
+  avatar_emoji TEXT,
+  avatar_cor   TEXT,
+  criado_em    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS jogos (

@@ -13,6 +13,24 @@ export default async function handler(req, res) {
     res.status(401).json({ error: "Link inválido" });
     return;
   }
+
+  /* PATCH — qualquer participante pode atualizar seu próprio avatar */
+  if (req.method === "PATCH") {
+    if (eu.id === null) {
+      res.status(400).json({ error: "Token mestre não tem perfil" });
+      return;
+    }
+    const emoji = typeof req.body?.emoji === "string" ? req.body.emoji.slice(0, 8).trim() : null;
+    const cor = typeof req.body?.cor === "string" && /^#[0-9a-f]{6}$/i.test(req.body.cor)
+      ? req.body.cor : null;
+    await sql`
+      UPDATE participantes SET avatar_emoji = ${emoji}, avatar_cor = ${cor}
+      WHERE id = ${eu.id}
+    `;
+    res.status(200).json({ ok: true });
+    return;
+  }
+
   if (!eu.isAdmin) {
     res.status(403).json({ error: "Só o organizador gerencia participantes" });
     return;
@@ -20,9 +38,15 @@ export default async function handler(req, res) {
 
   if (req.method === "GET") {
     const rows = await sql`
-      SELECT id, nome, token, is_admin FROM participantes ORDER BY nome
+      SELECT id, nome, token, is_admin, avatar_emoji, avatar_cor
+      FROM participantes ORDER BY nome
     `;
-    res.status(200).json({ participantes: rows });
+    res.status(200).json({
+      participantes: rows.map((p) => ({
+        id: p.id, nome: p.nome, token: p.token,
+        isAdmin: p.is_admin, avatarEmoji: p.avatar_emoji, avatarCor: p.avatar_cor,
+      })),
+    });
     return;
   }
 

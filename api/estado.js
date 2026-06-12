@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   }
 
   const [participantes, jogos, contagens] = await Promise.all([
-    sql`SELECT id, nome, is_admin FROM participantes ORDER BY nome`,
+    sql`SELECT id, nome, is_admin, avatar_emoji, avatar_cor FROM participantes ORDER BY nome`,
     sql`SELECT id, casa, fora, kickoff, gh, ga FROM jogos ORDER BY kickoff NULLS LAST, id`,
     sql`SELECT jogo_id, COUNT(*)::int AS total FROM palpites GROUP BY jogo_id`,
   ]);
@@ -32,7 +32,10 @@ export default async function handler(req, res) {
 
   res.status(200).json({
     eu: { id: eu.id, nome: eu.nome, isAdmin: eu.isAdmin },
-    participantes: participantes.map((p) => ({ id: p.id, nome: p.nome })),
+    participantes: participantes.map((p) => ({
+      id: p.id, nome: p.nome,
+      avatarEmoji: p.avatar_emoji, avatarCor: p.avatar_cor,
+    })),
     jogos,
     palpites,
     contagens,
