@@ -966,15 +966,58 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
 /* 46 classificados confirmados para a Copa 2026
    (faltam os 2 vencedores do playoff intercontinental — me diga quais são) */
 const FLAG_CODES = {
-  "Canadá":"ca","Costa Rica":"cr","Estados Unidos":"us","Honduras":"hn","México":"mx","Panamá":"pa",
-  "Argentina":"ar","Brasil":"br","Colômbia":"co","Equador":"ec","Uruguai":"uy","Venezuela":"ve",
-  "Alemanha":"de","Áustria":"at","Bélgica":"be","Croácia":"hr","Dinamarca":"dk","Escócia":"gb-sct",
-  "Espanha":"es","França":"fr","Holanda":"nl","Hungria":"hu","Inglaterra":"gb-eng","Itália":"it",
-  "Portugal":"pt","Sérvia":"rs","Suíça":"ch","Turquia":"tr",
-  "África do Sul":"za","Argélia":"dz","Camarões":"cm","Costa do Marfim":"ci",
-  "Egito":"eg","Mali":"ml","Marrocos":"ma","Nigéria":"ng","Senegal":"sn",
-  "Arábia Saudita":"sa","Austrália":"au","Catar":"qa","Coreia do Sul":"kr",
-  "Irã":"ir","Iraque":"iq","Japão":"jp","Uzbequistão":"uz","Nova Zelândia":"nz",
+  // CONCACAF
+  "Canadá":"ca","Canada":"ca",
+  "Costa Rica":"cr",
+  "Estados Unidos":"us","United States":"us","USA":"us","EUA":"us",
+  "Honduras":"hn",
+  "México":"mx","Mexico":"mx",
+  "Panamá":"pa","Panama":"pa",
+  // CONMEBOL
+  "Argentina":"ar",
+  "Brasil":"br","Brazil":"br",
+  "Colômbia":"co","Colombia":"co",
+  "Equador":"ec","Ecuador":"ec",
+  "Uruguai":"uy","Uruguay":"uy",
+  "Venezuela":"ve",
+  // UEFA
+  "Alemanha":"de","Germany":"de",
+  "Áustria":"at","Austria":"at",
+  "Bélgica":"be","Belgium":"be",
+  "Croácia":"hr","Croatia":"hr",
+  "Dinamarca":"dk","Denmark":"dk",
+  "Escócia":"gb-sct","Scotland":"gb-sct",
+  "Espanha":"es","Spain":"es",
+  "França":"fr","France":"fr",
+  "Holanda":"nl","Netherlands":"nl","Países Baixos":"nl",
+  "Hungria":"hu","Hungary":"hu",
+  "Inglaterra":"gb-eng","England":"gb-eng",
+  "Itália":"it","Italy":"it",
+  "Portugal":"pt",
+  "Sérvia":"rs","Serbia":"rs",
+  "Suíça":"ch","Switzerland":"ch",
+  "Turquia":"tr","Turkey":"tr","Türkiye":"tr",
+  // CAF
+  "África do Sul":"za","South Africa":"za",
+  "Argélia":"dz","Algeria":"dz",
+  "Camarões":"cm","Cameroon":"cm",
+  "Costa do Marfim":"ci","Ivory Coast":"ci","Côte d'Ivoire":"ci",
+  "Egito":"eg","Egypt":"eg",
+  "Mali":"ml",
+  "Marrocos":"ma","Morocco":"ma",
+  "Nigéria":"ng","Nigeria":"ng",
+  "Senegal":"sn",
+  // AFC
+  "Arábia Saudita":"sa","Saudi Arabia":"sa",
+  "Austrália":"au","Australia":"au",
+  "Catar":"qa","Qatar":"qa",
+  "Coreia do Sul":"kr","South Korea":"kr","Korea Republic":"kr","Republic of Korea":"kr",
+  "Irã":"ir","Iran":"ir",
+  "Iraque":"iq","Iraq":"iq",
+  "Japão":"jp","Japan":"jp",
+  "Uzbequistão":"uz","Uzbekistan":"uz",
+  // OFC
+  "Nova Zelândia":"nz","New Zealand":"nz",
 };
 const fl = (nome) => {
   const code = FLAG_CODES[nome];
