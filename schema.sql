@@ -37,3 +37,10 @@ CREATE TABLE IF NOT EXISTS palpite_campeao (
   confirmado      BOOLEAN NOT NULL DEFAULT FALSE,
   atualizado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS palpite_artilheiro (
+  participante_id INT PRIMARY KEY REFERENCES participantes(id) ON DELETE CASCADE,
+  jogador         TEXT NOT NULL,
+  confirmado      BOOLEAN NOT NULL DEFAULT FALSE,
+  atualizado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
+);

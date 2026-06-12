@@ -864,22 +864,40 @@ const normBusca = (s) =>
   s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
 
 function Campeao({ token, euId }) {
+  // — campeão —
   const [meu, setMeu] = useState(null);
   const [confirmados, setConfirmados] = useState([]);
   const [selecao, setSelecao] = useState("");
   const [filtro, setFiltro] = useState("");
-  const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [pedindoConfirm, setPedindoConfirm] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
+
+  // — artilheiro —
+  const [meuArt, setMeuArt] = useState(null);
+  const [confirmadosArt, setConfirmadosArt] = useState([]);
+  const [jogador, setJogador] = useState("");
+  const [artSalvo, setArtSalvo] = useState(false);
+  const [salvandoArt, setSalvandoArt] = useState(false);
+  const [pedindoConfirmArt, setPedindoConfirmArt] = useState(false);
+  const [confirmandoArt, setConfirmandoArt] = useState(false);
+  const artTimerRef = useRef(null);
+
+  const [carregando, setCarregando] = useState(true);
   const [aviso, setAviso] = useState("");
 
   const carregar = useCallback(async () => {
     try {
-      const r = await api(`/api/campeao?t=${encodeURIComponent(token)}`);
-      setMeu(r.meu);
-      setConfirmados(r.confirmados);
-      if (r.meu) setSelecao(r.meu.selecao);
+      const [rc, ra] = await Promise.all([
+        api(`/api/campeao?t=${encodeURIComponent(token)}`),
+        api(`/api/artilheiro?t=${encodeURIComponent(token)}`),
+      ]);
+      setMeu(rc.meu);
+      setConfirmados(rc.confirmados);
+      if (rc.meu) setSelecao(rc.meu.selecao);
+      setMeuArt(ra.meu);
+      setConfirmadosArt(ra.confirmados);
+      if (ra.meu) { setJogador(ra.meu.jogador); setArtSalvo(true); }
     } catch (e) {
       setAviso(e.message);
     } finally {
@@ -924,12 +942,49 @@ function Campeao({ token, euId }) {
     setConfirmando(false);
   };
 
+  const mudarJogador = (valor) => {
+    setJogador(valor);
+    setArtSalvo(false);
+    setPedindoConfirmArt(false);
+    clearTimeout(artTimerRef.current);
+    if (valor.trim().length >= 2) {
+      artTimerRef.current = setTimeout(async () => {
+        setSalvandoArt(true);
+        try {
+          await api("/api/artilheiro", {
+            method: "POST",
+            body: JSON.stringify({ t: token, jogador: valor.trim() }),
+          });
+          setMeuArt((prev) => ({ jogador: valor.trim(), confirmado: prev?.confirmado ?? false }));
+          setArtSalvo(true);
+        } catch (e) {
+          setAviso(e.message);
+        }
+        setSalvandoArt(false);
+      }, 900);
+    }
+  };
+
+  const confirmarArt = async () => {
+    setConfirmandoArt(true);
+    try {
+      await api("/api/artilheiro", { method: "PUT", body: JSON.stringify({ t: token }) });
+      await carregar();
+      setPedindoConfirmArt(false);
+    } catch (e) {
+      setAviso(e.message);
+      setPedindoConfirmArt(false);
+    }
+    setConfirmandoArt(false);
+  };
+
   if (carregando) {
     return <div className="carregando"><span className="bola-quica">⚽</span> Carregando…</div>;
   }
 
   const isMaster = euId === null;
   const confirmado = meu?.confirmado;
+  const confirmadoArt = meuArt?.confirmado;
   const filtradas = filtro
     ? SELECOES.filter((s) => normBusca(s).includes(normBusca(filtro)))
     : SELECOES;
@@ -938,7 +993,7 @@ function Campeao({ token, euId }) {
     <div>
       {!isMaster && (
         <>
-          <div className="secao-titulo">SUA ESCOLHA 🏆</div>
+          <div className="secao-titulo">SELEÇÃO CAMPEÃ 🏆</div>
 
           {confirmado ? (
             <div className="cartao meu-palpite" style={{ textAlign: "center", padding: "22px 16px" }}>
@@ -1015,11 +1070,78 @@ function Campeao({ token, euId }) {
             </div>
           )}
 
+          <div className="secao-titulo" style={{ marginTop: "22px" }}>ARTILHEIRO DA COPA ⚽</div>
+
+          {confirmadoArt ? (
+            <div className="cartao meu-palpite" style={{ textAlign: "center", padding: "22px 16px" }}>
+              <div style={{
+                fontFamily: "'IBM Plex Mono', monospace",
+                fontSize: "11px", letterSpacing: ".14em",
+                color: "var(--ambar)", marginBottom: "10px",
+              }}>
+                🔒 CONFIRMADO
+              </div>
+              <div style={{ fontSize: "28px", fontWeight: 800, letterSpacing: ".03em" }}>
+                {meuArt.jogador}
+              </div>
+            </div>
+          ) : (
+            <div className="cartao form-jogo">
+              <div className="form-linha">
+                <input
+                  type="text"
+                  placeholder="Nome do jogador…"
+                  value={jogador}
+                  onChange={(e) => mudarJogador(e.target.value)}
+                  disabled={salvandoArt || confirmandoArt}
+                  maxLength={80}
+                />
+                {salvandoArt && (
+                  <span className="palpite-status" style={{ whiteSpace: "nowrap" }}>salvando…</span>
+                )}
+                {artSalvo && !salvandoArt && (
+                  <span className="palpite-status ok" style={{ whiteSpace: "nowrap" }}>✓ salvo</span>
+                )}
+              </div>
+
+              {artSalvo && !pedindoConfirmArt && (
+                <button
+                  className="botao botao-largo"
+                  style={{ marginTop: "10px" }}
+                  onClick={() => setPedindoConfirmArt(true)}
+                  disabled={salvandoArt || confirmandoArt}
+                >
+                  🔒 Confirmar e travar
+                </button>
+              )}
+
+              {pedindoConfirmArt && (
+                <>
+                  <p style={{
+                    fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px",
+                    letterSpacing: ".06em", color: "var(--erro)",
+                    marginTop: "10px", marginBottom: "8px",
+                  }}>
+                    ⚠ <strong>{jogador.trim()}</strong> será seu palpite definitivo — não poderá alterar.
+                  </p>
+                  <div className="form-linha">
+                    <button className="botao" style={{ flex: 1 }} onClick={confirmarArt} disabled={confirmandoArt}>
+                      {confirmandoArt ? "Travando…" : "Sim, travar!"}
+                    </button>
+                    <button className="botao-fantasma" onClick={() => setPedindoConfirmArt(false)} disabled={confirmandoArt}>
+                      Cancelar
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {aviso && <p className="dica toast" role="status">{aviso}</p>}
         </>
       )}
 
-      <div className="secao-titulo">PALPITES CONFIRMADOS</div>
+      <div className="secao-titulo">CAMPEÃO CONFIRMADO</div>
       {confirmados.length === 0 ? (
         <Vazio texto="Nenhum palpite confirmado ainda — seja o primeiro!" />
       ) : (
@@ -1033,6 +1155,24 @@ function Campeao({ token, euId }) {
               {c.nome}{c.participante_id === euId ? " (você)" : ""}
             </span>
             <span className="pts pts-1">{c.selecao}</span>
+          </div>
+        ))
+      )}
+
+      <div className="secao-titulo">ARTILHEIRO CONFIRMADO</div>
+      {confirmadosArt.length === 0 ? (
+        <Vazio texto="Nenhum palpite confirmado ainda — seja o primeiro!" />
+      ) : (
+        confirmadosArt.map((c, i) => (
+          <div
+            key={c.participante_id}
+            className={"cartao palpite-linha entra-cartao" + (c.participante_id === euId ? " meu-palpite" : "")}
+            style={{ "--i": Math.min(i, 8) }}
+          >
+            <span className="palpite-nome">
+              {c.nome}{c.participante_id === euId ? " (você)" : ""}
+            </span>
+            <span className="pts pts-1">{c.jogador}</span>
           </div>
         ))
       )}
