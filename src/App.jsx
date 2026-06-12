@@ -884,6 +884,31 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
 
 /* 46 classificados confirmados para a Copa 2026
    (faltam os 2 vencedores do playoff intercontinental — me diga quais são) */
+const BANDEIRAS = {
+  // CONCACAF
+  "Canadá": "🇨🇦", "Costa Rica": "🇨🇷", "Estados Unidos": "🇺🇸",
+  "Honduras": "🇭🇳", "México": "🇲🇽", "Panamá": "🇵🇦",
+  // CONMEBOL
+  "Argentina": "🇦🇷", "Brasil": "🇧🇷", "Colômbia": "🇨🇴",
+  "Equador": "🇪🇨", "Uruguai": "🇺🇾", "Venezuela": "🇻🇪",
+  // UEFA
+  "Alemanha": "🇩🇪", "Áustria": "🇦🇹", "Bélgica": "🇧🇪",
+  "Croácia": "🇭🇷", "Dinamarca": "🇩🇰", "Escócia": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+  "Espanha": "🇪🇸", "França": "🇫🇷", "Holanda": "🇳🇱",
+  "Hungria": "🇭🇺", "Inglaterra": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "Itália": "🇮🇹",
+  "Portugal": "🇵🇹", "Sérvia": "🇷🇸", "Suíça": "🇨🇭", "Turquia": "🇹🇷",
+  // CAF
+  "África do Sul": "🇿🇦", "Argélia": "🇩🇿", "Camarões": "🇨🇲",
+  "Costa do Marfim": "🇨🇮", "Egito": "🇪🇬", "Mali": "🇲🇱",
+  "Marrocos": "🇲🇦", "Nigéria": "🇳🇬", "Senegal": "🇸🇳",
+  // AFC
+  "Arábia Saudita": "🇸🇦", "Austrália": "🇦🇺", "Catar": "🇶🇦",
+  "Coreia do Sul": "🇰🇷", "Irã": "🇮🇷", "Iraque": "🇮🇶",
+  "Japão": "🇯🇵", "Uzbequistão": "🇺🇿",
+  // OFC
+  "Nova Zelândia": "🇳🇿",
+};
+
 const SELECOES = [
   // CONCACAF
   "Canadá", "Costa Rica", "Estados Unidos", "Honduras", "México", "Panamá",
@@ -1149,7 +1174,7 @@ function Campeao({ token, euId }) {
                 🔒 CONFIRMADO
               </div>
               <div style={{ fontSize: "28px", fontWeight: 800, letterSpacing: ".03em" }}>
-                {meu.selecao}
+                {BANDEIRAS[meu.selecao]} {meu.selecao}
               </div>
             </div>
           ) : (
@@ -1168,6 +1193,7 @@ function Campeao({ token, euId }) {
                     onClick={() => selecionarTime(s)}
                     disabled={salvando || confirmando}
                   >
+                    <span className="campeao-item-bandeira">{BANDEIRAS[s]}</span>
                     <span className="campeao-item-nome">{s}</span>
                     {s === selecao && (
                       salvando
@@ -1298,7 +1324,7 @@ function Campeao({ token, euId }) {
             <span className="palpite-nome">
               {c.nome}{c.participante_id === euId ? " (você)" : ""}
             </span>
-            <span className="pts pts-1">{c.selecao}</span>
+            <span className="pts pts-1">{BANDEIRAS[c.selecao]} {c.selecao}</span>
           </div>
         ))
       )}
@@ -1495,6 +1521,7 @@ function Estilo() {
         border-left: 3px solid var(--ambar);
         color: var(--ambar); font-weight: 800;
       }
+      .campeao-item-bandeira { font-size: 20px; flex: none; width: 26px; text-align: center; }
       .campeao-item-nome { flex: 1; }
       .campeao-vazio {
         padding: 12px 14px; margin: 0;
