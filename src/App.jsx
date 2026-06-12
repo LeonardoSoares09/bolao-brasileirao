@@ -21,7 +21,9 @@ function pontosDoPalpite(palpite, jogo) {
   if (Number.isNaN(ph) || Number.isNaN(pa)) return null;
   if (ph === jogo.gh && pa === jogo.ga) return PTS_EXATO;
   const sinal = (x, y) => (x > y ? 1 : x < y ? -1 : 0);
-  if (sinal(ph, pa) === sinal(jogo.gh, jogo.ga)) return PTS_RESULTADO;
+  const sigJogo = sinal(jogo.gh, jogo.ga);
+  // empate exige placar exato — apenas vitória/derrota dá 1 pt por acertar o vencedor
+  if (sigJogo !== 0 && sinal(ph, pa) === sigJogo) return PTS_RESULTADO;
   return 0;
 }
 
