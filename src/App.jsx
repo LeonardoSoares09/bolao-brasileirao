@@ -336,6 +336,7 @@ export default function App() {
         {tab === "jogos" && (
           <Jogos
             estado={estado}
+            palpitesMap={palpitesMap}
             contagensMap={contagensMap}
             comecou={comecou}
             ehAdmin={ehAdmin}
@@ -529,7 +530,7 @@ function Countdown({ kickoff, offsetMs = 0 }) {
 }
 
 /* ================= JOGOS ================= */
-function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar, offsetMs = 0 }) {
+function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, recarregar, offsetMs = 0 }) {
   const [casa, setCasa] = useState("");
   const [fora, setFora] = useState("");
   const [kickoff, setKickoff] = useState("");
@@ -537,6 +538,52 @@ function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar, offs
   const [buscandoJogos, setBuscandoJogos] = useState(false);
   const [buscandoResultados, setBuscandoResultados] = useState(false);
   const [aviso, setAviso] = useState("");
+
+  const hojeKey = fmtSP(Date.now() + offsetMs);
+  const jogosPendentesHoje = estado.jogos.filter(
+    (m) => m.kickoff && chaveData(m.kickoff) === hojeKey && !temResultado(m) && !comecou(m)
+  ).sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
+  const temFaltandoHoje = jogosPendentesHoje.length > 0 && estado.participantes.some(
+    (p) => jogosPendentesHoje.some((m) => !palpitesMap[m.id]?.[p.id])
+  );
+
+  const cobrarWhatsApp = () => {
+    const agora = new Date(Date.now() + offsetMs);
+    const faltando = estado.participantes
+      .map((p) => ({
+        nome: p.nome,
+        jogos: jogosPendentesHoje.filter((m) => !palpitesMap[m.id]?.[p.id]),
+      }))
+      .filter((p) => p.jogos.length > 0)
+      .sort((a, b) => b.jogos.length - a.jogos.length);
+
+    if (!faltando.length) return;
+
+    const primeiro = jogosPendentesHoje[0];
+    const msAte = new Date(primeiro.kickoff) - agora;
+    const h = Math.floor(msAte / 3600000);
+    const min = Math.floor((msAte % 3600000) / 60000);
+    const horario = new Date(primeiro.kickoff).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const countdownStr = h > 0 ? `em ${h}h${min > 0 ? String(min).padStart(2, "0") + "min" : ""}` : `em ${min}min`;
+
+    const linhas = faltando.map(
+      (p) => `• ${p.nome} — ${p.jogos.map((m) => `${m.casa} × ${m.fora}`).join(", ")}`
+    );
+
+    const msg = [
+      "⚽ *BOLÃO DA COPA 2026*",
+      "",
+      "⚠️ Faltam palpites pra hoje:",
+      ...linhas,
+      "",
+      `⏰ Primeiro jogo às ${horario} (${countdownStr})`,
+      "",
+      "Corre antes de fechar! 🔒",
+      window.location.origin,
+    ].join("\n");
+
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+  };
 
   useEffect(() => {
     if (!aviso) return;
@@ -630,6 +677,14 @@ function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar, offs
             </button>
             <button className="botao botao-largo" onClick={buscarResultados} disabled={buscandoJogos || buscandoResultados}>
               {buscandoResultados ? <><span className="spinner" aria-hidden="true"></span> Buscando…</> : "🏁 Buscar resultados"}
+            </button>
+            <button
+              className="botao botao-largo botao-zap"
+              onClick={cobrarWhatsApp}
+              disabled={!temFaltandoHoje}
+              title={temFaltandoHoje ? "Abrir WhatsApp com cobrança" : "Todos palpitaram ou não há jogos abertos hoje"}
+            >
+              📲 Cobrar galera
             </button>
           </div>
 
@@ -2554,6 +2609,9 @@ function Estilo() {
         font-family: 'IBM Plex Mono', monospace; font-size: 11px;
         padding: 6px 8px; border-radius: 0; flex: none;
       }
+      .botao-zap { border-color: rgba(37,211,102,.45); color: #5ddb85; }
+      .botao-zap:hover:not(:disabled) { background: rgba(37,211,102,.12); border-color: rgba(37,211,102,.8); }
+      .botao-zap:disabled { border-color: var(--linha); color: var(--giz); opacity: .35; }
 
       .perfil-picker {
         background: rgba(0,0,0,.32); border: 2px solid var(--linha);
