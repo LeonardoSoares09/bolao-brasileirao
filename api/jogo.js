@@ -20,6 +20,7 @@ export default async function handler(req, res) {
     const casa = String(req.body?.casa || "").trim();
     const fora = String(req.body?.fora || "").trim();
     const kickoff = req.body?.kickoff ? new Date(req.body.kickoff) : null;
+    const fase = req.body?.fase === "eliminatórias" ? "eliminatórias" : "grupos";
     if (!casa || !fora || casa.length > 60 || fora.length > 60) {
       res.status(400).json({ error: "Times inválidos" });
       return;
@@ -29,8 +30,8 @@ export default async function handler(req, res) {
       return;
     }
     const rows = await sql`
-      INSERT INTO jogos (casa, fora, kickoff)
-      VALUES (${casa}, ${fora}, ${kickoff})
+      INSERT INTO jogos (casa, fora, kickoff, fase)
+      VALUES (${casa}, ${fora}, ${kickoff}, ${fase})
       RETURNING id
     `;
     res.status(200).json({ ok: true, id: rows[0].id });

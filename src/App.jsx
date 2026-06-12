@@ -95,6 +95,7 @@ export default function App() {
   const [erroAuth, setErroAuth] = useState("");
   const [tab, setTab] = useState("ranking");
   const [abrirPerfil, setAbrirPerfil] = useState(false);
+  const [abrirRegras, setAbrirRegras] = useState(false);
   const [participanteModal, setParticipanteModal] = useState(null);
   const [proximoFechado, setProximoFechado] = useState(false);
   const [jogoPreSel, setJogoPreSel] = useState(null);
@@ -245,6 +246,12 @@ export default function App() {
   return (
     <Casca>
       <header className="topo entra-1">
+        <button
+          className="regras-btn"
+          onClick={() => setAbrirRegras(true)}
+          aria-label="Ver regras do bolão"
+          title="Regras"
+        >?</button>
         {estado.eu.id !== null && (
           <button
             className="avatar-header-btn"
@@ -263,6 +270,8 @@ export default function App() {
         <div className="eyebrow">⚽ {estado.participantes.length} jogadores · {encerrados} encerrado{encerrados === 1 ? "" : "s"}</div>
         <h1>BOLÃO DA COPA 2026</h1>
       </header>
+
+      {abrirRegras && <ModalRegras onFechar={() => setAbrirRegras(false)} />}
 
       {abrirPerfil && estado.eu.id !== null && (
         <PerfilPicker
@@ -524,6 +533,7 @@ function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar, offs
   const [casa, setCasa] = useState("");
   const [fora, setFora] = useState("");
   const [kickoff, setKickoff] = useState("");
+  const [fase, setFase] = useState("grupos");
   const [buscandoJogos, setBuscandoJogos] = useState(false);
   const [buscandoResultados, setBuscandoResultados] = useState(false);
   const [aviso, setAviso] = useState("");
@@ -539,9 +549,9 @@ function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar, offs
     try {
       await api("/api/jogo", {
         method: "POST",
-        body: JSON.stringify({ t: token, casa, fora, kickoff: kickoff || null }),
+        body: JSON.stringify({ t: token, casa, fora, kickoff: kickoff || null, fase }),
       });
-      setCasa(""); setFora(""); setKickoff("");
+      setCasa(""); setFora(""); setKickoff(""); setFase("grupos");
       recarregar();
     } catch (e) { setAviso(e.message); }
   };
@@ -630,8 +640,12 @@ function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar, offs
               <input value={fora} onChange={(e) => setFora(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addJogo()} placeholder="Visitante" />
             </div>
             <div className="form-linha">
+              <select value={fase} onChange={(e) => setFase(e.target.value)} className="select-fase" aria-label="Fase do jogo">
+                <option value="grupos">Fase de grupos</option>
+                <option value="eliminatórias">Mata-mata</option>
+              </select>
               <input type="datetime-local" value={kickoff} onChange={(e) => setKickoff(e.target.value)} aria-label="Data e hora do jogo" />
-              <button className="botao" onClick={addJogo}>Adicionar jogo</button>
+              <button className="botao" onClick={addJogo}>Adicionar</button>
             </div>
           </div>
         </>
@@ -656,6 +670,7 @@ function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar, offs
                   <div className="jogo-times">{fl(m.casa)}{m.casa} <span className="vs">×</span> {fl(m.fora)}{m.fora}</div>
                   <div className="jogo-meta">
                     {fmtQuando(m) && <span className="jogo-quando">{fmtQuando(m)}</span>}
+                    {m.fase === "eliminatórias" && <span className="tag tag-elim">⚔ Mata-mata</span>}
                     {!encerrado && travado && <span className="tag tag-travado">🔒 em jogo</span>}
                     {!encerrado && !travado && faltam > 0 && (
                       <span className="tag tag-pendente">⚠ faltam {faltam} palpite{faltam === 1 ? "" : "s"}</span>
@@ -703,6 +718,9 @@ function ResultadoAdmin({ jogo, salvar, remover }) {
 
   return (
     <div className="jogo-resultado">
+      {jogo.fase === "eliminatórias" && (
+        <span className="aviso-90min" title="Lançar apenas o placar dos 90 minutos">⏱ 90min</span>
+      )}
       <input type="number" min="0" inputMode="numeric" value={gh} placeholder="–"
         onChange={(e) => mudar("gh", e.target.value)} aria-label={"Gols " + jogo.casa} />
       <span className="vs">:</span>
@@ -1807,6 +1825,64 @@ function Campeao({ token, euId }) {
   );
 }
 
+/* ================= MODAL REGRAS ================= */
+function ModalRegras({ onFechar }) {
+  return (
+    <div className="modal-overlay" onClick={onFechar}>
+      <div className="modal-painel" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-nome">📋 Regras do Bolão</div>
+          <button className="apagar" onClick={onFechar} aria-label="Fechar">✕</button>
+        </div>
+
+        <div className="regras-corpo">
+          <div className="regras-secao">Pontuação por jogo</div>
+          <div className="regras-item">
+            <span className="pts pts-3">3 pts</span>
+            <span>Placar exato — acertou os dois gols</span>
+          </div>
+          <div className="regras-item">
+            <span className="pts pts-1">1 pt</span>
+            <span>Resultado certo — acertou quem ganhou ou que empatou</span>
+          </div>
+          <div className="regras-item">
+            <span className="pts pts-0">0 pts</span>
+            <span>Resultado errado</span>
+          </div>
+
+          <div className="regras-secao">Bônus especiais</div>
+          <div className="regras-item">
+            <span className="pts pts-3">+15 pts</span>
+            <span>Acertar a seleção campeã (palpite travado antes da Copa)</span>
+          </div>
+          <div className="regras-item">
+            <span className="pts pts-1">+9 pts</span>
+            <span>Acertar o artilheiro da Copa (palpite travado antes da Copa)</span>
+          </div>
+
+          <div className="regras-secao">Mata-mata ⚔</div>
+          <p className="regras-p">
+            Nos jogos eliminatórios, o palpite vale pelo <strong>placar dos 90 minutos</strong>.
+            Prorrogação e pênaltis <strong>não contam</strong>.
+          </p>
+          <p className="regras-p">
+            Exemplo: jogo termina <strong>1×1</strong> nos 90min e vai a pênaltis
+            → quem palpitou 1×1 ganha <strong>3 pts</strong>.
+            Quem palpitou 2×1 ganha <strong>0 pts</strong>,
+            mesmo que o placar da prorrogação seja 2×1.
+          </p>
+
+          <div className="regras-secao">Travamento de palpites</div>
+          <p className="regras-p">
+            Palpites são bloqueados automaticamente no minuto do apito inicial.
+            Nenhum palpite dos outros participantes é visível antes disso — ninguém copia ninguém.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ================= PRÓXIMO JOGO ================= */
 function ProximoCountdown({ kickoff, offsetMs }) {
   const calc = useCallback(
@@ -2442,6 +2518,42 @@ function Estilo() {
         transition: transform var(--t);
       }
       .avatar-header-btn:hover { transform: scale(1.1); }
+
+      .regras-btn {
+        position: absolute; top: 14px; left: 0; z-index: 2;
+        width: 34px; height: 34px; border-radius: 50%;
+        background: transparent; border: 2px solid rgba(255,255,255,.18);
+        cursor: pointer; color: var(--giz); opacity: .5;
+        font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 700;
+        display: flex; align-items: center; justify-content: center;
+        transition: opacity var(--t), border-color var(--t);
+      }
+      .regras-btn:hover { opacity: 1; border-color: rgba(255,255,255,.5); }
+
+      .regras-corpo { padding: 4px 16px 20px; overflow-y: auto; }
+      .regras-secao {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+        color: var(--ambar); margin: 20px 0 10px;
+      }
+      .regras-secao:first-child { margin-top: 8px; }
+      .regras-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 14px; }
+      .regras-p { font-size: 13px; line-height: 1.55; margin: 0 0 8px; opacity: .85; }
+
+      .tag-elim {
+        background: rgba(58,157,224,.15); color: #7ec8e3;
+        border: 1px solid rgba(58,157,224,.35);
+      }
+      .aviso-90min {
+        font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
+        color: var(--ambar); opacity: .75; white-space: nowrap; flex: none;
+        border: 1px solid rgba(255,197,61,.3); border-radius: 4px; padding: 2px 5px;
+      }
+      .select-fase {
+        background: var(--fundo); border: 2px solid var(--linha); color: var(--giz);
+        font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+        padding: 6px 8px; border-radius: 0; flex: none;
+      }
 
       .perfil-picker {
         background: rgba(0,0,0,.32); border: 2px solid var(--linha);

@@ -114,6 +114,9 @@ const TRADUCAO = {
 
 const traduzir = (nome) => (nome && TRADUCAO[nome]) || nome || "";
 
+const mapearFase = (stage) =>
+  (!stage || stage === "GROUP_STAGE") ? "grupos" : "eliminatórias";
+
 /* normaliza pra comparação: sem acento, sem caixa, sem borda */
 const norm = (s) =>
   String(s ?? "")
@@ -236,17 +239,18 @@ async function acaoJogosHoje() {
     const casa = traduzir(m.homeTeam?.name);
     const fora = traduzir(m.awayTeam?.name);
     const kickoff = m.utcDate;
+    const fase = mapearFase(m.stage);
     const ehHoje = dataSP(m.utcDate) === hoje;
     if (!casa || !fora) continue;
 
-    /* (a) já carimbado — atualiza kickoff só se mudou */
+    /* (a) já carimbado — atualiza kickoff e fase se mudou */
     const achado = porExt.get(externalId);
     if (achado) {
       const rows = await sql`
         UPDATE jogos
-           SET kickoff = ${kickoff}
+           SET kickoff = ${kickoff}, fase = ${fase}
          WHERE id = ${achado.id}
-           AND kickoff IS DISTINCT FROM ${kickoff}
+           AND (kickoff IS DISTINCT FROM ${kickoff} OR fase IS DISTINCT FROM ${fase})
         RETURNING id
       `;
       if (rows.length > 0) atualizados++;
@@ -265,7 +269,8 @@ async function acaoJogosHoje() {
       await sql`
         UPDATE jogos
            SET external_id = ${externalId},
-               kickoff = COALESCE(kickoff, ${kickoff})
+               kickoff = COALESCE(kickoff, ${kickoff}),
+               fase = ${fase}
          WHERE id = ${cand.id}
       `;
       legados.splice(idx, 1);
@@ -276,8 +281,8 @@ async function acaoJogosHoje() {
     /* (c) novo — só pra hoje (não ressuscita jogos antigos não cadastrados) */
     if (ehHoje) {
       await sql`
-        INSERT INTO jogos (casa, fora, kickoff, external_id)
-        VALUES (${casa}, ${fora}, ${kickoff}, ${externalId})
+        INSERT INTO jogos (casa, fora, kickoff, external_id, fase)
+        VALUES (${casa}, ${fora}, ${kickoff}, ${externalId}, ${fase})
       `;
       adicionados++;
     }
