@@ -96,6 +96,7 @@ export default function App() {
   const [tab, setTab] = useState("ranking");
   const [abrirPerfil, setAbrirPerfil] = useState(false);
   const offsetRef = useRef(0);
+  const rankingJaAbriu = useRef(false);
   const [, setTick] = useState(0);
 
   const carregar = useCallback(async () => {
@@ -253,7 +254,14 @@ export default function App() {
       </nav>
 
       <main key={tab} className="conteudo-aba">
-        {tab === "ranking" && <Ranking ranking={ranking} temJogos={encerrados > 0} />}
+        {tab === "ranking" && (
+          <Ranking
+            ranking={ranking}
+            temJogos={encerrados > 0}
+            primeiraVez={!rankingJaAbriu.current}
+            aoAbrir={() => { rankingJaAbriu.current = true; }}
+          />
+        )}
         {tab === "jogos" && (
           <Jogos
             estado={estado}
@@ -306,7 +314,8 @@ function LedPontos({ valor }) {
   return <span className="col-pts led">{v}</span>;
 }
 
-function Ranking({ ranking, temJogos }) {
+function Ranking({ ranking, temJogos, primeiraVez, aoAbrir }) {
+  useEffect(() => { aoAbrir(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (ranking.length === 0)
     return <Vazio texto="O organizador ainda não cadastrou os participantes." />;
   return (
@@ -335,7 +344,7 @@ function Ranking({ ranking, temJogos }) {
             className={cls}
             style={{ "--i": Math.min(i, 10), position: "relative", overflow: "visible" }}
           >
-            {p.exatos > 0 && (
+            {p.exatos > 0 && primeiraVez && (
               <span
                 className="gol-burst"
                 style={{ animationDelay: `${0.25 + i * 0.12}s` }}
