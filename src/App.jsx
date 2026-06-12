@@ -2191,6 +2191,12 @@ function ModalRegras({ onFechar }) {
           <div className="regras-item"><span className="pts pts-1">4º</span><span>Mais resultados certos</span></div>
           <div className="regras-item"><span className="pts pts-0">5º</span><span>Quem enviou o primeiro palpite mais cedo</span></div>
 
+          <div className="regras-secao">Prêmio 🏆</div>
+          <p className="regras-p">
+            O <strong>1º lugar</strong> no ranking final leva o valor total em caixa (R$ 20 × número de participantes).
+            Em caso de empate técnico após todos os critérios de desempate, o prêmio é dividido igualmente entre os empatados.
+          </p>
+
           <div className="regras-secao">Travamento de palpites</div>
           <p className="regras-p">
             Palpites são bloqueados automaticamente no minuto do apito inicial.
