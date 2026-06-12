@@ -1173,8 +1173,9 @@ function Campeao({ token, euId }) {
               }}>
                 🔒 CONFIRMADO
               </div>
-              <div style={{ fontSize: "28px", fontWeight: 800, letterSpacing: ".03em" }}>
-                {BANDEIRAS[meu.selecao]} {meu.selecao}
+              <div style={{ fontSize: "52px", lineHeight: 1.1 }}>{BANDEIRAS[meu.selecao]}</div>
+              <div style={{ fontSize: "24px", fontWeight: 800, letterSpacing: ".03em", marginTop: "6px" }}>
+                {meu.selecao}
               </div>
             </div>
           ) : (
@@ -1324,7 +1325,9 @@ function Campeao({ token, euId }) {
             <span className="palpite-nome">
               {c.nome}{c.participante_id === euId ? " (você)" : ""}
             </span>
-            <span className="pts pts-1">{BANDEIRAS[c.selecao]} {c.selecao}</span>
+            <span className="pts pts-1" style={{ fontSize: "22px", border: "none", padding: "0 4px" }} title={c.selecao}>
+              {BANDEIRAS[c.selecao] || c.selecao}
+            </span>
           </div>
         ))
       )}
