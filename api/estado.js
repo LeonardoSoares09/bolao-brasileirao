@@ -13,11 +13,17 @@ export default async function handler(req, res) {
     return;
   }
 
-  const [participantes, jogos, contagens] = await Promise.all([
+  const [participantes, jogos, contagens, palpitesCampeao, palpitesArtilheiro, resultadoEspecialRows] = await Promise.all([
     sql`SELECT id, nome, is_admin, avatar_emoji, avatar_cor FROM participantes ORDER BY nome`,
     sql`SELECT id, casa, fora, kickoff, gh, ga FROM jogos ORDER BY kickoff NULLS LAST, id`,
     sql`SELECT jogo_id, COUNT(*)::int AS total FROM palpites GROUP BY jogo_id`,
+    sql`SELECT participante_id, selecao FROM palpite_campeao WHERE confirmado = TRUE`,
+    sql`SELECT participante_id, jogador FROM palpite_artilheiro WHERE confirmado = TRUE`,
+    sql`SELECT tipo, valor, confirmado FROM resultado_especial`,
   ]);
+
+  const reMap = {};
+  for (const r of resultadoEspecialRows) reMap[r.tipo] = { valor: r.valor, confirmado: r.confirmado };
 
   const palpites = eu.isAdmin
     ? await sql`SELECT jogo_id, participante_id, h, a FROM palpites`
@@ -39,6 +45,9 @@ export default async function handler(req, res) {
     jogos,
     palpites,
     contagens,
+    palpitesCampeao,
+    palpitesArtilheiro,
+    resultadoEspecial: { campeao: reMap.campeao || null, artilheiro: reMap.artilheiro || null },
     agora: new Date().toISOString(),
   });
 }

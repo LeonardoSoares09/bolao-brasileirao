@@ -46,3 +46,10 @@ CREATE TABLE IF NOT EXISTS palpite_artilheiro (
   confirmado      BOOLEAN NOT NULL DEFAULT FALSE,
   atualizado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS resultado_especial (
+  tipo          TEXT PRIMARY KEY CHECK (tipo IN ('campeao', 'artilheiro')),
+  valor         TEXT NOT NULL,
+  confirmado    BOOLEAN NOT NULL DEFAULT FALSE,
+  confirmado_em TIMESTAMPTZ
+);

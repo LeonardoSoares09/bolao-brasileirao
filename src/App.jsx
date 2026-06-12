@@ -174,13 +174,28 @@ export default function App() {
 
   const ranking = estado.participantes
     .map((p) => {
-      let pontos = 0, exatos = 0, resultados = 0;
+      let bonus = 0;
+      const re = estado.resultadoEspecial;
+      if (re?.campeao?.confirmado) {
+        const ok = (estado.palpitesCampeao || []).some(
+          (pc) => pc.participante_id === p.id && pc.selecao === re.campeao.valor
+        );
+        if (ok) bonus += 15;
+      }
+      if (re?.artilheiro?.confirmado) {
+        const alvo = re.artilheiro.valor.trim().toLowerCase();
+        const ok = (estado.palpitesArtilheiro || []).some(
+          (pa) => pa.participante_id === p.id && pa.jogador.trim().toLowerCase() === alvo
+        );
+        if (ok) bonus += 9;
+      }
+      let pontos = bonus, exatos = 0, resultados = 0;
       for (const m of estado.jogos) {
         const pts = pontosDoPalpite(palpitesMap[m.id]?.[p.id], m);
         if (pts === PTS_EXATO) { exatos++; pontos += pts; }
         else if (pts === PTS_RESULTADO) { resultados++; pontos += pts; }
       }
-      return { ...p, pontos, exatos, resultados };
+      return { ...p, pontos, exatos, resultados, bonus };
     })
     .sort((a, b) => b.pontos - a.pontos || b.exatos - a.exatos || a.nome.localeCompare(b.nome));
 
@@ -337,6 +352,7 @@ function Ranking({ ranking, temJogos }) {
             <span className="col-nome">
               <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={24} />
               <span>{p.nome}{i === 0 && p.pontos > 0 ? " 🏆" : ""}</span>
+              {p.bonus > 0 && <span className="bonus-badge" title={`bônus: +${p.bonus} pts`}>+{p.bonus}</span>}
             </span>
             <span className="col-num">{p.exatos}</span>
             <span className="col-num">{p.resultados}</span>
@@ -586,6 +602,8 @@ function Jogos({ estado, contagensMap, comecou, ehAdmin, token, recarregar, offs
           })}
         </div>
       ))}
+
+      {ehAdmin && <BonusAdmin token={token} estado={estado} recarregar={recarregar} />}
     </div>
   );
 }
@@ -939,6 +957,212 @@ const SELECOES = [
 
 const normBusca = (s) =>
   s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
+
+/* ================= BONUS ADMIN ================= */
+
+function BonusAdmin({ token, estado, recarregar }) {
+  const [resultado, setResultado] = useState(null);
+  const [campeaoFiltro, setCampeaoFiltro] = useState("");
+  const [campeaoSel, setCampeaoSel] = useState("");
+  const [artilheiroVal, setArtilheiroVal] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [confirmando, setConfirmando] = useState(null);
+  const [pedindoConfirm, setPedindoConfirm] = useState(null);
+  const [aviso, setAviso] = useState("");
+
+  const carregar = useCallback(async () => {
+    try {
+      const r = await api(`/api/resultado-especial?t=${encodeURIComponent(token)}`);
+      setResultado(r);
+      if (r.campeao) setCampeaoSel(r.campeao.valor);
+      if (r.artilheiro) setArtilheiroVal(r.artilheiro.valor);
+    } catch (e) { setAviso(e.message); }
+  }, [token]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+  useEffect(() => {
+    if (!aviso) return;
+    const t = setTimeout(() => setAviso(""), 5000);
+    return () => clearTimeout(t);
+  }, [aviso]);
+
+  const salvar = async (tipo, valor) => {
+    setSalvando(true);
+    try {
+      await api("/api/resultado-especial", {
+        method: "POST",
+        body: JSON.stringify({ t: token, tipo, valor }),
+      });
+    } catch (e) { setAviso(e.message); }
+    setSalvando(false);
+  };
+
+  const confirmar = async (tipo) => {
+    setConfirmando(tipo);
+    try {
+      await api("/api/resultado-especial", {
+        method: "PUT",
+        body: JSON.stringify({ t: token, tipo }),
+      });
+      await carregar();
+      await recarregar();
+      setPedindoConfirm(null);
+    } catch (e) { setAviso(e.message); }
+    setConfirmando(null);
+  };
+
+  if (!resultado) return null;
+
+  const nomeParticipante = (id) => estado.participantes.find((p) => p.id === id)?.nome || "?";
+
+  const vencedoresCampeao = resultado.campeao?.confirmado
+    ? (estado.palpitesCampeao || []).filter((pc) => pc.selecao === resultado.campeao.valor)
+    : [];
+  const vencedoresArtilheiro = resultado.artilheiro?.confirmado
+    ? (estado.palpitesArtilheiro || []).filter(
+        (pa) => pa.jogador.trim().toLowerCase() === resultado.artilheiro.valor.trim().toLowerCase()
+      )
+    : [];
+
+  const filtradas = campeaoFiltro
+    ? SELECOES.filter((s) => normBusca(s).includes(normBusca(campeaoFiltro)))
+    : SELECOES;
+
+  return (
+    <div style={{ marginTop: "24px" }}>
+      <div className="grupo-data-header">🏆 BÔNUS ESPECIAIS</div>
+
+      {/* Campeão */}
+      <div className="cartao form-jogo" style={{ marginBottom: "10px" }}>
+        <div className="secao-titulo" style={{ margin: "0 0 8px" }}>SELEÇÃO CAMPEÃ · +15 pts para quem acertou</div>
+        {resultado.campeao?.confirmado ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "20px", fontWeight: 800 }}>{fl(resultado.campeao.valor)}{resultado.campeao.valor}</span>
+            <span className="tag tag-travado">🔒 confirmado</span>
+          </div>
+        ) : (
+          <>
+            <input
+              type="text"
+              placeholder="Buscar seleção campeã…"
+              value={campeaoFiltro}
+              onChange={(e) => { setCampeaoFiltro(e.target.value); setPedindoConfirm(null); }}
+            />
+            <div className="lista-campeao">
+              {filtradas.map((s) => (
+                <button
+                  key={s}
+                  className={"campeao-item" + (s === campeaoSel ? " campeao-item-ativo" : "")}
+                  onClick={() => { setCampeaoSel(s); setCampeaoFiltro(""); salvar("campeao", s); }}
+                  disabled={salvando}
+                >
+                  <span className="campeao-item-nome">{fl(s)}{s}</span>
+                  {s === campeaoSel && <span className="palpite-status ok">✓</span>}
+                </button>
+              ))}
+            </div>
+            {campeaoSel && pedindoConfirm !== "campeao" && (
+              <button
+                className="botao botao-largo"
+                style={{ marginTop: "8px" }}
+                onClick={() => setPedindoConfirm("campeao")}
+                disabled={salvando || !!confirmando}
+              >
+                🔒 Confirmar campeã e distribuir +15 pts
+              </button>
+            )}
+            {pedindoConfirm === "campeao" && (
+              <>
+                <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px", color: "var(--erro)", marginTop: "8px" }}>
+                  ⚠ Confirmar <strong>{campeaoSel}</strong> como campeã? Não poderá alterar.
+                </p>
+                <div className="form-linha">
+                  <button className="botao" style={{ flex: 1 }} onClick={() => confirmar("campeao")} disabled={!!confirmando}>
+                    {confirmando === "campeao" ? "Confirmando…" : "Sim, confirmar!"}
+                  </button>
+                  <button className="botao-fantasma" onClick={() => setPedindoConfirm(null)}>Cancelar</button>
+                </div>
+              </>
+            )}
+          </>
+        )}
+        {vencedoresCampeao.length > 0 && (
+          <div style={{ marginTop: "10px" }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "10px", opacity: .7, marginBottom: "6px" }}>GANHARAM +15 PTS:</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+              {vencedoresCampeao.map((v) => (
+                <span key={v.participante_id} className="pts pts-3">{nomeParticipante(v.participante_id)}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        {resultado.campeao?.confirmado && vencedoresCampeao.length === 0 && (
+          <p className="dica" style={{ marginTop: "8px", opacity: .6 }}>Ninguém acertou o campeão.</p>
+        )}
+      </div>
+
+      {/* Artilheiro */}
+      <div className="cartao form-jogo">
+        <div className="secao-titulo" style={{ margin: "0 0 8px" }}>ARTILHEIRO · +9 pts para quem acertou</div>
+        {resultado.artilheiro?.confirmado ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "20px", fontWeight: 800 }}>{resultado.artilheiro.valor}</span>
+            <span className="tag tag-travado">🔒 confirmado</span>
+          </div>
+        ) : (
+          <>
+            <input
+              type="text"
+              placeholder="Nome do artilheiro real…"
+              value={artilheiroVal}
+              onChange={(e) => { setArtilheiroVal(e.target.value); setPedindoConfirm(null); }}
+              onBlur={() => artilheiroVal.trim().length >= 2 && salvar("artilheiro", artilheiroVal.trim())}
+              maxLength={80}
+            />
+            {artilheiroVal.trim() && pedindoConfirm !== "artilheiro" && (
+              <button
+                className="botao botao-largo"
+                style={{ marginTop: "8px" }}
+                onClick={() => setPedindoConfirm("artilheiro")}
+                disabled={salvando || !!confirmando}
+              >
+                🔒 Confirmar artilheiro e distribuir +9 pts
+              </button>
+            )}
+            {pedindoConfirm === "artilheiro" && (
+              <>
+                <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px", color: "var(--erro)", marginTop: "8px" }}>
+                  ⚠ Confirmar <strong>{artilheiroVal.trim()}</strong> como artilheiro? Não poderá alterar.
+                </p>
+                <div className="form-linha">
+                  <button className="botao" style={{ flex: 1 }} onClick={() => confirmar("artilheiro")} disabled={!!confirmando}>
+                    {confirmando === "artilheiro" ? "Confirmando…" : "Sim, confirmar!"}
+                  </button>
+                  <button className="botao-fantasma" onClick={() => setPedindoConfirm(null)}>Cancelar</button>
+                </div>
+              </>
+            )}
+          </>
+        )}
+        {vencedoresArtilheiro.length > 0 && (
+          <div style={{ marginTop: "10px" }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "10px", opacity: .7, marginBottom: "6px" }}>GANHARAM +9 PTS:</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+              {vencedoresArtilheiro.map((v) => (
+                <span key={v.participante_id} className="pts pts-3">{nomeParticipante(v.participante_id)}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        {resultado.artilheiro?.confirmado && vencedoresArtilheiro.length === 0 && (
+          <p className="dica" style={{ marginTop: "8px", opacity: .6 }}>Ninguém acertou o artilheiro.</p>
+        )}
+      </div>
+
+      {aviso && <p className="dica toast" role="status">{aviso}</p>}
+    </div>
+  );
+}
 
 /* ================= AVATAR ================= */
 
@@ -1745,6 +1969,11 @@ function Estilo() {
       .podio-prata:hover { background: rgba(200,200,210,.14) !important; }
       .podio-bronze:hover{ background: rgba(180,100,40,.14) !important; }
       .col-pos-medal { font-size: 18px; opacity: 1; }
+      .bonus-badge {
+        font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
+        color: #7ee2a0; border: 1.5px solid #7ee2a0; padding: 1px 5px;
+        white-space: nowrap; flex: none;
+      }
 
       @keyframes gol {
         0%   { opacity: 0; transform: translate(-50%, 4px) scale(.6); }
