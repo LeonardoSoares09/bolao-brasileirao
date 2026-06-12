@@ -183,11 +183,7 @@ export default function App() {
         if (ok) bonus += 15;
       }
       if (re?.artilheiro?.confirmado) {
-        const alvo = re.artilheiro.valor.trim().toLowerCase();
-        const ok = (estado.palpitesArtilheiro || []).some(
-          (pa) => pa.participante_id === p.id && pa.jogador.trim().toLowerCase() === alvo
-        );
-        if (ok) bonus += 9;
+        if ((estado.premiadosArtilheiro || []).includes(p.id)) bonus += 9;
       }
       let pontos = bonus, exatos = 0, resultados = 0;
       for (const m of estado.jogos) {
@@ -969,6 +965,7 @@ function BonusAdmin({ token, estado, recarregar }) {
   const [confirmando, setConfirmando] = useState(null);
   const [pedindoConfirm, setPedindoConfirm] = useState(null);
   const [aviso, setAviso] = useState("");
+  const [toggling, setToggling] = useState(false);
 
   const carregar = useCallback(async () => {
     try {
@@ -1011,17 +1008,24 @@ function BonusAdmin({ token, estado, recarregar }) {
     setConfirmando(null);
   };
 
+  const togglePremiado = async (participanteId) => {
+    setToggling(true);
+    try {
+      await api("/api/resultado-especial", {
+        method: "PATCH",
+        body: JSON.stringify({ t: token, participanteId }),
+      });
+      await recarregar();
+    } catch (e) { setAviso(e.message); }
+    setToggling(false);
+  };
+
   if (!resultado) return null;
 
   const nomeParticipante = (id) => estado.participantes.find((p) => p.id === id)?.nome || "?";
 
   const vencedoresCampeao = resultado.campeao?.confirmado
     ? (estado.palpitesCampeao || []).filter((pc) => pc.selecao === resultado.campeao.valor)
-    : [];
-  const vencedoresArtilheiro = resultado.artilheiro?.confirmado
-    ? (estado.palpitesArtilheiro || []).filter(
-        (pa) => pa.jogador.trim().toLowerCase() === resultado.artilheiro.valor.trim().toLowerCase()
-      )
     : [];
 
   const filtradas = campeaoFiltro
@@ -1106,55 +1110,82 @@ function BonusAdmin({ token, estado, recarregar }) {
         <div className="secao-titulo" style={{ margin: "0 0 8px" }}>ARTILHEIRO · +9 pts para quem acertou</div>
         {resultado.artilheiro?.confirmado ? (
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-            <span style={{ fontSize: "20px", fontWeight: 800 }}>{resultado.artilheiro.valor}</span>
+            {resultado.artilheiro.valor && <span style={{ fontSize: "20px", fontWeight: 800 }}>{resultado.artilheiro.valor}</span>}
             <span className="tag tag-travado">🔒 confirmado</span>
           </div>
         ) : (
-          <>
-            <input
-              type="text"
-              placeholder="Nome do artilheiro real…"
-              value={artilheiroVal}
-              onChange={(e) => { setArtilheiroVal(e.target.value); setPedindoConfirm(null); }}
-              onBlur={() => artilheiroVal.trim().length >= 2 && salvar("artilheiro", artilheiroVal.trim())}
-              maxLength={80}
-            />
-            {artilheiroVal.trim() && pedindoConfirm !== "artilheiro" && (
-              <button
-                className="botao botao-largo"
-                style={{ marginTop: "8px" }}
-                onClick={() => setPedindoConfirm("artilheiro")}
-                disabled={salvando || !!confirmando}
-              >
-                🔒 Confirmar artilheiro e distribuir +9 pts
-              </button>
-            )}
-            {pedindoConfirm === "artilheiro" && (
-              <>
-                <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px", color: "var(--erro)", marginTop: "8px" }}>
-                  ⚠ Confirmar <strong>{artilheiroVal.trim()}</strong> como artilheiro? Não poderá alterar.
-                </p>
-                <div className="form-linha">
-                  <button className="botao" style={{ flex: 1 }} onClick={() => confirmar("artilheiro")} disabled={!!confirmando}>
-                    {confirmando === "artilheiro" ? "Confirmando…" : "Sim, confirmar!"}
-                  </button>
-                  <button className="botao-fantasma" onClick={() => setPedindoConfirm(null)}>Cancelar</button>
-                </div>
-              </>
-            )}
-          </>
+          <input
+            type="text"
+            placeholder="Nome do artilheiro (opcional, para exibição)…"
+            value={artilheiroVal}
+            onChange={(e) => { setArtilheiroVal(e.target.value); setPedindoConfirm(null); }}
+            onBlur={() => artilheiroVal.trim().length >= 2 && salvar("artilheiro", artilheiroVal.trim())}
+            maxLength={80}
+          />
         )}
-        {vencedoresArtilheiro.length > 0 && (
+
+        {/* lista de picks dos participantes */}
+        {(estado.palpitesArtilheiro?.length > 0) && (
           <div style={{ marginTop: "10px" }}>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "10px", opacity: .7, marginBottom: "6px" }}>GANHARAM +9 PTS:</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-              {vencedoresArtilheiro.map((v) => (
-                <span key={v.participante_id} className="pts pts-3">{nomeParticipante(v.participante_id)}</span>
-              ))}
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "10px", opacity: .7, marginBottom: "6px", letterSpacing: ".1em" }}>
+              {resultado.artilheiro?.confirmado ? "PICKS SUBMETIDOS:" : "MARQUE QUEM ACERTOU:"}
             </div>
+            {estado.palpitesArtilheiro.map((pick) => {
+              const isPremiado = (estado.premiadosArtilheiro || []).includes(pick.participante_id);
+              return (
+                <div
+                  key={pick.participante_id}
+                  className={"cartao palpite-linha" + (isPremiado ? " meu-palpite" : "")}
+                  style={{ marginBottom: "6px" }}
+                >
+                  <span className="palpite-nome">{nomeParticipante(pick.participante_id)}</span>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "13px", opacity: .85, flex: "none" }}>{pick.jogador}</span>
+                  {!resultado.artilheiro?.confirmado ? (
+                    <button
+                      className={isPremiado ? "botao" : "botao-fantasma"}
+                      style={{ padding: "4px 10px", fontSize: "13px" }}
+                      onClick={() => togglePremiado(pick.participante_id)}
+                      disabled={toggling}
+                    >
+                      {isPremiado ? "✓ Acertou" : "Marcar"}
+                    </button>
+                  ) : (
+                    isPremiado && <span className="pts pts-3">+9</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
-        {resultado.artilheiro?.confirmado && vencedoresArtilheiro.length === 0 && (
+        {(!estado.palpitesArtilheiro || estado.palpitesArtilheiro.length === 0) && (
+          <p className="dica" style={{ marginTop: "8px", opacity: .6 }}>Ninguém escolheu artilheiro ainda.</p>
+        )}
+
+        {!resultado.artilheiro?.confirmado && (estado.premiadosArtilheiro || []).length > 0 && pedindoConfirm !== "artilheiro" && (
+          <button
+            className="botao botao-largo"
+            style={{ marginTop: "10px" }}
+            onClick={() => setPedindoConfirm("artilheiro")}
+            disabled={salvando || !!confirmando}
+          >
+            🔒 Confirmar e distribuir +9 pts
+          </button>
+        )}
+        {pedindoConfirm === "artilheiro" && (
+          <>
+            <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px", color: "var(--erro)", marginTop: "8px" }}>
+              ⚠ Confirmar {(estado.premiadosArtilheiro || []).length} ganhador{(estado.premiadosArtilheiro || []).length === 1 ? "" : "es"} do artilheiro? Não poderá alterar.
+            </p>
+            <div className="form-linha">
+              <button className="botao" style={{ flex: 1 }} onClick={() => confirmar("artilheiro")} disabled={!!confirmando}>
+                {confirmando === "artilheiro" ? "Confirmando…" : "Sim, confirmar!"}
+              </button>
+              <button className="botao-fantasma" onClick={() => setPedindoConfirm(null)}>Cancelar</button>
+            </div>
+          </>
+        )}
+
+        {resultado.artilheiro?.confirmado && (estado.premiadosArtilheiro || []).length === 0 && (
           <p className="dica" style={{ marginTop: "8px", opacity: .6 }}>Ninguém acertou o artilheiro.</p>
         )}
       </div>

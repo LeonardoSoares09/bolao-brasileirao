@@ -47,6 +47,10 @@ CREATE TABLE IF NOT EXISTS palpite_artilheiro (
   atualizado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS artilheiro_premiado (
+  participante_id INT PRIMARY KEY REFERENCES participantes(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS resultado_especial (
   tipo          TEXT PRIMARY KEY CHECK (tipo IN ('campeao', 'artilheiro')),
   valor         TEXT NOT NULL,

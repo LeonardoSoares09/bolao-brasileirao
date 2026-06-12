@@ -3,7 +3,7 @@
    POST { t, tipo, valor }    → salva/atualiza (só se não confirmado)
    PUT  { t, tipo }           → confirma e trava para sempre */
 
-import { sql, autenticar } from "../lib/db.js";
+import { sql, autenticar, intOuNull } from "../lib/db.js";
 
 export default async function handler(req, res) {
   const token = req.method === "GET" ? req.query.t : req.body?.t;
@@ -43,19 +43,37 @@ export default async function handler(req, res) {
   if (req.method === "PUT") {
     const tipo = req.body?.tipo === "artilheiro" ? "artilheiro" : "campeao";
     const rows = await sql`SELECT valor, confirmado FROM resultado_especial WHERE tipo = ${tipo}`;
-    if (rows.length === 0) {
-      res.status(400).json({ error: "Defina o resultado antes de confirmar" });
-      return;
-    }
-    if (rows[0].confirmado) {
+    if (rows.length > 0 && rows[0].confirmado) {
       res.status(403).json({ error: "Já confirmado anteriormente" });
       return;
     }
-    await sql`
-      UPDATE resultado_especial
-      SET confirmado = TRUE, confirmado_em = now()
-      WHERE tipo = ${tipo}
-    `;
+    if (tipo === "campeao" && rows.length === 0) {
+      res.status(400).json({ error: "Defina o resultado antes de confirmar" });
+      return;
+    }
+    if (rows.length === 0) {
+      await sql`INSERT INTO resultado_especial (tipo, valor, confirmado, confirmado_em) VALUES (${tipo}, '', TRUE, now())`;
+    } else {
+      await sql`UPDATE resultado_especial SET confirmado = TRUE, confirmado_em = now() WHERE tipo = ${tipo}`;
+    }
+    res.status(200).json({ ok: true });
+    return;
+  }
+
+  if (req.method === "PATCH") {
+    const id = intOuNull(req.body?.participanteId);
+    if (id === null) { res.status(400).json({ error: "participanteId obrigatório" }); return; }
+    const lock = await sql`SELECT confirmado FROM resultado_especial WHERE tipo = 'artilheiro'`;
+    if (lock.length > 0 && lock[0].confirmado) {
+      res.status(403).json({ error: "Artilheiro já confirmado — não pode alterar" });
+      return;
+    }
+    const existing = await sql`SELECT 1 FROM artilheiro_premiado WHERE participante_id = ${id}`;
+    if (existing.length > 0) {
+      await sql`DELETE FROM artilheiro_premiado WHERE participante_id = ${id}`;
+    } else {
+      await sql`INSERT INTO artilheiro_premiado (participante_id) VALUES (${id})`;
+    }
     res.status(200).json({ ok: true });
     return;
   }

@@ -13,13 +13,16 @@ export default async function handler(req, res) {
     return;
   }
 
-  const [participantes, jogos, contagens, palpitesCampeao, palpitesArtilheiro, resultadoEspecialRows] = await Promise.all([
+  const [participantes, jogos, contagens, palpitesCampeao, palpitesArtilheiro, resultadoEspecialRows, premiadosArtilheiro] = await Promise.all([
     sql`SELECT id, nome, is_admin, avatar_emoji, avatar_cor FROM participantes ORDER BY nome`,
     sql`SELECT id, casa, fora, kickoff, gh, ga FROM jogos ORDER BY kickoff NULLS LAST, id`,
     sql`SELECT jogo_id, COUNT(*)::int AS total FROM palpites GROUP BY jogo_id`,
     sql`SELECT participante_id, selecao FROM palpite_campeao WHERE confirmado = TRUE`,
-    sql`SELECT participante_id, jogador FROM palpite_artilheiro WHERE confirmado = TRUE`,
+    eu.isAdmin
+      ? sql`SELECT participante_id, jogador FROM palpite_artilheiro ORDER BY participante_id`
+      : sql`SELECT participante_id, jogador FROM palpite_artilheiro WHERE confirmado = TRUE`,
     sql`SELECT tipo, valor, confirmado FROM resultado_especial`,
+    sql`SELECT participante_id FROM artilheiro_premiado`,
   ]);
 
   const reMap = {};
@@ -47,6 +50,7 @@ export default async function handler(req, res) {
     contagens,
     palpitesCampeao,
     palpitesArtilheiro,
+    premiadosArtilheiro: premiadosArtilheiro.map((r) => r.participante_id),
     resultadoEspecial: { campeao: reMap.campeao || null, artilheiro: reMap.artilheiro || null },
     agora: new Date().toISOString(),
   });
