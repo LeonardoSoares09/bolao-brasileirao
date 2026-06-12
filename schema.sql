@@ -10,13 +10,14 @@ CREATE TABLE IF NOT EXISTS participantes (
 );
 
 CREATE TABLE IF NOT EXISTS jogos (
-  id        SERIAL PRIMARY KEY,
-  casa      TEXT NOT NULL,
-  fora      TEXT NOT NULL,
-  kickoff   TIMESTAMPTZ,
-  gh        INT CHECK (gh >= 0),
-  ga        INT CHECK (ga >= 0),
-  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+  id          SERIAL PRIMARY KEY,
+  casa        TEXT NOT NULL,
+  fora        TEXT NOT NULL,
+  kickoff     TIMESTAMPTZ,
+  gh          INT CHECK (gh >= 0),
+  ga          INT CHECK (ga >= 0),
+  external_id TEXT UNIQUE,   -- id da partida na football-data.org (carimbo p/ busca automática de placar)
+  criado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS palpites (
@@ -29,3 +30,10 @@ CREATE TABLE IF NOT EXISTS palpites (
 );
 
 CREATE INDEX IF NOT EXISTS idx_palpites_jogo ON palpites (jogo_id);
+
+CREATE TABLE IF NOT EXISTS palpite_campeao (
+  participante_id INT PRIMARY KEY REFERENCES participantes(id) ON DELETE CASCADE,
+  selecao         TEXT NOT NULL,
+  confirmado      BOOLEAN NOT NULL DEFAULT FALSE,
+  atualizado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
+);

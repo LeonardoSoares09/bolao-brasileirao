@@ -191,6 +191,7 @@ export default function App() {
           ["ranking", "Ranking"],
           ["jogos", "Jogos"],
           ["palpites", "Palpites"],
+          ["campeao", "Campeão"],
           ["galera", "Galera"],
         ].map(([id, rotulo]) => (
           <button
@@ -225,6 +226,9 @@ export default function App() {
             token={token}
             recarregar={carregar}
           />
+        )}
+        {tab === "campeao" && (
+          <Campeao token={token} euId={estado.eu.id} />
         )}
         {tab === "galera" && (
           <Galera estado={estado} ehAdmin={ehAdmin} token={token} recarregar={carregar} />
@@ -717,6 +721,224 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
             <button className="apagar" onClick={() => remover(p.id)} aria-label={`Remover ${p.nome}`}>✕</button>
           </div>
         ))}
+    </div>
+  );
+}
+
+/* ================= CAMPEÃO ================= */
+
+const SELECOES = [
+  "África do Sul", "Albânia", "Alemanha", "Argélia", "Argentina",
+  "Arábia Saudita", "Austrália", "Áustria",
+  "Bélgica", "Bolívia", "Bósnia e Herzegovina", "Brasil", "Bulgária",
+  "Camarões", "Canadá", "Catar", "Chile", "China", "Colômbia",
+  "Coreia do Sul", "Costa do Marfim", "Costa Rica", "Croácia",
+  "Dinamarca",
+  "Egito", "El Salvador", "Emirados Árabes Unidos", "Equador", "Escócia",
+  "Eslováquia", "Eslovênia", "Espanha", "Estados Unidos",
+  "França",
+  "Gana", "Grécia", "Guatemala",
+  "Haiti", "Honduras", "Holanda", "Hungria",
+  "Inglaterra", "Irã", "Iraque", "Irlanda", "Irlanda do Norte", "Islândia",
+  "Jamaica", "Japão", "Jordânia",
+  "Mali", "Marrocos", "México", "Montenegro",
+  "Nigéria", "Noruega", "Nova Zelândia",
+  "País de Gales", "Panamá", "Paraguai", "Peru", "Polônia", "Portugal",
+  "República Democrática do Congo", "República Tcheca", "Romênia",
+  "Senegal", "Sérvia", "Suécia", "Suíça",
+  "Trinidad e Tobago", "Tunísia", "Turquia",
+  "Ucrânia", "Uruguai", "Uzbequistão",
+  "Venezuela",
+];
+
+function Campeao({ token, euId }) {
+  const [meu, setMeu] = useState(null);
+  const [confirmados, setConfirmados] = useState([]);
+  const [selecao, setSelecao] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const [pedindoConfirm, setPedindoConfirm] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
+  const [aviso, setAviso] = useState("");
+
+  const carregar = useCallback(async () => {
+    try {
+      const r = await api(`/api/campeao?t=${encodeURIComponent(token)}`);
+      setMeu(r.meu);
+      setConfirmados(r.confirmados);
+      if (r.meu) setSelecao(r.meu.selecao);
+    } catch (e) {
+      setAviso(e.message);
+    } finally {
+      setCarregando(false);
+    }
+  }, [token]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  useEffect(() => {
+    if (!aviso) return;
+    const t = setTimeout(() => setAviso(""), 5000);
+    return () => clearTimeout(t);
+  }, [aviso]);
+
+  const salvar = async () => {
+    if (!selecao) return;
+    setSalvando(true);
+    try {
+      await api("/api/campeao", {
+        method: "POST",
+        body: JSON.stringify({ t: token, selecao }),
+      });
+      setMeu((prev) => ({ selecao, confirmado: prev?.confirmado ?? false }));
+      setAviso("Salvo ✓ — você pode alterar antes de confirmar.");
+    } catch (e) {
+      setAviso(e.message);
+    }
+    setSalvando(false);
+  };
+
+  const confirmar = async () => {
+    setConfirmando(true);
+    try {
+      if (!meu || meu.selecao !== selecao) {
+        await api("/api/campeao", {
+          method: "POST",
+          body: JSON.stringify({ t: token, selecao }),
+        });
+      }
+      await api("/api/campeao", {
+        method: "PUT",
+        body: JSON.stringify({ t: token }),
+      });
+      await carregar();
+      setPedindoConfirm(false);
+    } catch (e) {
+      setAviso(e.message);
+      setPedindoConfirm(false);
+    }
+    setConfirmando(false);
+  };
+
+  if (carregando) {
+    return <div className="carregando"><span className="bola-quica">⚽</span> Carregando…</div>;
+  }
+
+  const isMaster = euId === null;
+  const confirmado = meu?.confirmado;
+  const mudou = selecao !== (meu?.selecao ?? "");
+
+  return (
+    <div>
+      {!isMaster && (
+        <>
+          <div className="secao-titulo">SUA ESCOLHA 🏆</div>
+
+          {confirmado ? (
+            <div className="cartao meu-palpite" style={{ textAlign: "center", padding: "22px 16px" }}>
+              <div style={{
+                fontFamily: "'IBM Plex Mono', monospace",
+                fontSize: "11px", letterSpacing: ".14em",
+                color: "var(--ambar)", marginBottom: "10px",
+              }}>
+                🔒 CONFIRMADO
+              </div>
+              <div style={{ fontSize: "28px", fontWeight: 800, letterSpacing: ".03em" }}>
+                {meu.selecao}
+              </div>
+            </div>
+          ) : (
+            <div className="cartao form-jogo">
+              <select
+                className="seletor"
+                value={selecao}
+                onChange={(e) => { setSelecao(e.target.value); setPedindoConfirm(false); }}
+              >
+                <option value="">— Escolha a seleção campeã —</option>
+                {SELECOES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+
+              <div className="form-linha">
+                <button
+                  className="botao"
+                  onClick={salvar}
+                  disabled={!mudou || !selecao || salvando || confirmando}
+                >
+                  {salvando ? "Salvando…" : "Salvar"}
+                </button>
+
+                {pedindoConfirm ? (
+                  <>
+                    <button
+                      className="botao"
+                      style={{ flex: 1 }}
+                      onClick={confirmar}
+                      disabled={confirmando}
+                    >
+                      {confirmando ? "Travando…" : "Sim, travar!"}
+                    </button>
+                    <button
+                      className="botao-fantasma"
+                      onClick={() => setPedindoConfirm(false)}
+                      disabled={confirmando}
+                    >
+                      Cancelar
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="botao"
+                    style={{ flex: 1 }}
+                    onClick={() => selecao && setPedindoConfirm(true)}
+                    disabled={!selecao || salvando}
+                  >
+                    🔒 Confirmar e travar
+                  </button>
+                )}
+              </div>
+
+              {meu && !mudou && (
+                <p style={{
+                  fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px",
+                  letterSpacing: ".06em", color: "var(--ambar)",
+                  marginTop: "8px", marginBottom: 0, opacity: .8,
+                }}>
+                  Salvo: {meu.selecao}
+                </p>
+              )}
+              {pedindoConfirm && (
+                <p style={{
+                  fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px",
+                  letterSpacing: ".06em", color: "var(--erro)",
+                  marginTop: "8px", marginBottom: 0,
+                }}>
+                  ⚠ Após confirmar não será possível alterar.
+                </p>
+              )}
+            </div>
+          )}
+
+          {aviso && <p className="dica toast" role="status">{aviso}</p>}
+        </>
+      )}
+
+      <div className="secao-titulo">PALPITES CONFIRMADOS</div>
+      {confirmados.length === 0 ? (
+        <Vazio texto="Nenhum palpite confirmado ainda — seja o primeiro!" />
+      ) : (
+        confirmados.map((c, i) => (
+          <div
+            key={c.participante_id}
+            className={"cartao palpite-linha entra-cartao" + (c.participante_id === euId ? " meu-palpite" : "")}
+            style={{ "--i": Math.min(i, 8) }}
+          >
+            <span className="palpite-nome">
+              {c.nome}{c.participante_id === euId ? " (você)" : ""}
+            </span>
+            <span className="pts pts-1">{c.selecao}</span>
+          </div>
+        ))
+      )}
     </div>
   );
 }
