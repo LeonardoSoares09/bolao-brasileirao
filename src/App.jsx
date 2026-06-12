@@ -547,7 +547,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
     (p) => jogosPendentesHoje.some((m) => !palpitesMap[m.id]?.[p.id])
   );
 
-  const cobrarWhatsApp = () => {
+  const cobrarWhatsApp = async () => {
     const agora = new Date(Date.now() + offsetMs);
     const faltando = estado.participantes
       .map((p) => ({
@@ -582,7 +582,16 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
       window.location.origin,
     ].join("\n");
 
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+    if (navigator.share) {
+      navigator.share({ text: msg }).catch(() => {});
+    } else {
+      try {
+        await navigator.clipboard.writeText(msg);
+        setAviso("Texto copiado! Cole no WhatsApp 📋");
+      } catch {
+        window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+      }
+    }
   };
 
   useEffect(() => {
