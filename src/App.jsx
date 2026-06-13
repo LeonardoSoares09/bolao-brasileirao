@@ -467,26 +467,29 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickPar
             )}
             <span className={"col-pos" + (podio ? " col-pos-medal" : "")}>{medalha}</span>
             <span className="col-nome">
-              <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={24} />
-              <span>{p.nome}{i === 0 && p.pontos > 0 ? " 🏆" : ""}</span>
-              {p.bonus > 0 && <span className="bonus-badge" title={`bônus: +${p.bonus} pts`}>+{p.bonus}</span>}
-              {posAntes[p.id] !== undefined && posAntes[p.id] > i && (
-                <span className="trend-up">↑{posAntes[p.id] - i}</span>
-              )}
-              {posAntes[p.id] !== undefined && posAntes[p.id] < i && (
-                <span className="trend-down">↓{i - posAntes[p.id]}</span>
-              )}
-              {(() => {
-                const prox = ranking[i + 1];
-                if (!prox) return null;
-                const c = criterioDesempate(p, prox);
-                if (!c) return null;
-                return (
-                  <span className="desempate-badge" title={`Desempatado por: ${c.label}`}>
-                    {c.icon} {c.label}
-                  </span>
-                );
-              })()}
+              <span className="col-nome-inner">
+                <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={24} />
+                <span>{p.nome}{i === 0 && p.pontos > 0 ? " 🏆" : ""}</span>
+                {p.bonus > 0 && <span className="bonus-badge" title={`bônus: +${p.bonus} pts`}>+{p.bonus}</span>}
+                {posAntes[p.id] !== undefined && posAntes[p.id] > i && (
+                  <span className="trend-up">↑{posAntes[p.id] - i}</span>
+                )}
+                {posAntes[p.id] !== undefined && posAntes[p.id] < i && (
+                  <span className="trend-down">↓{i - posAntes[p.id]}</span>
+                )}
+                {(() => {
+                  const prox = ranking[i + 1];
+                  if (!prox) return null;
+                  const c = criterioDesempate(p, prox);
+                  if (!c) return null;
+                  return (
+                    <span className="desempate-badge" title={`Desempatado por: ${c.label}`}>
+                      {c.icon} {c.label}
+                    </span>
+                  );
+                })()}
+              </span>
+              <span className="col-detalhe-mobile">🎯 {p.exatos} exatos · ✓ {p.resultados} result.</span>
             </span>
             <span className="col-num">{p.exatos}</span>
             <span className="col-num">{p.resultados}</span>
@@ -3130,7 +3133,9 @@ function Estilo() {
         animation: gol 1.8s ease-out forwards;
       }
       .col-pos { font-family: 'IBM Plex Mono', monospace; font-size: 13px; opacity: .7; }
-      .col-nome { display: flex; align-items: center; gap: 7px; overflow: hidden; min-width: 0; }
+      .col-nome { display: flex; flex-direction: column; justify-content: center; overflow: hidden; min-width: 0; gap: 2px; }
+      .col-nome-inner { display: flex; align-items: center; gap: 7px; overflow: hidden; min-width: 0; }
+      .col-detalhe-mobile { display: none; }
       .col-num { text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 14px; }
       .col-pts { text-align: right; }
 
@@ -3324,7 +3329,9 @@ function Estilo() {
       }
 
       @media (max-width: 460px) {
-        .placar-cab, .placar-linha { grid-template-columns: 26px 1fr 48px 48px 56px; padding: 9px 8px; }
+        .placar-cab, .placar-linha { grid-template-columns: 26px 1fr 56px; padding: 9px 8px; }
+        .col-num { display: none; }
+        .col-detalhe-mobile { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 10px; opacity: .6; letter-spacing: .04em; }
         .jogo { flex-direction: column; align-items: stretch; }
         .jogo-resultado { justify-content: flex-end; }
         .linha-botoes { flex-direction: column; }
