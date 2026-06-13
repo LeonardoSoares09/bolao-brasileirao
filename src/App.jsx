@@ -437,8 +437,8 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickPar
         <div className="placar-cab">
           <span className="col-pos">#</span>
           <span className="col-nome">PARTICIPANTE</span>
-          <span className="col-num">EXATOS</span>
-          <span className="col-num">RESULT.</span>
+          <span className="col-num col-num-hd" title="Placares exatos">🎯<br/>EXATOS</span>
+          <span className="col-num col-num-hd" title="Resultados certos">✓<br/>RESULT.</span>
           <span className="col-pts">PTS</span>
         </div>
         {ranking.map((p, i) => {
@@ -3136,8 +3136,12 @@ function Estilo() {
       .col-nome { display: flex; flex-direction: column; justify-content: center; overflow: hidden; min-width: 0; gap: 2px; }
       .col-nome-inner { display: flex; align-items: center; gap: 7px; overflow: hidden; min-width: 0; }
       .col-detalhe-mobile { display: none; }
-      .col-num { text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 14px; }
-      .col-pts { text-align: right; }
+      .col-num {
+        text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 700;
+        border-left: 1px solid rgba(255,255,255,.08); padding-left: 4px;
+      }
+      .col-num-hd { font-size: 9px; font-weight: 400; line-height: 1.6; letter-spacing: .1em; }
+      .col-pts { text-align: right; border-left: 1px solid rgba(255,255,255,.12); padding-left: 6px; }
 
       .avatar {
         border-radius: 50%; display: flex; align-items: center; justify-content: center;
@@ -3331,6 +3335,7 @@ function Estilo() {
       @media (max-width: 460px) {
         .placar-cab, .placar-linha { grid-template-columns: 26px 1fr 56px; padding: 9px 8px; }
         .col-num { display: none; }
+        .col-pts { border-left: none; padding-left: 0; }
         .col-detalhe-mobile { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 10px; opacity: .6; letter-spacing: .04em; }
         .jogo { flex-direction: column; align-items: stretch; }
         .jogo-resultado { justify-content: flex-end; }
