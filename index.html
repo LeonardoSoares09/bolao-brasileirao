@@ -8,7 +8,16 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Bolão Copa" />
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="/manifest.json" id="pwa-manifest" />
+    <script>
+      (function () {
+        var t = new URLSearchParams(location.search).get("t");
+        if (t) {
+          document.getElementById("pwa-manifest").href =
+            "/api/manifest?t=" + encodeURIComponent(t);
+        }
+      })();
+    </script>
     <link rel="apple-touch-icon" href="/icone bolao.png" />
     <title>Bolão da Copa 2026</title>
   </head>
