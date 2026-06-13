@@ -1203,6 +1203,7 @@ function LinhaPalpite({ jogo, participante, palpite, bloqueado, destaque, token,
         {status === "salvando" && <span className="palpite-status">salvando…</span>}
         {status === "salvo" && <span className="palpite-status ok">✓</span>}
         {status === "erro" && <span className="palpite-status erro">não salvou ✕</span>}
+        <span className="palpite-time-flag" title={jogo.casa}>{fl(jogo.casa)}</span>
         <input type="number" min="0" inputMode="numeric" value={h} placeholder="–"
           disabled={bloqueado}
           onChange={(e) => mudar("h", e.target.value)}
@@ -1212,6 +1213,7 @@ function LinhaPalpite({ jogo, participante, palpite, bloqueado, destaque, token,
           disabled={bloqueado}
           onChange={(e) => mudar("a", e.target.value)}
           aria-label={`Palpite de ${participante.nome} para ${jogo.fora}`} />
+        <span className="palpite-time-flag" title={jogo.fora}>{fl(jogo.fora)}</span>
         {encerrado && pts !== null && (
           <span className={"pts pts-" + pts}>{pts === PTS_EXATO ? "🎯 " : ""}{pts} pt{pts === 1 ? "" : "s"}</span>
         )}
@@ -3018,6 +3020,7 @@ function Estilo() {
       .palpite-linha { display: flex; align-items: center; gap: 10px; }
       .palpite-nome { flex: 1; font-size: 18px; font-weight: 600; letter-spacing: .03em; display: flex; align-items: center; gap: 8px; overflow: hidden; min-width: 0; }
       .palpite-inputs { display: flex; align-items: center; gap: 6px; }
+      .palpite-time-flag { display: flex; align-items: center; opacity: .75; line-height: 1; }
       .palpite-status {
         font-family: 'IBM Plex Mono', monospace; font-size: 10px;
         letter-spacing: .06em; opacity: .7; white-space: nowrap;
