@@ -1253,23 +1253,29 @@ function urlBase64ToUint8Array(base64) {
 
 function BotaoNotificacao({ token }) {
   const [estado, setEstado] = useState("carregando");
-  // "carregando" | "nao-suportado" | "negado" | "ativo" | "inativo"
+  // "carregando" | "nao-suportado" | "negado" | "ativo" | "inativo" | "erro"
+  const [erroMsg, setErroMsg] = useState("");
+
+  /* iOS 13+ iPad reporta userAgent de Mac — checa maxTouchPoints como fallback */
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+  const pushSuportado = "Notification" in window &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window;
 
   useEffect(() => {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      setEstado("nao-suportado"); return;
-    }
-    if (Notification.permission === "denied") {
-      setEstado("negado"); return;
-    }
+    if (!pushSuportado) { setEstado("nao-suportado"); return; }
+    if (Notification.permission === "denied") { setEstado("negado"); return; }
     navigator.serviceWorker.ready.then(async (reg) => {
       const sub = await reg.pushManager.getSubscription();
       setEstado(sub ? "ativo" : "inativo");
     }).catch(() => setEstado("nao-suportado"));
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ativar = async () => {
     setEstado("carregando");
+    setErroMsg("");
     try {
       const vapidKey = await buscarVapidKey();
       if (!vapidKey) { setEstado("nao-suportado"); return; }
@@ -1283,13 +1289,17 @@ function BotaoNotificacao({ token }) {
         applicationServerKey: urlBase64ToUint8Array(vapidKey),
       });
 
-      await fetch("/api/push", {
+      const resp = await fetch("/api/push", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ t: token, subscription: sub.toJSON() }),
       });
+      if (!resp.ok) throw new Error("Servidor rejeitou a subscription");
       setEstado("ativo");
-    } catch { setEstado("inativo"); }
+    } catch (e) {
+      setErroMsg(e?.message || "Erro desconhecido");
+      setEstado("erro");
+    }
   };
 
   const desativar = async () => {
@@ -1309,9 +1319,6 @@ function BotaoNotificacao({ token }) {
     } catch { setEstado("inativo"); }
   };
 
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
-
   if (estado === "nao-suportado") {
     if (isIOS && !isStandalone) {
       return (
@@ -1327,8 +1334,11 @@ function BotaoNotificacao({ token }) {
     <div className="notif-bloco">
       {estado === "negado" && (
         <p className="notif-negado">
-          🔕 Notificações bloqueadas. Para ativar, vá em Configurações do navegador e permita notificações para este site.
+          🔕 Notificações bloqueadas. Vá em <strong>Configurações → {isIOS ? "Safari" : "Chrome"} → Notificações</strong> e permita para este site.
         </p>
+      )}
+      {estado === "erro" && (
+        <p className="notif-negado">⚠️ Erro ao ativar: {erroMsg}. Tente novamente.</p>
       )}
       {estado !== "negado" && (
         <button
@@ -1339,6 +1349,7 @@ function BotaoNotificacao({ token }) {
           {estado === "carregando" && "⏳ Aguarde…"}
           {estado === "inativo"    && "🔔 Ativar notificações"}
           {estado === "ativo"      && "🔕 Desativar notificações"}
+          {estado === "erro"       && "🔔 Tentar novamente"}
         </button>
       )}
       {estado === "ativo" && (

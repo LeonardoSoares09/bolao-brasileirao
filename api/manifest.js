@@ -6,6 +6,7 @@ export default function handler(req, res) {
   const startUrl = t ? `/?t=${encodeURIComponent(t)}` : "/";
 
   const manifest = {
+    id: "/bolao-copa-2026",
     name: "Bolão da Copa 2026",
     short_name: "Bolão Copa",
     description: "Acompanhe o bolão da Copa do Mundo 2026",

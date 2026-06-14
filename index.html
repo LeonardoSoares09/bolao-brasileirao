@@ -12,6 +12,7 @@
     <script>
       (function () {
         var t = new URLSearchParams(location.search).get("t");
+        if (!t) { try { t = localStorage.getItem("bolao_token"); } catch (e) {} }
         if (t) {
           document.getElementById("pwa-manifest").href =
             "/api/manifest?t=" + encodeURIComponent(t);
