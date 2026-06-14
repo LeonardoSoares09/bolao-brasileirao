@@ -1452,6 +1452,10 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
     }
   };
 
+  const isAndroid = /android/i.test(navigator.userAgent);
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+  const mostrarBotaoInstalar = isAndroid && !isStandalone;
+
   const instalarPwa = async () => {
     if (!installPrompt) return;
     installPrompt.prompt();
@@ -1466,18 +1470,21 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
     } catch (e) { alert("Erro: " + e.message); }
   };
 
+  const BotaoInstalar = mostrarBotaoInstalar ? (
+    <div className="notif-bloco">
+      {installPrompt
+        ? <button className="botao notif-btn" onClick={instalarPwa}>📲 Instalar app na tela inicial</button>
+        : <p className="notif-aviso">📲 Para instalar: toque nos <strong>⋮ três pontos</strong> do navegador → <strong>"Adicionar à tela inicial"</strong></p>
+      }
+    </div>
+  ) : null;
+
   if (!ehAdmin) {
     return (
       <div>
         <TimerPagamento />
         <BotaoNotificacao token={token} />
-        {installPrompt && (
-          <div className="notif-bloco">
-            <button className="botao notif-btn" onClick={instalarPwa}>
-              📲 Instalar app na tela inicial
-            </button>
-          </div>
-        )}
+        {BotaoInstalar}
         {estado.participantes.length === 0 && <Vazio texto="Ainda não há participantes." />}
         {estado.participantes.map((p, i) => (
           <div key={p.id} className="cartao palpite-linha entra-cartao" style={{ "--i": Math.min(i, 8) }}>
@@ -1508,13 +1515,7 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
 
       <TimerPagamento />
       <BotaoNotificacao token={token} />
-      {installPrompt && (
-        <div className="notif-bloco">
-          <button className="botao notif-btn" onClick={instalarPwa}>
-            📲 Instalar app na tela inicial
-          </button>
-        </div>
-      )}
+      {BotaoInstalar}
       <div className="notif-bloco">
         <button className="botao notif-btn" onClick={testarPush} style={{ opacity: .7, fontSize: 13 }}>
           🔔 Testar envio de push
