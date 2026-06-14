@@ -10,6 +10,7 @@ export default function handler(req, res) {
     short_name: "Bolão Copa",
     description: "Acompanhe o bolão da Copa do Mundo 2026",
     start_url: startUrl,
+    scope: "/",
     display: "standalone",
     background_color: "#071a0e",
     theme_color: "#071a0e",
