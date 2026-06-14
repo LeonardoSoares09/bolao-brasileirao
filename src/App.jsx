@@ -113,6 +113,7 @@ export default function App() {
   const rankingJaAbriu = useRef(false);
   const pagamentoVerificado = useRef(false);
   const [, setTick] = useState(0);
+  const [installPrompt, setInstallPrompt] = useState(null);
 
   const carregar = useCallback(async () => {
     if (!token) return;
@@ -146,6 +147,13 @@ export default function App() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }, []);
+
+  /* captura prompt de instalação do PWA (Android/Chrome) */
+  useEffect(() => {
+    const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
   /* carga inicial + polling 30s + refetch ao voltar pra aba */
@@ -397,7 +405,7 @@ export default function App() {
           <Campeao token={token} euId={estado.eu.id} />
         )}
         {tab === "galera" && (
-          <Galera estado={estado} ehAdmin={ehAdmin} token={token} recarregar={carregar} />
+          <Galera estado={estado} ehAdmin={ehAdmin} token={token} recarregar={carregar} installPrompt={installPrompt} onInstalled={() => setInstallPrompt(null)} />
         )}
       </main>
 
@@ -1377,7 +1385,7 @@ function TimerPagamento() {
 }
 
 /* ================= GALERA ================= */
-function Galera({ estado, ehAdmin, token, recarregar }) {
+function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled }) {
   const [nome, setNome] = useState("");
   const [novoAdmin, setNovoAdmin] = useState(false);
   const [lista, setLista] = useState(null); /* com tokens, só admin */
@@ -1444,11 +1452,32 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
     }
   };
 
+  const instalarPwa = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === "accepted") onInstalled();
+  };
+
+  const testarPush = async () => {
+    try {
+      await api("/api/push-teste", { method: "POST", body: JSON.stringify({ t: token }) });
+      alert("Notificação de teste enviada!");
+    } catch (e) { alert("Erro: " + e.message); }
+  };
+
   if (!ehAdmin) {
     return (
       <div>
         <TimerPagamento />
         <BotaoNotificacao token={token} />
+        {installPrompt && (
+          <div className="notif-bloco">
+            <button className="botao notif-btn" onClick={instalarPwa}>
+              📲 Instalar app na tela inicial
+            </button>
+          </div>
+        )}
         {estado.participantes.length === 0 && <Vazio texto="Ainda não há participantes." />}
         {estado.participantes.map((p, i) => (
           <div key={p.id} className="cartao palpite-linha entra-cartao" style={{ "--i": Math.min(i, 8) }}>
@@ -1479,6 +1508,18 @@ function Galera({ estado, ehAdmin, token, recarregar }) {
 
       <TimerPagamento />
       <BotaoNotificacao token={token} />
+      {installPrompt && (
+        <div className="notif-bloco">
+          <button className="botao notif-btn" onClick={instalarPwa}>
+            📲 Instalar app na tela inicial
+          </button>
+        </div>
+      )}
+      <div className="notif-bloco">
+        <button className="botao notif-btn" onClick={testarPush} style={{ opacity: .7, fontSize: 13 }}>
+          🔔 Testar envio de push
+        </button>
+      </div>
 
       {aviso && <p className="dica toast" role="status">{aviso}</p>}
 
