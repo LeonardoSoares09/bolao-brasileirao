@@ -1465,7 +1465,7 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
 
   const testarPush = async () => {
     try {
-      await api("/api/push-teste", { method: "POST", body: JSON.stringify({ t: token }) });
+      await api("/api/push", { method: "POST", body: JSON.stringify({ t: token, teste: true }) });
       alert("Notificação de teste enviada!");
     } catch (e) { alert("Erro: " + e.message); }
   };

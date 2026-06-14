@@ -25,6 +25,14 @@ export default async function handler(req, res) {
     return;
   }
 
+  if (req.method === "POST" && req.body?.teste) {
+    if (!eu.isAdmin) { res.status(403).json({ error: "Acesso negado" }); return; }
+    const { enviarPush } = await import("../lib/notificar.js");
+    await enviarPush([eu.id], "🔔 Teste de push", "Se você está vendo isso, as notificações estão funcionando!", "/");
+    res.status(200).json({ ok: true });
+    return;
+  }
+
   if (req.method === "POST") {
     const sub = req.body?.subscription;
     if (!sub || typeof sub !== "object" || !sub.endpoint) {
