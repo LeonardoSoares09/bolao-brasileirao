@@ -90,6 +90,7 @@ const TRADUCAO = {
   "Mali": "Mali",
   "Burkina Faso": "Burkina Faso",
   "Cape Verde": "Cabo Verde",
+  "Cape Verde Islands": "Cabo Verde",
   "DR Congo": "República Democrática do Congo",
   "Democratic Republic of the Congo": "República Democrática do Congo",
   // AFC
