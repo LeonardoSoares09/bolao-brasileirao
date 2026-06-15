@@ -300,8 +300,23 @@ async function acaoJogosHoje() {
   return { adicionados, atualizados, total: relevantes.length };
 }
 
-/* acaoPlacares: atualiza FINISHED (placar final) e IN_PLAY/PAUSED (placar ao vivo) */
+/* acaoPlacares: atualiza FINISHED (placar final) e IN_PLAY/PAUSED (placar ao vivo)
+   Deduplicação: a football-data.org só é consultada uma vez por minuto,
+   independente de quantos clientes chamem simultaneamente. */
 async function acaoPlacares() {
+  const [cfg] = await sql`
+    SELECT atualizado_em FROM config WHERE chave = 'ultima_busca_live'
+  `;
+  const agora = Date.now();
+  if (cfg?.atualizado_em && agora - new Date(cfg.atualizado_em).getTime() < 55000) {
+    return { atualizados: 0, vivos: 0, cached: true };
+  }
+  await sql`
+    INSERT INTO config (chave, atualizado_em)
+      VALUES ('ultima_busca_live', NOW())
+      ON CONFLICT (chave) DO UPDATE SET atualizado_em = NOW()
+  `;
+
   const hoje = hojeEmSP();
   /* janela dos últimos 14 dias para não perder resultados atrasados */
   const partidas = await buscarPartidas(
