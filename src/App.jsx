@@ -101,7 +101,7 @@ function useCountUp(valor, dur = 800) {
 export default function App() {
   const [token] = useState(lerToken);
   const [estado, setEstado] = useState(() => {
-    try { const c = localStorage.getItem("bolao-estado"); return c ? JSON.parse(c) : null; } catch { return null; }
+    try { const c = localStorage.getItem(`bolao-${lerToken()}`); return c ? JSON.parse(c) : null; } catch { return null; }
   });
   const [erroAuth, setErroAuth] = useState("");
   const [tab, setTab] = useState("ranking");
@@ -123,7 +123,7 @@ export default function App() {
       const e = await api(`/api/estado?t=${encodeURIComponent(token)}`);
       offsetRef.current = Date.parse(e.agora) - Date.now();
       setEstado(e);
-      try { localStorage.setItem("bolao-estado", JSON.stringify(e)); } catch { /* storage cheio */ }
+      try { localStorage.setItem(`bolao-${token}`, JSON.stringify(e)); } catch { /* storage cheio */ }
       setErroAuth("");
     } catch (err) {
       if (!estado) setErroAuth(err.message);
