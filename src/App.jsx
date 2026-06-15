@@ -1334,130 +1334,6 @@ function LinhaPalpite({ jogo, participante, palpite, bloqueado, destaque, token,
 }
 
 /* ================= NOTIFICAÇÕES ================= */
-async function buscarVapidKey() {
-  try {
-    const r = await fetch("/api/push");
-    if (!r.ok) return null;
-    const d = await r.json();
-    return d.vapidPublicKey || null;
-  } catch { return null; }
-}
-
-function urlBase64ToUint8Array(base64) {
-  const pad = "=".repeat((4 - (base64.length % 4)) % 4);
-  const b64 = (base64 + pad).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(b64);
-  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
-}
-
-function BotaoNotificacao({ token }) {
-  const [estado, setEstado] = useState("carregando");
-  // "carregando" | "nao-suportado" | "negado" | "ativo" | "inativo" | "erro"
-  const [erroMsg, setErroMsg] = useState("");
-
-  /* iOS 13+ iPad reporta userAgent de Mac — checa maxTouchPoints como fallback */
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
-  const pushSuportado = "Notification" in window &&
-    "serviceWorker" in navigator &&
-    "PushManager" in window;
-
-  useEffect(() => {
-    if (!pushSuportado) { setEstado("nao-suportado"); return; }
-    if (Notification.permission === "denied") { setEstado("negado"); return; }
-    navigator.serviceWorker.ready.then(async (reg) => {
-      const sub = await reg.pushManager.getSubscription();
-      setEstado(sub ? "ativo" : "inativo");
-    }).catch(() => setEstado("nao-suportado"));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const ativar = async () => {
-    setEstado("carregando");
-    setErroMsg("");
-    try {
-      const vapidKey = await buscarVapidKey();
-      if (!vapidKey) { setEstado("nao-suportado"); return; }
-
-      const perm = await Notification.requestPermission();
-      if (perm !== "granted") { setEstado("negado"); return; }
-
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey),
-      });
-
-      const resp = await fetch("/api/push", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ t: token, subscription: sub.toJSON() }),
-      });
-      if (!resp.ok) throw new Error("Servidor rejeitou a subscription");
-      setEstado("ativo");
-    } catch (e) {
-      setErroMsg(e?.message || "Erro desconhecido");
-      setEstado("erro");
-    }
-  };
-
-  const desativar = async () => {
-    setEstado("carregando");
-    try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-      if (sub) {
-        await fetch("/api/push", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ t: token, endpoint: sub.endpoint }),
-        });
-        await sub.unsubscribe();
-      }
-      setEstado("inativo");
-    } catch { setEstado("inativo"); }
-  };
-
-  if (estado === "nao-suportado") {
-    if (isIOS && !isStandalone) {
-      return (
-        <div className="notif-aviso">
-          📲 No iPhone, instale o app na tela de início (iOS 16.4+) para receber notificações.
-        </div>
-      );
-    }
-    return null;
-  }
-
-  return (
-    <div className="notif-bloco">
-      {estado === "negado" && (
-        <p className="notif-negado">
-          🔕 Notificações bloqueadas. Vá em <strong>Configurações → {isIOS ? "Safari" : "Chrome"} → Notificações</strong> e permita para este site.
-        </p>
-      )}
-      {estado === "erro" && (
-        <p className="notif-negado">⚠️ Erro ao ativar: {erroMsg}. Tente novamente.</p>
-      )}
-      {estado !== "negado" && (
-        <button
-          className={"botao notif-btn" + (estado === "ativo" ? " notif-ativo" : "")}
-          onClick={estado === "ativo" ? desativar : ativar}
-          disabled={estado === "carregando"}
-        >
-          {estado === "carregando" && "⏳ Aguarde…"}
-          {estado === "inativo"    && "🔔 Ativar notificações"}
-          {estado === "ativo"      && "🔕 Desativar notificações"}
-          {estado === "erro"       && "🔔 Tentar novamente"}
-        </button>
-      )}
-      {estado === "ativo" && (
-        <p className="notif-dica">Você receberá lembretes de palpites pendentes e resultados lançados.</p>
-      )}
-    </div>
-  );
-}
-
 /* ================= TIMER PAGAMENTO ================= */
 function TimerPagamento() {
   const DEADLINE = new Date("2026-06-13T21:59:00Z"); // 18:59 BRT (UTC-3)
@@ -1573,13 +1449,6 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
     if (outcome === "accepted") onInstalled();
   };
 
-  const testarPush = async () => {
-    try {
-      await api("/api/push", { method: "POST", body: JSON.stringify({ t: token, teste: true }) });
-      alert("Notificação de teste enviada!");
-    } catch (e) { alert("Erro: " + e.message); }
-  };
-
   const BotaoInstalar = mostrarBotaoInstalar ? (
     <div className="notif-bloco">
       {installPrompt
@@ -1593,7 +1462,6 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
     return (
       <div>
         <TimerPagamento />
-        <BotaoNotificacao token={token} />
         {BotaoInstalar}
         {estado.participantes.length === 0 && <Vazio texto="Ainda não há participantes." />}
         {estado.participantes.map((p, i) => (
@@ -1624,13 +1492,7 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
       </div>
 
       <TimerPagamento />
-      <BotaoNotificacao token={token} />
       {BotaoInstalar}
-      <div className="notif-bloco">
-        <button className="botao notif-btn" onClick={testarPush} style={{ opacity: .7, fontSize: 13 }}>
-          🔔 Testar envio de push
-        </button>
-      </div>
 
       {aviso && <p className="dica toast" role="status">{aviso}</p>}
 
@@ -3423,10 +3285,6 @@ function Estilo() {
 
       .notif-bloco { margin: 8px 0 12px; }
       .notif-btn { width: 100%; justify-content: center; }
-      .notif-ativo { background: rgba(74,222,128,.12); border-color: #4ade80; color: #4ade80; }
-      .notif-ativo:hover { background: rgba(74,222,128,.2); }
-      .notif-dica { font-size: 12px; color: rgba(255,255,255,.4); margin: 6px 0 0; text-align: center; }
-      .notif-negado { font-size: 12px; color: var(--erro); margin: 0; line-height: 1.5; }
       .notif-aviso {
         font-size: 12px; color: rgba(255,255,255,.5); background: rgba(0,0,0,.2);
         border: 1px solid var(--linha); border-radius: 6px; padding: 10px 12px;

@@ -4,7 +4,6 @@
    DELETE { t, jogoId }                → remove jogo (e palpites em cascata) */
 
 import { sql, autenticar, intOuNull } from "../lib/db.js";
-import { enviarPush } from "../lib/notificar.js";
 
 export default async function handler(req, res) {
   const eu = await autenticar(req.body?.t);
@@ -50,14 +49,6 @@ export default async function handler(req, res) {
     await sql`UPDATE jogos SET gh = ${gh}, ga = ${ga}, live = false WHERE id = ${jid}`;
     res.status(200).json({ ok: true });
 
-    /* fire-and-forget: notifica se resultado foi definido (não apagado) */
-    if (gh !== null && ga !== null) {
-      const jogos = await sql`SELECT casa, fora FROM jogos WHERE id = ${jid}`;
-      if (jogos.length > 0) {
-        const { casa, fora } = jogos[0];
-        enviarPush("todos", "⚽ Resultado lançado!", `${casa} ${gh}×${ga} ${fora} — veja como ficou seu palpite!`, "/").catch(() => {});
-      }
-    }
     return;
   }
 

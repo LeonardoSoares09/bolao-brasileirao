@@ -4,7 +4,6 @@
    Somente admin. Auth via header X-Auth-Token (env FOOTBALL_DATA_KEY). */
 
 import { sql, autenticar } from "../lib/db.js";
-import { enviarPush } from "../lib/notificar.js";
 
 /* Mapa pt-BR das seleções que podem cair em Copa do Mundo.
    Não-mapeado cai no fallback: usa o próprio nome em inglês. */
@@ -329,7 +328,6 @@ async function acaoPlacares() {
       if (rows.length > 0) {
         atualizados++;
         const { casa, fora } = rows[0];
-        enviarPush("todos", "⚽ Resultado lançado!", `${casa} ${gh}×${ga} ${fora} — confere seu palpite!`, "/").catch(() => {});
       }
     } else if (status === "IN_PLAY" || status === "PAUSED") {
       const gh = m.score?.fullTime?.home ?? 0;
