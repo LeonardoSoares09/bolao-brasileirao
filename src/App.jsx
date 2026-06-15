@@ -1917,7 +1917,7 @@ function BonusAdmin({ token, estado, recarregar }) {
 
 /* ================= AVATAR ================= */
 
-const EMOJIS_REACAO = ["🔥", "😱", "💀", "🎯"];
+const EMOJIS_REACAO = ["🔥", "😱", "💀", "🎯", "😂", "🤡", "🐐", "💪", "😭", "🫡", "⚽", "🏆"];
 
 const PALETA_CORES = [
   "#e05c3a", "#e8a838", "#5cb85c", "#3a9de0",
@@ -3254,7 +3254,7 @@ function Estilo() {
         transition: background var(--t); color: rgba(255,255,255,.5);
       }
       .reacao-add:hover { background: rgba(255,255,255,.12); color: #fff; }
-      .reacao-picker { display: flex; align-items: center; gap: 4px; }
+      .reacao-picker { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; max-width: 260px; }
       .reacao-picker-btn { font-size: 20px; background: none; border: none; cursor: pointer; padding: 2px 4px; border-radius: 6px; transition: transform .15s; }
       .reacao-picker-btn:hover { transform: scale(1.3); }
       .reacao-picker-fechar { font-size: 11px; color: rgba(255,255,255,.35); background: none; border: none; cursor: pointer; padding: 2px 6px; }
