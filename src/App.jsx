@@ -978,6 +978,13 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
         return (
           <>
             <div className="nav-data">
+              <button
+                className={"nav-ao-vivo" + (aoVivoFiltro ? " nav-ao-vivo-ativo" : "")}
+                onClick={() => setAoVivoFiltro((v) => !v)}
+              >
+                <span className="nav-vivo-dot" aria-hidden="true" />
+                Ao vivo
+              </button>
               <div className="nav-data-nav">
                 <button
                   className="nav-data-seta"
@@ -995,13 +1002,6 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                   aria-label="Próxima data"
                 >›</button>
               </div>
-              <button
-                className={"nav-ao-vivo" + (aoVivoFiltro ? " nav-ao-vivo-ativo" : "")}
-                onClick={() => setAoVivoFiltro((v) => !v)}
-              >
-                <span className="nav-vivo-dot" aria-hidden="true" />
-                Ao vivo
-              </button>
             </div>
 
             {jogosMostrar.length === 0 ? (
