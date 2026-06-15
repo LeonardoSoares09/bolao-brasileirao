@@ -768,6 +768,14 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
   const [buscandoJogos, setBuscandoJogos] = useState(false);
   const [buscandoResultados, setBuscandoResultados] = useState(false);
   const [aviso, setAviso] = useState("");
+  const [dataFiltro, setDataFiltro] = useState(() => {
+    const hoje = fmtSP(Date.now() + offsetMs);
+    const chaves = agruparPorData(estado.jogos).map(([c]) => c);
+    if (chaves.includes(hoje)) return hoje;
+    const futuras = chaves.filter((c) => c > hoje && c !== "__semdata__");
+    if (futuras.length > 0) return futuras[0];
+    return chaves[chaves.length - 1] || hoje;
+  });
 
   const hojeKey = fmtSP(Date.now() + offsetMs);
   const jogosPendentesHoje = estado.jogos.filter(
@@ -951,42 +959,64 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
         <Vazio texto={ehAdmin ? "Nenhum jogo ainda. Use o botão de busca ou adicione manualmente." : "O organizador ainda não cadastrou os jogos."} />
       )}
 
-      {agruparPorData(estado.jogos).map(([chave, grupo]) => (
-        <div key={chave}>
-          <div className="grupo-data-header">{labelData(chave, offsetMs)}</div>
-          {grupo.map((m, i) => {
-            const encerrado = temResultado(m);
-            const travado = comecou(m);
-            const faltam = !encerrado ? estado.participantes.length - (contagensMap[m.id] || 0) : 0;
-            return (
-              <div key={m.id} className={"cartao jogo entra-cartao" + (encerrado ? " encerrado" : "")} style={{ "--i": Math.min(i, 8) }}>
-                <div className="jogo-info">
-                  <div className="jogo-times">{fl(m.casa)}{m.casa} <span className="vs">×</span> {fl(m.fora)}{m.fora}</div>
-                  <div className="jogo-meta">
-                    {fmtQuando(m) && <span className="jogo-quando">{fmtQuando(m)}</span>}
-                    {m.fase === "eliminatórias" && <span className="tag tag-elim">⚔ Mata-mata</span>}
-                    {!encerrado && travado && <span className="tag tag-travado">🔒 em jogo</span>}
-                    {!encerrado && !travado && faltam > 0 && (
-                      <span className="tag tag-pendente">⚠ faltam {faltam} palpite{faltam === 1 ? "" : "s"}</span>
-                    )}
-                    {!encerrado && !travado && estado.participantes.length > 0 && faltam === 0 && (
-                      <span className="tag tag-ok">✓ palpites completos</span>
+      {(() => {
+        const grupos = agruparPorData(estado.jogos);
+        const grupoAtual = (grupos.find(([c]) => c === dataFiltro) ?? grupos[grupos.length - 1] ?? [null, []])[1];
+        return (
+          <>
+            {grupos.length > 1 && (
+              <div className="data-chips" role="tablist" aria-label="Filtrar por data">
+                {grupos.map(([chave, grupo]) => {
+                  const temAoVivo = grupo.some((m) => !temResultado(m) && comecou(m));
+                  return (
+                    <button
+                      key={chave}
+                      role="tab"
+                      aria-selected={dataFiltro === chave}
+                      className={"data-chip" + (dataFiltro === chave ? " data-chip-ativa" : "")}
+                      onClick={() => setDataFiltro(chave)}
+                    >
+                      {temAoVivo && <span className="data-chip-vivo" aria-hidden="true" />}
+                      {labelData(chave, offsetMs)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {grupoAtual.map((m, i) => {
+              const encerrado = temResultado(m);
+              const travado = comecou(m);
+              const faltam = !encerrado ? estado.participantes.length - (contagensMap[m.id] || 0) : 0;
+              return (
+                <div key={m.id} className={"cartao jogo entra-cartao" + (encerrado ? " encerrado" : "")} style={{ "--i": Math.min(i, 8) }}>
+                  <div className="jogo-info">
+                    <div className="jogo-times">{fl(m.casa)}{m.casa} <span className="vs">×</span> {fl(m.fora)}{m.fora}</div>
+                    <div className="jogo-meta">
+                      {fmtQuando(m) && <span className="jogo-quando">{fmtQuando(m)}</span>}
+                      {m.fase === "eliminatórias" && <span className="tag tag-elim">⚔ Mata-mata</span>}
+                      {!encerrado && travado && <span className="tag tag-travado">🔒 em jogo</span>}
+                      {!encerrado && !travado && faltam > 0 && (
+                        <span className="tag tag-pendente">⚠ faltam {faltam} palpite{faltam === 1 ? "" : "s"}</span>
+                      )}
+                      {!encerrado && !travado && estado.participantes.length > 0 && faltam === 0 && (
+                        <span className="tag tag-ok">✓ palpites completos</span>
+                      )}
+                    </div>
+                    {!encerrado && !travado && m.kickoff && (
+                      <Countdown kickoff={m.kickoff} offsetMs={offsetMs} />
                     )}
                   </div>
-                  {!encerrado && !travado && m.kickoff && (
-                    <Countdown kickoff={m.kickoff} offsetMs={offsetMs} />
+                  {ehAdmin ? (
+                    <ResultadoAdmin jogo={m} salvar={salvarResultado} remover={() => delJogo(m.id)} />
+                  ) : (
+                    encerrado && <div className="placar-final led-mini">{m.gh} : {m.ga}</div>
                   )}
                 </div>
-                {ehAdmin ? (
-                  <ResultadoAdmin jogo={m} salvar={salvarResultado} remover={() => delJogo(m.id)} />
-                ) : (
-                  encerrado && <div className="placar-final led-mini">{m.gh} : {m.ga}</div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ))}
+              );
+            })}
+          </>
+        );
+      })()}
 
       {ehAdmin && <BonusAdmin token={token} estado={estado} recarregar={recarregar} />}
     </div>
@@ -2999,6 +3029,33 @@ function Estilo() {
         margin-bottom: 8px;
       }
       .grupo-data-header:first-child { padding-top: 4px; }
+
+      .data-chips {
+        display: flex; gap: 6px; overflow-x: auto;
+        padding-bottom: 12px; margin-bottom: 4px;
+        scrollbar-width: none;
+      }
+      .data-chips::-webkit-scrollbar { display: none; }
+      .data-chip {
+        flex: none; display: flex; align-items: center; gap: 6px;
+        padding: 6px 12px;
+        background: rgba(0,0,0,.28); border: 2px solid var(--linha);
+        color: var(--giz); cursor: pointer; white-space: nowrap;
+        font: 700 11px 'IBM Plex Mono', monospace; letter-spacing: .08em;
+        text-transform: uppercase;
+        transition: border-color var(--t), background-color var(--t), color var(--t);
+      }
+      .data-chip:hover:not(.data-chip-ativa) {
+        border-color: rgba(255,255,255,.4); background: rgba(255,255,255,.05);
+      }
+      .data-chip-ativa {
+        background: var(--ambar); color: var(--ambar-escuro);
+        border-color: var(--ambar); font-weight: 800;
+      }
+      .data-chip-vivo {
+        width: 7px; height: 7px; border-radius: 50%; flex: none;
+        background: var(--erro); animation: pulsa-cd .85s ease-in-out infinite;
+      }
 
       .seletor-data-header {
         width: 100%; display: flex; align-items: center; justify-content: space-between;
