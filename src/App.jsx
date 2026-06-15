@@ -104,7 +104,9 @@ export default function App() {
     try { const c = localStorage.getItem(`bolao-${lerToken()}`); return c ? JSON.parse(c) : null; } catch { return null; }
   });
   const [erroAuth, setErroAuth] = useState("");
-  const [tab, setTab] = useState("ranking");
+  const [tab, setTab] = useState(() => {
+    try { return localStorage.getItem("bolao-tab") || "ranking"; } catch { return "ranking"; }
+  });
   const [abrirPerfil, setAbrirPerfil] = useState(false);
   const [abrirRegras, setAbrirRegras] = useState(false);
   const [abrirPagamento, setAbrirPagamento] = useState(false);
@@ -384,7 +386,7 @@ export default function App() {
             role="tab"
             aria-selected={tab === id}
             className={tab === id ? "aba ativa" : "aba"}
-            onClick={() => setTab(id)}
+            onClick={() => { setTab(id); try { localStorage.setItem("bolao-tab", id); } catch {} }}
           >
             {rotulo}
           </button>
