@@ -1077,6 +1077,13 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                         {m.gh} : {m.ga}
                       </div>
                     ) : null}
+                    <ReacaoStrip
+                      jogoId={m.id}
+                      reacoes={(estado.reacoes || []).filter((r) => r.jogo_id === m.id)}
+                      euId={estado.eu.id}
+                      token={token}
+                      onUpdate={recarregar}
+                    />
                   </div>
                 );
               })
@@ -1910,6 +1917,8 @@ function BonusAdmin({ token, estado, recarregar }) {
 
 /* ================= AVATAR ================= */
 
+const EMOJIS_REACAO = ["🔥", "😱", "💀", "🎯"];
+
 const PALETA_CORES = [
   "#e05c3a", "#e8a838", "#5cb85c", "#3a9de0",
   "#9b59b6", "#e91e8c", "#00bcd4", "#607d8b",
@@ -1934,6 +1943,60 @@ function Avatar({ nome, emoji, cor, size = 36 }) {
   return (
     <div className="avatar" style={{ width: size, height: size, background: bg, fontSize }}>
       {emoji || iniciais}
+    </div>
+  );
+}
+
+function ReacaoStrip({ jogoId, reacoes, euId, token, onUpdate }) {
+  const [abrirPicker, setAbrirPicker] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+
+  const contagem = {};
+  for (const r of reacoes) contagem[r.emoji] = (contagem[r.emoji] || 0) + 1;
+  const minhaReacao = reacoes.find((r) => r.participante_id === euId)?.emoji;
+  const temReacoes = Object.keys(contagem).length > 0;
+
+  const reagir = async (emoji) => {
+    if (salvando) return;
+    setSalvando(true);
+    setAbrirPicker(false);
+    try {
+      await api("/api/reacao", { method: "POST", body: JSON.stringify({ t: token, jogoId, emoji }) });
+      await onUpdate();
+    } catch {}
+    setSalvando(false);
+  };
+
+  return (
+    <div className="reacao-strip">
+      {EMOJIS_REACAO.filter((e) => contagem[e]).map((e) => (
+        <button
+          key={e}
+          className={"reacao-chip" + (minhaReacao === e ? " reacao-chip-minha" : "")}
+          onClick={() => reagir(e)}
+          disabled={salvando}
+          title={`${contagem[e]} reação${contagem[e] !== 1 ? "ões" : ""}`}
+        >
+          {e} <span className="reacao-count">{contagem[e]}</span>
+        </button>
+      ))}
+      {abrirPicker ? (
+        <div className="reacao-picker">
+          {EMOJIS_REACAO.map((e) => (
+            <button key={e} className="reacao-picker-btn" onClick={() => reagir(e)} disabled={salvando}>{e}</button>
+          ))}
+          <button className="reacao-picker-fechar" onClick={() => setAbrirPicker(false)}>✕</button>
+        </div>
+      ) : (
+        <button
+          className={"reacao-add" + (minhaReacao && !temReacoes ? " reacao-add-ativa" : "")}
+          onClick={() => setAbrirPicker(true)}
+          disabled={salvando}
+          title="Reagir"
+        >
+          {minhaReacao && !contagem[minhaReacao] ? minhaReacao : "+"}
+        </button>
+      )}
     </div>
   );
 }
@@ -3174,6 +3237,27 @@ function Estilo() {
         width: 8px; height: 8px; border-radius: 50%; flex: none;
         background: var(--erro); animation: pulsa-cd .85s ease-in-out infinite;
       }
+
+      .reacao-strip { width: 100%; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.07); }
+      .reacao-chip {
+        display: flex; align-items: center; gap: 4px; padding: 3px 8px;
+        background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+        border-radius: 20px; font-size: 14px; cursor: pointer; transition: background var(--t);
+      }
+      .reacao-chip:hover { background: rgba(255,255,255,.13); }
+      .reacao-chip-minha { background: rgba(255,197,61,.15); border-color: rgba(255,197,61,.5); }
+      .reacao-count { font-family: 'IBM Plex Mono', monospace; font-size: 11px; opacity: .8; }
+      .reacao-add {
+        width: 26px; height: 26px; border-radius: 50%; font-size: 14px; line-height: 1;
+        background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        transition: background var(--t); color: rgba(255,255,255,.5);
+      }
+      .reacao-add:hover { background: rgba(255,255,255,.12); color: #fff; }
+      .reacao-picker { display: flex; align-items: center; gap: 4px; }
+      .reacao-picker-btn { font-size: 20px; background: none; border: none; cursor: pointer; padding: 2px 4px; border-radius: 6px; transition: transform .15s; }
+      .reacao-picker-btn:hover { transform: scale(1.3); }
+      .reacao-picker-fechar { font-size: 11px; color: rgba(255,255,255,.35); background: none; border: none; cursor: pointer; padding: 2px 6px; }
 
       .tag {
         font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
