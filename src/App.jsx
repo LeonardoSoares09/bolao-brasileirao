@@ -1062,6 +1062,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                         {!encerrado && !travado && estado.participantes.length > 0 && faltam === 0 && (
                           <span className="tag tag-ok">✓ palpites completos</span>
                         )}
+                        {(() => { const p = palpitesMap[m.id]?.[estado.eu.id]; return p != null ? <span className="tag tag-meu-palpite">você: {p.h}-{p.a}</span> : null; })()}
                       </div>
                       {!encerrado && !travado && m.kickoff && (
                         <Countdown kickoff={m.kickoff} offsetMs={offsetMs} />
@@ -3267,6 +3268,7 @@ function Estilo() {
       @keyframes pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: none; } }
       .tag-pendente { border: 1.5px solid var(--erro); color: var(--erro); }
       .tag-ok { border: 1.5px solid rgba(255,255,255,.35); opacity: .8; }
+      .tag-meu-palpite { border: 1.5px solid rgba(255,197,61,.4); color: var(--ambar); opacity: .9; }
       .tag-travado { background: var(--ambar); color: var(--ambar-escuro); }
 
       .countdown {
