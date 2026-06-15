@@ -785,6 +785,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
     if (futuras.length > 0) return futuras[0];
     return chaves[chaves.length - 1] || hoje;
   });
+  const [aoVivoFiltro, setAoVivoFiltro] = useState(false);
 
   const hojeKey = fmtSP(Date.now() + offsetMs);
   const jogosPendentesHoje = estado.jogos.filter(
@@ -968,61 +969,80 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
         <Vazio texto={ehAdmin ? "Nenhum jogo ainda. Use o botão de busca ou adicione manualmente." : "O organizador ainda não cadastrou os jogos."} />
       )}
 
-      {(() => {
+      {estado.jogos.length > 0 && (() => {
         const grupos = agruparPorData(estado.jogos);
-        const grupoAtual = (grupos.find(([c]) => c === dataFiltro) ?? grupos[grupos.length - 1] ?? [null, []])[1];
+        const idxRaw = grupos.findIndex(([c]) => c === dataFiltro);
+        const idx = idxRaw === -1 ? Math.max(0, grupos.length - 1) : idxRaw;
+        const jogosAoVivo = estado.jogos.filter((m) => !temResultado(m) && comecou(m));
+        const jogosMostrar = aoVivoFiltro ? jogosAoVivo : (grupos[idx]?.[1] ?? []);
         return (
           <>
-            {grupos.length > 1 && (
-              <div className="data-chips" role="tablist" aria-label="Filtrar por data">
-                {grupos.map(([chave, grupo]) => {
-                  const temAoVivo = grupo.some((m) => !temResultado(m) && comecou(m));
-                  return (
-                    <button
-                      key={chave}
-                      role="tab"
-                      aria-selected={dataFiltro === chave}
-                      className={"data-chip" + (dataFiltro === chave ? " data-chip-ativa" : "")}
-                      onClick={() => setDataFiltro(chave)}
-                    >
-                      {temAoVivo && <span className="data-chip-vivo" aria-hidden="true" />}
-                      {labelData(chave, offsetMs)}
-                    </button>
-                  );
-                })}
+            <div className="nav-data">
+              <div className="nav-data-nav">
+                <button
+                  className="nav-data-seta"
+                  onClick={() => { setAoVivoFiltro(false); setDataFiltro(grupos[idx - 1][0]); }}
+                  disabled={idx === 0}
+                  aria-label="Data anterior"
+                >‹</button>
+                <span className={"nav-data-label" + (aoVivoFiltro ? " nav-data-label-dim" : "")}>
+                  {labelData(grupos[idx]?.[0] ?? "__semdata__", offsetMs)}
+                </span>
+                <button
+                  className="nav-data-seta"
+                  onClick={() => { setAoVivoFiltro(false); setDataFiltro(grupos[idx + 1][0]); }}
+                  disabled={idx >= grupos.length - 1}
+                  aria-label="Próxima data"
+                >›</button>
               </div>
-            )}
-            {grupoAtual.map((m, i) => {
-              const encerrado = temResultado(m);
-              const travado = comecou(m);
-              const faltam = !encerrado ? estado.participantes.length - (contagensMap[m.id] || 0) : 0;
-              return (
-                <div key={m.id} className={"cartao jogo entra-cartao" + (encerrado ? " encerrado" : "")} style={{ "--i": Math.min(i, 8) }}>
-                  <div className="jogo-info">
-                    <div className="jogo-times">{fl(m.casa)}{m.casa} <span className="vs">×</span> {fl(m.fora)}{m.fora}</div>
-                    <div className="jogo-meta">
-                      {fmtQuando(m) && <span className="jogo-quando">{fmtQuando(m)}</span>}
-                      {m.fase === "eliminatórias" && <span className="tag tag-elim">⚔ Mata-mata</span>}
-                      {!encerrado && travado && <span className="tag tag-travado">🔒 em jogo</span>}
-                      {!encerrado && !travado && faltam > 0 && (
-                        <span className="tag tag-pendente">⚠ faltam {faltam} palpite{faltam === 1 ? "" : "s"}</span>
-                      )}
-                      {!encerrado && !travado && estado.participantes.length > 0 && faltam === 0 && (
-                        <span className="tag tag-ok">✓ palpites completos</span>
+              <button
+                className={"nav-ao-vivo" + (aoVivoFiltro ? " nav-ao-vivo-ativo" : "")}
+                onClick={() => setAoVivoFiltro((v) => !v)}
+              >
+                <span className="nav-vivo-dot" aria-hidden="true" />
+                Ao vivo
+              </button>
+            </div>
+
+            {jogosMostrar.length === 0 ? (
+              <div className="nav-sem-jogos">
+                {aoVivoFiltro
+                  ? "Nenhum jogo ao vivo no momento."
+                  : "⏳ Aguarde — próximos jogos ainda não foram cadastrados."}
+              </div>
+            ) : (
+              jogosMostrar.map((m, i) => {
+                const encerrado = temResultado(m);
+                const travado = comecou(m);
+                const faltam = !encerrado ? estado.participantes.length - (contagensMap[m.id] || 0) : 0;
+                return (
+                  <div key={m.id} className={"cartao jogo entra-cartao" + (encerrado ? " encerrado" : "")} style={{ "--i": Math.min(i, 8) }}>
+                    <div className="jogo-info">
+                      <div className="jogo-times">{fl(m.casa)}{m.casa} <span className="vs">×</span> {fl(m.fora)}{m.fora}</div>
+                      <div className="jogo-meta">
+                        {fmtQuando(m) && <span className="jogo-quando">{fmtQuando(m)}</span>}
+                        {m.fase === "eliminatórias" && <span className="tag tag-elim">⚔ Mata-mata</span>}
+                        {!encerrado && travado && <span className="tag tag-travado">🔒 em jogo</span>}
+                        {!encerrado && !travado && faltam > 0 && (
+                          <span className="tag tag-pendente">⚠ faltam {faltam} palpite{faltam === 1 ? "" : "s"}</span>
+                        )}
+                        {!encerrado && !travado && estado.participantes.length > 0 && faltam === 0 && (
+                          <span className="tag tag-ok">✓ palpites completos</span>
+                        )}
+                      </div>
+                      {!encerrado && !travado && m.kickoff && (
+                        <Countdown kickoff={m.kickoff} offsetMs={offsetMs} />
                       )}
                     </div>
-                    {!encerrado && !travado && m.kickoff && (
-                      <Countdown kickoff={m.kickoff} offsetMs={offsetMs} />
+                    {ehAdmin ? (
+                      <ResultadoAdmin jogo={m} salvar={salvarResultado} remover={() => delJogo(m.id)} />
+                    ) : (
+                      encerrado && <div className="placar-final led-mini">{m.gh} : {m.ga}</div>
                     )}
                   </div>
-                  {ehAdmin ? (
-                    <ResultadoAdmin jogo={m} salvar={salvarResultado} remover={() => delJogo(m.id)} />
-                  ) : (
-                    encerrado && <div className="placar-final led-mini">{m.gh} : {m.ga}</div>
-                  )}
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </>
         );
       })()}
@@ -3051,31 +3071,55 @@ function Estilo() {
       }
       .grupo-data-header:first-child { padding-top: 4px; }
 
-      .data-chips {
-        display: flex; gap: 6px; overflow-x: auto;
-        padding-bottom: 12px; margin-bottom: 4px;
-        scrollbar-width: none;
+      .nav-data {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 10px; margin-bottom: 12px;
+        padding: 6px 0;
+        border-bottom: 1px solid rgba(255,255,255,.1);
       }
-      .data-chips::-webkit-scrollbar { display: none; }
-      .data-chip {
+      .nav-data-nav {
+        display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0;
+      }
+      .nav-data-seta {
+        flex: none; width: 34px; height: 34px;
+        background: rgba(0,0,0,.3); border: 2px solid var(--linha);
+        color: var(--giz); cursor: pointer; font-size: 20px; line-height: 1;
+        display: flex; align-items: center; justify-content: center;
+        transition: border-color var(--t), background-color var(--t), opacity var(--t);
+      }
+      .nav-data-seta:hover:not(:disabled) {
+        border-color: rgba(255,255,255,.45); background: rgba(255,255,255,.07);
+      }
+      .nav-data-seta:disabled { opacity: .3; cursor: default; }
+      .nav-data-label {
+        flex: 1; text-align: center; min-width: 0;
+        font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700;
+        letter-spacing: .1em; text-transform: uppercase; color: var(--ambar);
+        transition: opacity var(--t); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .nav-data-label-dim { opacity: .35; }
+      .nav-ao-vivo {
         flex: none; display: flex; align-items: center; gap: 6px;
         padding: 6px 12px;
-        background: rgba(0,0,0,.28); border: 2px solid var(--linha);
-        color: var(--giz); cursor: pointer; white-space: nowrap;
-        font: 700 11px 'IBM Plex Mono', monospace; letter-spacing: .08em;
-        text-transform: uppercase;
+        background: rgba(0,0,0,.3); border: 2px solid rgba(255,123,107,.4);
+        color: rgba(255,123,107,.85); cursor: pointer; white-space: nowrap;
+        font: 700 11px 'IBM Plex Mono', monospace; letter-spacing: .08em; text-transform: uppercase;
         transition: border-color var(--t), background-color var(--t), color var(--t);
       }
-      .data-chip:hover:not(.data-chip-ativa) {
-        border-color: rgba(255,255,255,.4); background: rgba(255,255,255,.05);
+      .nav-ao-vivo:hover { border-color: var(--erro); color: var(--erro); background: rgba(255,123,107,.08); }
+      .nav-ao-vivo-ativo {
+        background: rgba(255,123,107,.15); border-color: var(--erro);
+        color: var(--erro); box-shadow: 0 0 12px rgba(255,123,107,.25);
       }
-      .data-chip-ativa {
-        background: var(--ambar); color: var(--ambar-escuro);
-        border-color: var(--ambar); font-weight: 800;
-      }
-      .data-chip-vivo {
+      .nav-vivo-dot {
         width: 7px; height: 7px; border-radius: 50%; flex: none;
         background: var(--erro); animation: pulsa-cd .85s ease-in-out infinite;
+      }
+      .nav-sem-jogos {
+        font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: .06em;
+        color: rgba(255,255,255,.45); text-align: center;
+        padding: 32px 16px; border: 2px dashed rgba(255,255,255,.12);
+        margin-top: 4px;
       }
 
       .seletor-data-header {
