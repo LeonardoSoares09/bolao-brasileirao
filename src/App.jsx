@@ -769,7 +769,16 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
   const [buscandoResultados, setBuscandoResultados] = useState(false);
   const [aviso, setAviso] = useState("");
   const [dataFiltro, setDataFiltro] = useState(() => {
-    const hoje = fmtSP(Date.now() + offsetMs);
+    const agora = Date.now() + offsetMs;
+    const aoVivo = estado.jogos.find(
+      (m) => !temResultado(m) && m.kickoff && new Date(m.kickoff).getTime() <= agora
+    );
+    if (aoVivo?.kickoff) return chaveData(aoVivo.kickoff);
+    const proximo = [...estado.jogos]
+      .filter((m) => !temResultado(m) && m.kickoff && new Date(m.kickoff).getTime() > agora)
+      .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))[0];
+    if (proximo?.kickoff) return chaveData(proximo.kickoff);
+    const hoje = fmtSP(agora);
     const chaves = agruparPorData(estado.jogos).map(([c]) => c);
     if (chaves.includes(hoje)) return hoje;
     const futuras = chaves.filter((c) => c > hoje && c !== "__semdata__");
@@ -1057,7 +1066,19 @@ function ResultadoAdmin({ jogo, salvar, remover }) {
 
 /* ================= PALPITES ================= */
 function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 0, jogoInicial = null }) {
-  const [jogoSel, setJogoSel] = useState(jogoInicial ? String(jogoInicial) : "");
+  const [jogoSel, setJogoSel] = useState(() => {
+    if (jogoInicial) return String(jogoInicial);
+    const agora = Date.now() + offsetMs;
+    const aoVivo = estado.jogos.find(
+      (m) => !temResultado(m) && m.kickoff && new Date(m.kickoff).getTime() <= agora
+    );
+    if (aoVivo) return String(aoVivo.id);
+    const proximo = [...estado.jogos]
+      .filter((m) => !temResultado(m) && m.kickoff && new Date(m.kickoff).getTime() > agora)
+      .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))[0];
+    if (proximo) return String(proximo.id);
+    return estado.jogos[0] ? String(estado.jogos[0].id) : "";
+  });
   const jogo = estado.jogos.find((m) => String(m.id) === String(jogoSel)) || estado.jogos[0];
 
   const hoje = fmtSP(Date.now() + offsetMs);
