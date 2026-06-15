@@ -4,7 +4,7 @@
 
 import { sql, autenticar } from "../lib/db.js";
 
-const EMOJIS_VALIDOS = ["🔥", "😱", "💀", "🎯"];
+const EMOJIS_VALIDOS = ["🔥", "😱", "💀", "🎯", "😂", "🤡", "🐐", "💪", "😭", "🫡", "⚽", "🏆"];
 
 export default async function handler(req, res) {
   const eu = await autenticar(req.method === "GET" ? req.query.t : req.body?.t);
