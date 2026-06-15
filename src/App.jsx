@@ -312,7 +312,7 @@ export default function App() {
           )}
         </div>
         <div className="topo-eyebrow">COPA DO MUNDO · 2026</div>
-        <h1 className="topo-titulo">BOLÃO</h1>
+        <h1 className="topo-titulo">BOLÃO DOS GURIS</h1>
         <div className="topo-divider" aria-hidden="true" />
         <div className="topo-stats">
           <span>⚽ {estado.participantes.length} jogadores</span>
@@ -827,7 +827,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
     );
 
     const msg = [
-      "⚽ *BOLÃO DA COPA 2026*",
+      "⚽ *BOLÃO DOS GURIS*",
       "",
       "⚠️ Faltam palpites pra hoje:",
       ...linhas,
@@ -2781,7 +2781,7 @@ function Estilo() {
       }
       .topo-titulo {
         margin: 0; font-weight: 800;
-        font-size: clamp(64px, 16vw, 100px);
+        font-size: clamp(36px, 10vw, 72px);
         letter-spacing: .04em; line-height: 1;
         text-shadow: 0 4px 0 rgba(0,0,0,.45), 0 0 40px rgba(255,197,61,.12);
       }
