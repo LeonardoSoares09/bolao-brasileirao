@@ -288,29 +288,37 @@ export default function App() {
   return (
     <Casca>
       <header className="topo entra-1">
-        <button
-          className="regras-btn"
-          onClick={() => setAbrirRegras(true)}
-          aria-label="Ver regras do bolão"
-          title="Regras"
-        >?</button>
-        {estado.eu.id !== null && (
+        <div className="topo-acoes">
           <button
-            className="avatar-header-btn"
-            onClick={() => setAbrirPerfil((v) => !v)}
-            title="Editar perfil"
-            aria-label="Editar avatar"
-          >
-            <Avatar
-              nome={estado.eu.nome}
-              emoji={euParticipante?.avatarEmoji}
-              cor={euParticipante?.avatarCor}
-              size={38}
-            />
-          </button>
-        )}
-        <div className="eyebrow">⚽ {estado.participantes.length} jogadores · {encerrados} encerrado{encerrados === 1 ? "" : "s"}</div>
-        <h1>BOLÃO DA COPA 2026</h1>
+            className="regras-btn"
+            onClick={() => setAbrirRegras(true)}
+            aria-label="Ver regras do bolão"
+            title="Regras"
+          >?</button>
+          {estado.eu.id !== null && (
+            <button
+              className="avatar-header-btn"
+              onClick={() => setAbrirPerfil((v) => !v)}
+              title="Editar perfil"
+              aria-label="Editar avatar"
+            >
+              <Avatar
+                nome={estado.eu.nome}
+                emoji={euParticipante?.avatarEmoji}
+                cor={euParticipante?.avatarCor}
+                size={36}
+              />
+            </button>
+          )}
+        </div>
+        <div className="topo-eyebrow">COPA DO MUNDO · 2026</div>
+        <h1 className="topo-titulo">BOLÃO</h1>
+        <div className="topo-divider" aria-hidden="true" />
+        <div className="topo-stats">
+          <span>⚽ {estado.participantes.length} jogadores</span>
+          <span className="topo-stats-sep" aria-hidden="true">·</span>
+          <span>{encerrados} encerrado{encerrados === 1 ? "" : "s"}</span>
+        </div>
       </header>
 
       {abrirRegras && <ModalRegras onFechar={() => setAbrirRegras(false)} />}
@@ -2758,30 +2766,38 @@ function Estilo() {
       .entra-3 { animation: sobe .55s var(--t) .3s both; }
       .entra-cartao { animation: sobe .45s var(--t) both; animation-delay: calc(var(--i, 0) * 50ms); }
 
-      .topo { text-align: center; margin-bottom: 22px; position: relative; padding: 18px 0 14px; }
-      .topo::before {
-        content: ''; position: absolute; left: 50%; top: 50%;
-        transform: translate(-50%, -50%);
-        width: 230px; height: 230px; border-radius: 50%;
-        border: 2px solid rgba(255,255,255,.10);
-        pointer-events: none;
+      .topo {
+        text-align: center; margin-bottom: 28px;
+        padding: 8px 0 0;
       }
-      .topo::after {
-        content: ''; position: absolute; left: -16px; right: -16px; top: 50%;
-        border-top: 2px solid rgba(255,255,255,.07);
-        pointer-events: none;
+      .topo-acoes {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 28px;
       }
-      .eyebrow {
+      .topo-eyebrow {
         font-family: 'IBM Plex Mono', monospace;
-        font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
-        color: var(--ambar); margin-bottom: 6px; position: relative; z-index: 1;
+        font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
+        color: rgba(255,255,255,.38); margin-bottom: 4px;
       }
-      .topo h1 {
-        margin: 0; font-weight: 800; font-size: clamp(44px, 9vw, 72px);
-        letter-spacing: .03em; line-height: .95;
-        text-shadow: 0 3px 0 rgba(0,0,0,.35);
-        position: relative; z-index: 1;
+      .topo-titulo {
+        margin: 0; font-weight: 800;
+        font-size: clamp(64px, 16vw, 100px);
+        letter-spacing: .04em; line-height: 1;
+        text-shadow: 0 4px 0 rgba(0,0,0,.45), 0 0 40px rgba(255,197,61,.12);
       }
+      .topo-divider {
+        width: 48px; height: 2px;
+        background: var(--ambar);
+        margin: 14px auto 12px;
+        opacity: .7;
+      }
+      .topo-stats {
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+        color: var(--ambar);
+      }
+      .topo-stats-sep { opacity: .35; }
       .prox-jogo {
         display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
         padding: 9px 14px; margin-bottom: 10px;
@@ -3326,14 +3342,12 @@ function Estilo() {
       }
 
       .avatar-header-btn {
-        position: absolute; top: 14px; right: 0; z-index: 2;
         background: transparent; border: none; cursor: pointer; padding: 0;
-        transition: transform var(--t);
+        transition: transform var(--t), opacity var(--t);
       }
-      .avatar-header-btn:hover { transform: scale(1.1); }
+      .avatar-header-btn:hover { transform: scale(1.08); opacity: .85; }
 
       .regras-btn {
-        position: absolute; top: 14px; left: 0; z-index: 2;
         width: 34px; height: 34px; border-radius: 50%;
         background: transparent; border: 2px solid rgba(255,255,255,.18);
         cursor: pointer; color: var(--giz); opacity: .5;
