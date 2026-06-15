@@ -182,10 +182,6 @@ export default async function handler(req, res) {
     res.status(401).json({ error: "Link inválido" });
     return;
   }
-  if (!eu.isAdmin) {
-    res.status(403).json({ error: "Só o organizador usa a busca automática" });
-    return;
-  }
   if (!process.env.FOOTBALL_DATA_KEY) {
     res.status(500).json({ error: "FOOTBALL_DATA_KEY não configurada na Vercel" });
     return;
@@ -193,15 +189,27 @@ export default async function handler(req, res) {
 
   const acao = String(req.query.acao || "");
   try {
+    /* placar-vivo: qualquer participante autenticado pode chamar */
+    if (acao === "placar-vivo") {
+      res.status(200).json(await acaoPlacares());
+      return;
+    }
+
+    /* demais ações: somente admin */
+    if (!eu.isAdmin) {
+      res.status(403).json({ error: "Só o organizador usa a busca automática" });
+      return;
+    }
+
     if (acao === "jogos-hoje") {
       res.status(200).json(await acaoJogosHoje());
       return;
     }
     if (acao === "resultados") {
-      res.status(200).json(await acaoResultados());
+      res.status(200).json(await acaoPlacares());
       return;
     }
-    res.status(400).json({ error: "acao inválida — use 'jogos-hoje' ou 'resultados'" });
+    res.status(400).json({ error: "acao inválida — use 'jogos-hoje', 'resultados' ou 'placar-vivo'" });
   } catch (e) {
     console.error(e);
     if (e.externo) {
@@ -292,35 +300,54 @@ async function acaoJogosHoje() {
   return { adicionados, atualizados, total: relevantes.length };
 }
 
-export async function acaoResultados() {
+/* acaoPlacares: atualiza FINISHED (placar final) e IN_PLAY/PAUSED (placar ao vivo) */
+async function acaoPlacares() {
   const hoje = hojeEmSP();
-  /* janela ampla dos últimos 14 dias só pra cobrir; status=FINISHED filtra o resto */
+  /* janela dos últimos 14 dias para não perder resultados atrasados */
   const partidas = await buscarPartidas(
-    `dateFrom=${addDias(hoje, -14)}&dateTo=${addDias(hoje, +1)}&status=FINISHED`
+    `dateFrom=${addDias(hoje, -14)}&dateTo=${addDias(hoje, +1)}`
   );
 
   let atualizados = 0;
+  let vivos = 0;
 
   for (const m of partidas) {
     const externalId = String(m.id);
-    const gh = m.score?.fullTime?.home;
-    const ga = m.score?.fullTime?.away;
-    if (gh == null || ga == null) continue;
+    const status = m.status;
 
-    /* só atualiza jogos JÁ carimbados — sem adoção nem insert aqui */
-    const rows = await sql`
-      UPDATE jogos
-         SET gh = ${gh}, ga = ${ga}
-       WHERE external_id = ${externalId}
-         AND (gh IS DISTINCT FROM ${gh} OR ga IS DISTINCT FROM ${ga})
-      RETURNING id, casa, fora
-    `;
-    if (rows.length > 0) {
-      atualizados++;
-      const { casa, fora } = rows[0];
-      enviarPush("todos", "⚽ Resultado lançado!", `${casa} ${gh}×${ga} ${fora} — veja como ficou seu palpite!`, "/").catch(() => {});
+    if (status === "FINISHED") {
+      const gh = m.score?.fullTime?.home;
+      const ga = m.score?.fullTime?.away;
+      if (gh == null || ga == null) continue;
+      const rows = await sql`
+        UPDATE jogos
+           SET gh = ${gh}, ga = ${ga}, live = false
+         WHERE external_id = ${externalId}
+           AND (gh IS DISTINCT FROM ${gh} OR ga IS DISTINCT FROM ${ga} OR live = true)
+        RETURNING id, casa, fora
+      `;
+      if (rows.length > 0) {
+        atualizados++;
+        const { casa, fora } = rows[0];
+        enviarPush("todos", "⚽ Resultado lançado!", `${casa} ${gh}×${ga} ${fora} — confere seu palpite!`, "/").catch(() => {});
+      }
+    } else if (status === "IN_PLAY" || status === "PAUSED") {
+      const gh = m.score?.fullTime?.home ?? 0;
+      const ga = m.score?.fullTime?.away ?? 0;
+      await sql`
+        UPDATE jogos
+           SET gh = ${gh}, ga = ${ga}, live = true
+         WHERE external_id = ${externalId}
+           AND (live IS DISTINCT FROM true OR gh IS DISTINCT FROM ${gh} OR ga IS DISTINCT FROM ${ga})
+      `;
+      vivos++;
     }
   }
 
-  return { atualizados };
+  return { atualizados, vivos };
+}
+
+/* mantém exportação para cron-resultados.js */
+export async function acaoResultados() {
+  return acaoPlacares();
 }

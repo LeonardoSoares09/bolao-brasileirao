@@ -47,7 +47,7 @@ export default async function handler(req, res) {
     }
     const gh = intOuNull(req.body?.gh);
     const ga = intOuNull(req.body?.ga);
-    await sql`UPDATE jogos SET gh = ${gh}, ga = ${ga} WHERE id = ${jid}`;
+    await sql`UPDATE jogos SET gh = ${gh}, ga = ${ga}, live = false WHERE id = ${jid}`;
     res.status(200).json({ ok: true });
 
     /* fire-and-forget: notifica se resultado foi definido (não apagado) */

@@ -25,7 +25,7 @@ const reduzMovimento = () =>
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function pontosDoPalpite(palpite, jogo) {
-  if (!palpite || jogo.gh === null || jogo.ga === null) return null;
+  if (!palpite || jogo.gh === null || jogo.ga === null || jogo.live) return null;
   const ph = Number(palpite.h), pa = Number(palpite.a);
   if (Number.isNaN(ph) || Number.isNaN(pa)) return null;
   if (ph === jogo.gh && pa === jogo.ga) return PTS_EXATO;
@@ -34,7 +34,7 @@ function pontosDoPalpite(palpite, jogo) {
   return 0;
 }
 
-const temResultado = (m) => m.gh !== null && m.ga !== null;
+const temResultado = (m) => m.gh !== null && m.ga !== null && !m.live;
 
 function fmtQuando(m) {
   if (!m.kickoff) return "";
@@ -170,6 +170,21 @@ export default function App() {
       document.removeEventListener("visibilitychange", onFoco);
     };
   }, [token, carregar]);
+
+  /* polling de placar ao vivo: 60s quando há jogo em andamento */
+  const temJogoVivo = !!estado && estado.jogos.some(
+    (m) => m.kickoff && !temResultado(m) && new Date(m.kickoff) <= new Date(Date.now() + offsetRef.current)
+  );
+  useEffect(() => {
+    if (!token || !temJogoVivo) return;
+    const buscar = () =>
+      api(`/api/futebol?t=${encodeURIComponent(token)}&acao=placar-vivo`)
+        .then(carregar)
+        .catch(() => {});
+    buscar();
+    const id = setInterval(buscar, 60000);
+    return () => clearInterval(id);
+  }, [token, temJogoVivo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const irParaPalpites = useCallback((jogoId) => {
     setJogoPreSel(jogoId);
@@ -1044,9 +1059,14 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                     </div>
                     {ehAdmin ? (
                       <ResultadoAdmin jogo={m} salvar={salvarResultado} remover={() => delJogo(m.id)} />
-                    ) : (
-                      encerrado && <div className="placar-final led-mini">{m.gh} : {m.ga}</div>
-                    )}
+                    ) : encerrado ? (
+                      <div className="placar-final led-mini">{m.gh} : {m.ga}</div>
+                    ) : m.live ? (
+                      <div className="placar-vivo led-mini">
+                        <span className="placar-vivo-dot" aria-hidden="true" />
+                        {m.gh} : {m.ga}
+                      </div>
+                    ) : null}
                   </div>
                 );
               })
@@ -3170,6 +3190,15 @@ function Estilo() {
         font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 20px;
         color: var(--ambar); text-shadow: 0 0 10px rgba(255,197,61,.5);
         white-space: nowrap;
+      }
+      .placar-vivo {
+        display: flex; align-items: center; gap: 6px;
+        font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 20px;
+        color: var(--erro); white-space: nowrap;
+      }
+      .placar-vivo-dot {
+        width: 8px; height: 8px; border-radius: 50%; flex: none;
+        background: var(--erro); animation: pulsa-cd .85s ease-in-out infinite;
       }
 
       .tag {
