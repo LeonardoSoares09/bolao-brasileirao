@@ -351,6 +351,11 @@ export default function App() {
           cor={euParticipante?.avatarCor || ""}
           onSalvar={salvarAvatar}
           onFechar={() => setAbrirPerfil(false)}
+          euId={estado.eu.id}
+          isAdmin={estado.eu.isAdmin}
+          estado={estado}
+          palpitesMap={palpitesMap}
+          ranking={ranking}
         />
       )}
 
@@ -1933,7 +1938,7 @@ function Avatar({ nome, emoji, cor, size = 36 }) {
   );
 }
 
-function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, onFechar }) {
+function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, onFechar, euId, isAdmin, estado, palpitesMap, ranking }) {
   const [emojiSel, setEmojiSel] = useState(emojiInicial || "");
   const [corSel, setCorSel] = useState(corInicial || corDoNome(nome));
   const [salvando, setSalvando] = useState(false);
@@ -1953,17 +1958,119 @@ function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, on
 
   const iniciais = nome.split(" ").filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join("");
 
+  /* ── stats ── */
+  const jogosEncerrados = (estado?.jogos || []).filter(temResultado);
+  const meusPalpites = jogosEncerrados.map((m) => {
+    const palpite = palpitesMap?.[m.id]?.[euId];
+    const pts = pontosDoPalpite(palpite, m);
+    return { jogo: m, palpite, pts };
+  });
+  const apostasFeitas   = meusPalpites.filter((x) => x.palpite).length;
+  const acertosExatos   = meusPalpites.filter((x) => x.pts === PTS_EXATO).length;
+  const acertosResult   = meusPalpites.filter((x) => x.pts === PTS_RESULTADO).length;
+  const erros           = meusPalpites.filter((x) => x.palpite && x.pts === 0).length;
+  const totalPtsJogos   = meusPalpites.reduce((s, x) => s + (x.pts || 0), 0);
+  const maxPossivel     = apostasFeitas * PTS_EXATO;
+  const aproveitamento  = maxPossivel > 0 ? Math.round((totalPtsJogos / maxPossivel) * 100) : 0;
+
+  const euRanking   = ranking?.find((p) => p.id === euId);
+  const posicao     = ranking ? ranking.findIndex((p) => p.id === euId) + 1 : 0;
+  const totalPts    = euRanking?.pontos ?? 0;
+
+  const comPalpite  = meusPalpites.filter((x) => x.palpite);
+  const melhor      = comPalpite.reduce((b, x) => (!b || x.pts > b.pts) ? x : b, null);
+  const pior        = comPalpite.reduce((w, x) => (!w || x.pts < w.pts) ? x : w, null);
+
+  const temStats = jogosEncerrados.length > 0;
+
   return (
     <div className="perfil-picker entra-2">
+      {/* topo */}
       <div className="perfil-picker-topo">
         <div className="perfil-picker-preview">
           <Avatar nome={nome} emoji={emojiSel} cor={corSel} size={48} />
-          <span className="perfil-picker-nome">{nome}</span>
+          <div>
+            <div className="perfil-picker-nome">{nome}</div>
+            {isAdmin && <div className="perfil-badge-admin">Organizador</div>}
+          </div>
         </div>
         <button className="apagar" onClick={onFechar} aria-label="Fechar perfil">✕</button>
       </div>
 
-      <div className="secao-titulo" style={{ marginTop: "12px" }}>COR</div>
+      {/* headline stats */}
+      {temStats && (
+        <>
+          <div className="perfil-headline">
+            <div className="perfil-hl-item">
+              <span className="perfil-hl-num">{posicao}º</span>
+              <span className="perfil-hl-label">lugar</span>
+            </div>
+            <div className="perfil-hl-sep" />
+            <div className="perfil-hl-item">
+              <span className="perfil-hl-num">{totalPts}</span>
+              <span className="perfil-hl-label">pontos</span>
+            </div>
+            <div className="perfil-hl-sep" />
+            <div className="perfil-hl-item">
+              <span className="perfil-hl-num">{aproveitamento}%</span>
+              <span className="perfil-hl-label">aproveito</span>
+            </div>
+          </div>
+
+          {/* barra de aproveitamento */}
+          <div className="perfil-barra-bg">
+            <div className="perfil-barra-fill" style={{ width: `${aproveitamento}%` }} />
+          </div>
+
+          {/* breakdown */}
+          <div className="perfil-breakdown">
+            <span className="perfil-bd-item perfil-bd-exato">🎯 {acertosExatos} exato{acertosExatos !== 1 ? "s" : ""}</span>
+            <span className="perfil-bd-item perfil-bd-result">✓ {acertosResult} certo{acertosResult !== 1 ? "s" : ""}</span>
+            <span className="perfil-bd-item perfil-bd-erro">✗ {erros} erro{erros !== 1 ? "s" : ""}</span>
+            <span className="perfil-bd-item perfil-bd-miss">{apostasFeitas}/{jogosEncerrados.length} apostas</span>
+          </div>
+
+          {/* mini gráfico */}
+          {comPalpite.length > 0 && (
+            <>
+              <div className="secao-titulo" style={{ marginTop: "14px" }}>HISTÓRICO</div>
+              <div className="perfil-chart">
+                {comPalpite.map(({ jogo, pts }, i) => (
+                  <div
+                    key={jogo.id}
+                    className={"perfil-bar" + (pts === PTS_EXATO ? " perfil-bar-exato" : pts === PTS_RESULTADO ? " perfil-bar-result" : " perfil-bar-erro")}
+                    style={{ "--h": pts === PTS_EXATO ? "100%" : pts === PTS_RESULTADO ? "40%" : "12%", "--i": i }}
+                    title={`${jogo.casa} × ${jogo.fora}: ${pts} pt${pts !== 1 ? "s" : ""}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* melhor e pior */}
+          {melhor && (
+            <div className="perfil-destaques">
+              <div className="perfil-destaque">
+                <span className="perfil-destaque-icon">🏆</span>
+                <span className="perfil-destaque-txt">{melhor.jogo.casa} × {melhor.jogo.fora}</span>
+                <span className="perfil-destaque-pts perfil-bd-exato">{melhor.pts} pt{melhor.pts !== 1 ? "s" : ""}</span>
+              </div>
+              {pior && pior.jogo.id !== melhor.jogo.id && (
+                <div className="perfil-destaque">
+                  <span className="perfil-destaque-icon">💔</span>
+                  <span className="perfil-destaque-txt">{pior.jogo.casa} × {pior.jogo.fora}</span>
+                  <span className="perfil-destaque-pts perfil-bd-erro">{pior.pts} pt{pior.pts !== 1 ? "s" : ""}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* personalizar */}
+      <div className="secao-titulo" style={{ marginTop: "14px" }}>PERSONALIZAR</div>
+
+      <div className="secao-titulo" style={{ marginTop: "8px", opacity: .55, fontSize: "9px" }}>COR</div>
       <div className="paleta">
         {PALETA_CORES.map((c) => (
           <button
@@ -1977,7 +2084,7 @@ function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, on
         ))}
       </div>
 
-      <div className="secao-titulo" style={{ marginTop: "12px" }}>EMOJI</div>
+      <div className="secao-titulo" style={{ marginTop: "12px", opacity: .55, fontSize: "9px" }}>EMOJI</div>
       <div className="emoji-grid">
         <button
           className={"emoji-item" + (!emojiSel ? " emoji-item-ativo" : "")}
@@ -3345,6 +3452,36 @@ function Estilo() {
       }
       .perfil-picker-preview { display: flex; align-items: center; gap: 12px; }
       .perfil-picker-nome { font-size: 20px; font-weight: 800; letter-spacing: .03em; }
+      .perfil-badge-admin { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: .1em; color: var(--ambar); opacity: .8; margin-top: 2px; }
+
+      .perfil-headline { display: flex; align-items: center; gap: 0; margin-top: 14px; background: rgba(0,0,0,.2); border: 1px solid var(--linha); border-radius: 6px; overflow: hidden; }
+      .perfil-hl-item { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 10px 4px; }
+      .perfil-hl-num { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 700; color: var(--ambar); }
+      .perfil-hl-label { font-size: 9px; letter-spacing: .1em; opacity: .5; margin-top: 2px; }
+      .perfil-hl-sep { width: 1px; height: 36px; background: var(--linha); flex: none; }
+
+      .perfil-barra-bg { height: 4px; background: rgba(255,255,255,.08); border-radius: 2px; margin-top: 10px; overflow: hidden; }
+      .perfil-barra-fill { height: 100%; background: var(--ambar); border-radius: 2px; transition: width .6s ease; }
+
+      .perfil-breakdown { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+      .perfil-bd-item { font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 3px 8px; border-radius: 4px; background: rgba(255,255,255,.06); }
+      .perfil-bd-exato { color: var(--ambar); }
+      .perfil-bd-result { color: rgba(255,255,255,.7); }
+      .perfil-bd-erro { color: var(--erro); }
+      .perfil-bd-miss { color: rgba(255,255,255,.35); }
+
+      .perfil-chart { display: flex; align-items: flex-end; gap: 3px; height: 36px; margin-top: 8px; }
+      .perfil-bar { flex: 1; min-width: 6px; max-width: 18px; height: var(--h); border-radius: 2px 2px 0 0; transition: opacity .2s; }
+      .perfil-bar:hover { opacity: .75; }
+      .perfil-bar-exato  { background: var(--ambar); }
+      .perfil-bar-result { background: rgba(255,255,255,.4); }
+      .perfil-bar-erro   { background: var(--erro); opacity: .6; }
+
+      .perfil-destaques { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+      .perfil-destaque { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+      .perfil-destaque-icon { flex: none; font-size: 14px; }
+      .perfil-destaque-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .8; }
+      .perfil-destaque-pts { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 12px; flex: none; }
 
       .paleta { display: flex; gap: 8px; flex-wrap: wrap; }
       .paleta-cor {
