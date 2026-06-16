@@ -3343,10 +3343,19 @@ function Estilo() {
       }
       .placar-linha:hover { background: rgba(255,255,255,.05); }
       .placar-linha:last-child { border-bottom: none; }
-      .podio-ouro  { background: rgba(255,197,61,.14); border-left: 3px solid #ffc53d; }
+      @keyframes respira-lider {
+        0%, 100% { box-shadow: 0 0 10px rgba(255,197,61,.18), inset 0 0 12px rgba(255,197,61,.04); }
+        50%       { box-shadow: 0 0 28px rgba(255,197,61,.45), inset 0 0 20px rgba(255,197,61,.09); }
+      }
+      .podio-ouro  {
+        background: rgba(255,197,61,.18);
+        border: 2px solid #ffc53d;
+        box-shadow: 0 0 18px rgba(255,197,61,.28), inset 0 0 14px rgba(255,197,61,.06);
+        animation: respira-lider 3s ease-in-out infinite;
+      }
       .podio-prata { background: rgba(200,200,210,.08); border-left: 3px solid #b8b8cc; }
       .podio-bronze{ background: rgba(180,100,40,.08);  border-left: 3px solid #b87040; }
-      .podio-ouro:hover  { background: rgba(255,197,61,.22) !important; }
+      .podio-ouro:hover  { background: rgba(255,197,61,.26) !important; }
       .podio-prata:hover { background: rgba(200,200,210,.14) !important; }
       .podio-bronze:hover{ background: rgba(180,100,40,.14) !important; }
       .col-pos-medal { font-size: 18px; opacity: 1; }
