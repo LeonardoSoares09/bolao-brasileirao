@@ -25,7 +25,7 @@ const reduzMovimento = () =>
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function pontosDoPalpite(palpite, jogo) {
-  if (!palpite || jogo.gh === null || jogo.ga === null || jogo.live) return null;
+  if (!palpite || jogo.gh === null || jogo.ga === null) return null;
   const ph = Number(palpite.h), pa = Number(palpite.a);
   if (Number.isNaN(ph) || Number.isNaN(pa)) return null;
   if (ph === jogo.gh && pa === jogo.ga) return PTS_EXATO;
