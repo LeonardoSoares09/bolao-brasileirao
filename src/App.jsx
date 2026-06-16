@@ -459,6 +459,38 @@ function Casca({ children }) {
   );
 }
 
+/* ================= CONFETE ================= */
+function Confete() {
+  const [pecas] = useState(() =>
+    Array.from({ length: 64 }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      delay: Math.random() * 2.6,
+      dur: 2.8 + Math.random() * 2,
+      cor: ["#ffc53d","#4ade80","#60a5fa","#f472b6","#a78bfa","#fb923c","#ffffff"][i % 7],
+      w: 6 + Math.floor(Math.random() * 8),
+    }))
+  );
+  return (
+    <div className="confete-wrap" aria-hidden="true">
+      {pecas.map((p) => (
+        <div
+          key={p.id}
+          className="confete-peca"
+          style={{
+            left: `${p.left}%`,
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.dur}s`,
+            background: p.cor,
+            width: `${p.w}px`,
+            height: `${Math.round(p.w * 0.45)}px`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 /* ================= RANKING ================= */
 function LedPontos({ valor }) {
   const v = useCountUp(valor);
@@ -471,6 +503,7 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickPar
     return <Vazio texto="O organizador ainda não cadastrou os participantes." />;
   return (
     <div>
+      {primeiraVez && ranking.some((p) => p.exatosHoje > 0) && <Confete />}
       {!temJogos && (
         <p className="dica">Nenhum jogo encerrado ainda — o placar acende quando entrar o primeiro resultado.</p>
       )}
@@ -3405,6 +3438,20 @@ function Estilo() {
       .modal-jogo-direita { display: flex; align-items: center; gap: 8px; flex: none; }
       .modal-palpite { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 700; color: var(--ambar); }
       .modal-sem-palpite { font-family: 'IBM Plex Mono', monospace; font-size: 11px; opacity: .3; }
+
+      .confete-wrap {
+        position: fixed; inset: 0; pointer-events: none; z-index: 999; overflow: hidden;
+      }
+      @keyframes confete-cai {
+        0%   { transform: translateY(-12px) rotate(0deg) scaleX(1);    opacity: 1; }
+        50%  { transform: translateY(52vh)  rotate(320deg) scaleX(-1); opacity: 1; }
+        100% { transform: translateY(110vh) rotate(640deg) scaleX(1);  opacity: 0; }
+      }
+      .confete-peca {
+        position: absolute; top: 0;
+        border-radius: 2px;
+        animation: confete-cai ease-in forwards;
+      }
 
       @keyframes gol {
         0%   { opacity: 0; transform: translate(-50%, 4px) scale(.6); }
