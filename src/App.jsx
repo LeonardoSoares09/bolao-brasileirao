@@ -886,7 +886,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
     try {
       await api("/api/jogo", {
         method: "POST",
-        body: JSON.stringify({ t: token, casa, fora, kickoff: kickoff || null, fase }),
+        body: JSON.stringify({ t: token, casa, fora, kickoff: kickoff ? new Date(kickoff).toISOString() : null, fase }),
       });
       setCasa(""); setFora(""); setKickoff(""); setFase("grupos");
       recarregar();
