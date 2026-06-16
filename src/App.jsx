@@ -176,10 +176,20 @@ export default function App() {
     };
   }, [token, carregar]);
 
-  /* polling de placar ao vivo: 60s quando há jogo em andamento */
-  const temJogoVivo = !!estado && estado.jogos.some(
-    (m) => m.kickoff && !temResultado(m) && new Date(m.kickoff) <= new Date(Date.now() + offsetRef.current)
-  );
+  /* polling de placar ao vivo: 60s quando há jogo em andamento.
+     A janela é limitada a ~3h após o kickoff: sem isso, qualquer jogo passado
+     sem resultado lançado (órfão) mantinha temJogoVivo=true pra sempre, fazendo
+     todos os clientes martelarem a football-data eternamente por jogos que nem
+     estão acontecendo (combinado com o rate limit, derruba o placar ao vivo). */
+  /* 4h, não 3h: um mata-mata com prorrogação + pênaltis dura ~3h do kickoff ao
+     apito final; 4h dá folga pra não cortar o polling no clímax. Ainda é uma
+     janela fechada, então jogo órfão (passado sem placar) para de pollar. */
+  const JANELA_VIVO = 4 * 60 * 60 * 1000;
+  const temJogoVivo = !!estado && estado.jogos.some((m) => {
+    if (!m.kickoff || temResultado(m)) return false;
+    const decorrido = (Date.now() + offsetRef.current) - new Date(m.kickoff).getTime();
+    return decorrido >= 0 && decorrido <= JANELA_VIVO;
+  });
   useEffect(() => {
     if (!token || !temJogoVivo) return;
     const buscar = () =>

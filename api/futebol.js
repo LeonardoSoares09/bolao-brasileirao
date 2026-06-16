@@ -304,18 +304,25 @@ async function acaoJogosHoje() {
    Deduplicação: a football-data.org só é consultada uma vez por minuto,
    independente de quantos clientes chamem simultaneamente. */
 async function acaoPlacares() {
-  const [cfg] = await sql`
-    SELECT atualizado_em FROM config WHERE chave = 'ultima_busca_live'
-  `;
-  const agora = Date.now();
-  if (cfg?.atualizado_em && agora - new Date(cfg.atualizado_em).getTime() < 55000) {
-    return { atualizados: 0, vivos: 0, cached: true };
-  }
-  await sql`
+  /* Lock atômico: só UMA chamada concorrente consegue avançar o timestamp.
+     O check-then-act anterior (SELECT + INSERT) não era atômico — dois clientes
+     liam o timestamp antigo ao mesmo tempo, ambos passavam e ambos chamavam a
+     football-data, estourando o rate limit (10 req/min do free tier → 429 →
+     placares ao vivo somem pra todos). Aqui a condição vive no WHERE do
+     ON CONFLICT, avaliada sob lock da linha: o segundo a chegar re-avalia contra
+     a linha já atualizada, não bate, e RETURNING vem vazio. O INSERT também cobre
+     o cold-start (linha ainda não existe num banco recém-criado do schema.sql). */
+  const ganhou = await sql`
     INSERT INTO config (chave, atualizado_em)
       VALUES ('ultima_busca_live', NOW())
       ON CONFLICT (chave) DO UPDATE SET atualizado_em = NOW()
+        WHERE config.atualizado_em IS NULL
+           OR config.atualizado_em < NOW() - INTERVAL '55 seconds'
+    RETURNING chave
   `;
+  if (ganhou.length === 0) {
+    return { atualizados: 0, vivos: 0, cached: true };
+  }
 
   const hoje = hojeEmSP();
   /* janela dos últimos 14 dias para não perder resultados atrasados */
