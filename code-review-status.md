@@ -5,7 +5,7 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 
 **Última atualização:** 2026-06-16
 
-**Placar:** Críticos 3/3 ✅ · Importantes 6/6 ✅ · Polimento 3/8
+**Placar:** Críticos 3/3 ✅ · Importantes 6/6 ✅ · Polimento 4/8
 
 ---
 
@@ -71,12 +71,15 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 
 ---
 
-## 🟢 Polimento — 3/8
+## 🟢 Polimento — 4/8
 
-- [ ] **P1 — Feature morta: push notifications**
-  Tabela `push_subscriptions` existe, mas **não há** endpoint de inscrição nem handler de
-  `push` no `sw.js` (confirmado: `public/sw.js` só tem install/activate). Implementar ou
-  remover a tabela.
+- [x] **P1 — Feature morta: push notifications (REMOVIDA)**
+  O Leonardo tentou usar (botou VAPID na Vercel) mas nunca funcionou — porque o código nunca
+  existiu (só a tabela morta). Decidido **remover tudo**: tabela `push_subscriptions` saiu do
+  `schema.sql`; migration `migrations/V06__drop_push.sql` criada pra dropar no Neon; `V5__push.sql`
+  apagado do `_legado`; dependência órfã `web-push` removida do `package-lock.json`.
+  - ⚙️ *Ações manuais do Leonardo:* (1) rodar `V06__drop_push.sql` no SQL Editor do Neon;
+    (2) remover as envs `VAPID_*` no dashboard da Vercel.
 
 - [x] **P2 — Código morto**
   Removido: `const { casa, fora } = rows[0]` morto em `api/futebol.js` (`acaoPlacares`) +
