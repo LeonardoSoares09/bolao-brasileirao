@@ -5,7 +5,7 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 
 **Última atualização:** 2026-06-16
 
-**Placar:** Críticos 3/3 ✅ · Importantes 6/6 ✅ · Polimento 2/8
+**Placar:** Críticos 3/3 ✅ · Importantes 6/6 ✅ · Polimento 3/8
 
 ---
 
@@ -71,7 +71,7 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 
 ---
 
-## 🟢 Polimento — 2/8
+## 🟢 Polimento — 3/8
 
 - [ ] **P1 — Feature morta: push notifications**
   Tabela `push_subscriptions` existe, mas **não há** endpoint de inscrição nem handler de
@@ -94,9 +94,13 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
   `EMOJIS_REACAO` (App.jsx) e `EMOJIS_VALIDOS` (api/reacao.js) são idênticos mas mantidos
   na mão. Idem dois mapas de países. *Solução:* fonte única compartilhada.
 
-- [ ] **P5 — CPF (chave PIX) hardcoded no bundle público**
-  `const PIX = "04554360024"` em `App.jsx`. É PII servida publicamente. *Solução:* vir de
-  env/config em vez de estar no código do front.
+- [x] **P5 — CPF (chave PIX) hardcoded no bundle público**
+  Resolvido na **raiz**: o Leonardo criou uma **chave PIX aleatória** (formato UUID, sem PII)
+  e trocou o CPF por ela. Como uma chave aleatória é feita pra ser pública, pode seguir
+  hardcoded sem problema — não precisou da solução via API autenticada (que o `VITE_` nem
+  resolveria, pois o Vite embute env no bundle público). Rótulo "Chave PIX (CPF)" → "Chave
+  PIX"; CSS do bloco ajustado (`word-break`, `min-width:0`, fonte 13px) pra a chave longa
+  não estourar o layout.
 
 - [ ] **P6 — `App.jsx` gigante (~3.700 linhas + ~900 de CSS inline)**
   Quebrar em arquivos por componente e mover CSS pra `.css` importado. Esforço alto,

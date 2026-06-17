@@ -2526,7 +2526,7 @@ function ModalPagamento({ onFechar }) {
   const DEADLINE = DEADLINE_PAGAMENTO;
   const [seg, setSeg] = useState(() => Math.max(0, Math.floor((DEADLINE - Date.now()) / 1000)));
   const [copiado, setCopiado] = useState(false);
-  const PIX = "04554360024";
+  const PIX = "9a92ec8d-356e-43a7-a56a-de947add29dd"; // chave PIX aleatória (sem PII — item P5)
 
   useEffect(() => {
     if (seg <= 0) return;
@@ -2561,7 +2561,7 @@ function ModalPagamento({ onFechar }) {
           <div className="pagamento-valor">R$ {VALOR_ENTRADA},00</div>
 
           <div className="pagamento-pix-bloco">
-            <span className="pagamento-pix-label">Chave PIX (CPF)</span>
+            <span className="pagamento-pix-label">Chave PIX</span>
             <div className="pagamento-pix-linha">
               <span className="pagamento-pix-chave">{PIX}</span>
               <button className="botao pagamento-copiar" onClick={copiarPix}>
@@ -3157,8 +3157,8 @@ function Estilo() {
       .pagamento-pix-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; color: #888; text-transform: uppercase; }
       .pagamento-pix-linha { display: flex; align-items: center; gap: 10px; }
       .pagamento-pix-chave {
-        font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #e2e8f0; flex: 1;
-        letter-spacing: .04em;
+        font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #e2e8f0; flex: 1;
+        letter-spacing: .02em; min-width: 0; word-break: break-all; line-height: 1.4;
       }
       .pagamento-copiar { padding: 6px 12px; font-size: 13px; white-space: nowrap; }
       .pagamento-timer {
