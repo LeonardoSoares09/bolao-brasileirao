@@ -1,11 +1,22 @@
 # Status do Code Review — Bolão da Copa 2026
 
 Rastreamento dos itens do relatório *"Code Review · Super Squad Sênior"* (`code-review-bolao.pdf`).
-Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 
-**Última atualização:** 2026-06-16
+**Última atualização:** 2026-06-17
 
-**Placar:** Críticos 3/3 ✅ · Importantes 6/6 ✅ · Polimento 4/8
+## ✅ REVIEW CONCLUÍDO
+
+**Placar final:** Críticos 3/3 ✅ · Importantes 6/6 ✅ · Polimento 4/8 feitos (P1, P2, P3, P5).
+
+Os 4 restantes (P4, P6, P7, P8) foram **decididos como "não fazer"**: são refactors de
+manutenção (código mais limpo), e o app é **descartável depois da Copa de 2026** — sem futuro
+pra manter, manutenção não tem payoff. Tudo o que afeta a experiência ao vivo (críticos +
+importantes + os polimentos com impacto real, como o CPF) está feito. App estável e pronto
+pra Copa.
+
+> Features futuras possíveis (odds, rodadas especiais) estão **fora deste review** — em
+> discussão com a galera; quando definidas, viram trabalho novo (lógica de pontos vai pro
+> `ranking.js`, que já está limpo e testado).
 
 ---
 
@@ -93,9 +104,10 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
   literais **de uso único** (janela de 14 dias no `futebol.js`, etc.) — não são "espalhados",
   baixa prioridade.
 
-- [ ] **P4 — Whitelist de emojis duplicada client/server**
-  `EMOJIS_REACAO` (App.jsx) e `EMOJIS_VALIDOS` (api/reacao.js) são idênticos mas mantidos
-  na mão. Idem dois mapas de países. *Solução:* fonte única compartilhada.
+- [~] **P4 — Whitelist de emojis duplicada client/server** — *decidido NÃO fazer*
+  `EMOJIS_REACAO` (App.jsx) e `EMOJIS_VALIDOS` (api/reacao.js) são idênticos mas mantidos na
+  mão. O valor é só evitar drift **se** a lista for editada — o Leonardo não pretende mexer
+  nela, então risco>valor (é o único polimento com risco do lado servidor). Pulado.
 
 - [x] **P5 — CPF (chave PIX) hardcoded no bundle público**
   Resolvido na **raiz**: o Leonardo criou uma **chave PIX aleatória** (formato UUID, sem PII)
@@ -105,15 +117,18 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
   PIX"; CSS do bloco ajustado (`word-break`, `min-width:0`, fonte 13px) pra a chave longa
   não estourar o layout.
 
-- [ ] **P6 — `App.jsx` gigante (~3.700 linhas + ~900 de CSS inline)**
-  Quebrar em arquivos por componente e mover CSS pra `.css` importado. Esforço alto,
-  valor a médio prazo. *(Atacar depois de M1, que já reduz parte da duplicação.)*
+- [~] **P6 — `App.jsx` gigante (~3.700 linhas + ~900 de CSS inline)** — *decidido NÃO fazer*
+  Quebrar em arquivos / mover CSS pra `.css`. É feio mas **inofensivo** (não trava nem
+  quebra nada). Refactor de manutenção num app descartável = sem payoff. A extração do CSS
+  ainda teria **risco de falha silenciosa** (build/test passam, mas o visual pode quebrar).
+  Não compensa. Quando entrar feature nova, extrair só o que ela tocar (ex: `ranking.js`).
 
-- [ ] **P7 — `ProximoCountdown` e `Countdown` quase idênticos**
-  Unificar num único componente parametrizado.
+- [~] **P7 — `ProximoCountdown` e `Countdown` quase idênticos** — *decidido NÃO fazer*
+  Unificação é manutenção pura; mesmo raciocínio do P6. Pulado.
 
-- [ ] **P8 — Sorts com `kickoff` nulo geram `NaN`**
-  `new Date(null)` gera ordem instável. Tratar `null` explicitamente nos sorts.
+- [~] **P8 — Sorts com `kickoff` nulo geram `NaN`** — *decidido NÃO fazer*
+  Quase um não-problema: a maioria dos sorts já filtra `kickoff` antes, e `new Date(null)`
+  vira 1970 (estável), não `NaN`. Risco real ínfimo. Pulado.
 
 ---
 
@@ -144,7 +159,8 @@ test tem dados com bônus), então foi feito.
 | 3 | M3 + M4 | Baixo esforço · confusão visível | ✅ feito (M4 = Opção A) |
 | 4 | M1 + M2 | Médio esforço · destrava o resto | ✅ feito (com golden test) |
 | 5 | M5 + M6 | Baixo esforço | ✅ feito |
-| 6 | P1–P8 | Alto esforço · manutenibilidade | ⬜ |
+| 6 | P1, P2, P3, P5 | Polimento com valor real | ✅ feito |
+| 6 | P4, P6, P7, P8 | Manutenção pura | 🚫 decidido não fazer (app descartável pós-Copa) |
 
 > Observação: o relatório coloca M3+M4 antes de M1, mas M4 ("alinhar pontos ao vivo") fica
 > bem mais limpo de resolver **depois** do M1 (a fonte única de cálculo). Vale considerar
