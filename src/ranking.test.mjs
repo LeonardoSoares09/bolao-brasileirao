@@ -123,8 +123,8 @@ check(jogoFinal && temPlacar(jogoFinal) === true, "temPlacar deve incluir jogo e
 const jogoSemPlacar = estado.jogos.find((m) => m.gh === null);
 check(jogoSemPlacar && temPlacar(jogoSemPlacar) === false, "temPlacar deve EXCLUIR jogo sem placar");
 
-function totalPerfilModal(pid) {
-  // replica o calculo do ModalPalpites/PerfilPicker (soma sobre temPlacar, sem bonus)
+// PERFIL (aproveitamento): soma sobre temPlacar, SEM bonus.
+function totalPerfil(pid) {
   let t = 0;
   for (const m of estado.jogos.filter(temPlacar)) {
     const pts = pontosDoPalpite(palpitesMap[m.id]?.[pid], m);
@@ -132,15 +132,24 @@ function totalPerfilModal(pid) {
   }
   return t;
 }
-let viuAoVivo = false;
+// MODAL agora mostra o total do ranking (participante.pontos), COM bonus.
+let viuAoVivo = false, viuBonus = false;
 for (const p of novo) {
-  check(p.pontos - p.bonus === totalPerfilModal(p.id),
-    `M4: ${p.nome} ranking-sem-bonus=${p.pontos - p.bonus} != total perfil/modal=${totalPerfilModal(p.id)}`);
-  // garante que o cenario realmente exercita pontos de jogo ao vivo
+  // perfil = ranking menos o bonus
+  check(p.pontos - p.bonus === totalPerfil(p.id),
+    `perfil: ${p.nome} ranking-sem-bonus=${p.pontos - p.bonus} != total perfil=${totalPerfil(p.id)}`);
+  // modal = ranking cheio (com bonus). Quando ha bonus, modal != perfil.
+  if (p.bonus > 0) {
+    viuBonus = true;
+    check(p.pontos === totalPerfil(p.id) + p.bonus,
+      `modal: ${p.nome} total do modal (${p.pontos}) != perfil (${totalPerfil(p.id)}) + bonus (${p.bonus})`);
+    check(p.pontos !== totalPerfil(p.id), `modal deveria diferir do perfil quando ha bonus (${p.nome})`);
+  }
   const ptsVivo = pontosDoPalpite(palpitesMap[jogoVivo.id]?.[p.id], jogoVivo);
   if (ptsVivo) viuAoVivo = true;
 }
-check(viuAoVivo, "cenario de teste deveria ter ao menos um ponto vindo do jogo ao vivo");
+check(viuAoVivo, "cenario deveria ter ao menos um ponto vindo do jogo ao vivo");
+check(viuBonus, "cenario deveria ter ao menos um participante com bonus (campea/artilheiro)");
 
 if (falhas === 0) console.log("✓ ranking.test.mjs — todos os cenários passaram (novo == antigo + alinhamento M4)");
 else { console.error(`\n✗ ${falhas} verificação(ões) falharam`); process.exit(1); }

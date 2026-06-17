@@ -114,27 +114,21 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 
 ---
 
-## 🔖 Rastreado pra FIM DA COPA — bônus no total do modal/perfil
+## ✅ Bônus no total do modal — RESOLVIDO (antecipado, não esperou o fim da Copa)
 
-Item derivado do M4, **adiado de propósito** (decisão com o Leonardo). Não é urgente:
-só aparece no **último dia**, quando campeã/artilheiro forem confirmados.
+Item derivado do M4. Era pra adiar, mas dava pra fazer e **testar a lógica** agora (o golden
+test tem dados com bônus), então foi feito.
 
-**Estado atual:** a parte de *dar* o bônus **já existe e funciona** — o admin confirma a
-campeã/artilheiro (aba Campeão, dupla confirmação) e o sistema soma +9/+6 pra quem acertou.
-Isso **já aparece no ranking**. O buraco é só que o **modal de palpites** e o **perfil** não
-incluem esse bônus no total que mostram → no último dia o "X pts" deles ficaria menor que o
-ranking.
-
-**O que falta (manter o MAIS SIMPLES possível — preferência do Leonardo):**
-- **Modal:** trocar a soma manual do total por `calcularStats(...)` (que já calcula o bônus).
-  Vira a mesma fonte do ranking, sem tabela nem lógica nova.
-- **Perfil:** o "aproveitamento %" é precisão de palpite e **não** deve incluir bônus (senão
-  distorce o %). Se quiser o bônus visível no perfil, mostrar como uma **linha separada**
-  (ex: "🏆 campeã +9"), não somado no aproveitamento.
-
-**Por que adiar:** com bônus = 0 durante toda a Copa, modal/perfil **já batem** com o ranking
-hoje. E só dá pra *verificar* o bônus de verdade quando houver um campeão confirmado. Fazer no
-fim, junto da confirmação real, é mais seguro e testável.
+- **Modal:** o total (`X pts`), exatos e resultados vêm direto da **linha do ranking**
+  (`participante.pontos/exatos/resultados`) — mesma fonte do ranking, **inclui o bônus**.
+  Quando há bônus, o modal mostra **linhas visíveis** "🏆 Acertou a campeã +9" / "⚽ Acertou
+  o artilheiro +6", então a conta (jogos + bônus = total) fecha na tela.
+- **Perfil:** mantido sem bônus de propósito — o "aproveitamento %" é precisão de palpite, e
+  somar bônus ali distorceria o %.
+- **Durante a Copa nada muda** (bônus = 0); só passa a ficar certo no último dia.
+- Golden test reforçado: prova `modal (= ranking) == perfil + bônus` e que o bônus é exercido.
+- ⏳ *Único não-verificável agora:* o **visual** das linhas de bônus só dá pra ver com um
+  campeão confirmado (fim da Copa). Lógica provada; é JSX reusando classes existentes.
 
 ---
 

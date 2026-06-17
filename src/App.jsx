@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  PTS_EXATO, PTS_RESULTADO, temPlacar,
+  PTS_EXATO, PTS_RESULTADO, temPlacar, BONUS_CAMPEAO, BONUS_ARTILHEIRO,
   pontosDoPalpite, calcularStats, compararRanking, criterioDesempate,
 } from "./ranking";
 
@@ -2741,13 +2741,11 @@ function ModalPalpites({ participante, jogos, palpitesMap, euId, onFechar }) {
       return new Date(b.kickoff) - new Date(a.kickoff);
     });
   const modalTemAoVivo = encerrados.some((m) => m.live);
-
-  let totalPts = 0, totalExatos = 0, totalResultados = 0;
-  for (const m of encerrados) {
-    const pts = pontosDoPalpite(palpitesMap[m.id]?.[participante.id], m);
-    if (pts === PTS_EXATO) { totalExatos++; totalPts += pts; }
-    else if (pts === PTS_RESULTADO) { totalResultados++; totalPts += pts; }
-  }
+  /* total/exatos/result vêm direto da linha do ranking (participante): assim o
+     modal mostra o MESMO total do ranking, incluindo o bônus de campeã/artilheiro.
+     Durante a Copa o bônus é 0, então nada muda; no fim, a conta fecha com as
+     linhas de bônus abaixo (item M4 — alinhamento do total). */
+  const { pontos: totalPts, exatos: totalExatos, resultados: totalResultados } = participante;
 
   return (
     <div className="modal-overlay" onClick={onFechar}>
@@ -2769,6 +2767,19 @@ function ModalPalpites({ participante, jogos, palpitesMap, euId, onFechar }) {
         </div>
 
         {encerrados.length === 0 && <Vazio texto="Nenhum jogo com placar ainda." />}
+
+        {participante.acertouCampeao && (
+          <div className="modal-jogo modal-jogo-exato">
+            <div className="modal-jogo-times">🏆 Acertou a campeã</div>
+            <div className="modal-jogo-direita"><span className="pts pts-3">+{BONUS_CAMPEAO}</span></div>
+          </div>
+        )}
+        {participante.acertouArtilheiro && (
+          <div className="modal-jogo modal-jogo-exato">
+            <div className="modal-jogo-times">⚽ Acertou o artilheiro</div>
+            <div className="modal-jogo-direita"><span className="pts pts-3">+{BONUS_ARTILHEIRO}</span></div>
+          </div>
+        )}
 
         {encerrados.map((m, i) => {
           const palpite = palpitesMap[m.id]?.[participante.id];
