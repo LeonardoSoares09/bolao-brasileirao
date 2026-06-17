@@ -107,6 +107,30 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 
 ---
 
+## 🔖 Rastreado pra FIM DA COPA — bônus no total do modal/perfil
+
+Item derivado do M4, **adiado de propósito** (decisão com o Leonardo). Não é urgente:
+só aparece no **último dia**, quando campeã/artilheiro forem confirmados.
+
+**Estado atual:** a parte de *dar* o bônus **já existe e funciona** — o admin confirma a
+campeã/artilheiro (aba Campeão, dupla confirmação) e o sistema soma +9/+6 pra quem acertou.
+Isso **já aparece no ranking**. O buraco é só que o **modal de palpites** e o **perfil** não
+incluem esse bônus no total que mostram → no último dia o "X pts" deles ficaria menor que o
+ranking.
+
+**O que falta (manter o MAIS SIMPLES possível — preferência do Leonardo):**
+- **Modal:** trocar a soma manual do total por `calcularStats(...)` (que já calcula o bônus).
+  Vira a mesma fonte do ranking, sem tabela nem lógica nova.
+- **Perfil:** o "aproveitamento %" é precisão de palpite e **não** deve incluir bônus (senão
+  distorce o %). Se quiser o bônus visível no perfil, mostrar como uma **linha separada**
+  (ex: "🏆 campeã +9"), não somado no aproveitamento.
+
+**Por que adiar:** com bônus = 0 durante toda a Copa, modal/perfil **já batem** com o ranking
+hoje. E só dá pra *verificar* o bônus de verdade quando houver um campeão confirmado. Fazer no
+fim, junto da confirmação real, é mais seguro e testável.
+
+---
+
 ## 📋 Ordem sugerida pelo relatório (roadmap)
 
 | # | Itens | Esforço/Impacto | Status |

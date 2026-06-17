@@ -3,7 +3,7 @@
    principal. Roda com: node src/ranking.test.mjs
    Não é parte do bundle — é uma rede de segurança do refactor. */
 
-import { pontosDoPalpite, calcularStats, compararRanking, criterioDesempate } from "./ranking.js";
+import { pontosDoPalpite, calcularStats, compararRanking, criterioDesempate, temPlacar } from "./ranking.js";
 
 let falhas = 0;
 const check = (cond, msg) => { if (!cond) { falhas++; console.error("  ✗ " + msg); } };
@@ -113,5 +113,34 @@ for (let i = 0; i < novo.length; i++) for (let j = 0; j < novo.length; j++) {
   }
 }
 
-if (falhas === 0) console.log("✓ ranking.test.mjs — todos os cenários passaram (novo == antigo)");
+/* 4) M4 — alinhamento ao vivo. O perfil/modal somam pontosDoPalpite sobre os
+      jogos COM PLACAR (incluindo ao vivo), SEM bônus. Isso tem que bater com o
+      total do ranking menos o bônus daquele participante. */
+const jogoVivo = estado.jogos.find((m) => m.live);
+check(jogoVivo && temPlacar(jogoVivo) === true, "temPlacar deve INCLUIR jogo ao vivo");
+const jogoFinal = estado.jogos.find((m) => !m.live && m.gh !== null);
+check(jogoFinal && temPlacar(jogoFinal) === true, "temPlacar deve incluir jogo encerrado");
+const jogoSemPlacar = estado.jogos.find((m) => m.gh === null);
+check(jogoSemPlacar && temPlacar(jogoSemPlacar) === false, "temPlacar deve EXCLUIR jogo sem placar");
+
+function totalPerfilModal(pid) {
+  // replica o calculo do ModalPalpites/PerfilPicker (soma sobre temPlacar, sem bonus)
+  let t = 0;
+  for (const m of estado.jogos.filter(temPlacar)) {
+    const pts = pontosDoPalpite(palpitesMap[m.id]?.[pid], m);
+    if (pts) t += pts;
+  }
+  return t;
+}
+let viuAoVivo = false;
+for (const p of novo) {
+  check(p.pontos - p.bonus === totalPerfilModal(p.id),
+    `M4: ${p.nome} ranking-sem-bonus=${p.pontos - p.bonus} != total perfil/modal=${totalPerfilModal(p.id)}`);
+  // garante que o cenario realmente exercita pontos de jogo ao vivo
+  const ptsVivo = pontosDoPalpite(palpitesMap[jogoVivo.id]?.[p.id], jogoVivo);
+  if (ptsVivo) viuAoVivo = true;
+}
+check(viuAoVivo, "cenario de teste deveria ter ao menos um ponto vindo do jogo ao vivo");
+
+if (falhas === 0) console.log("✓ ranking.test.mjs — todos os cenários passaram (novo == antigo + alinhamento M4)");
 else { console.error(`\n✗ ${falhas} verificação(ões) falharam`); process.exit(1); }
