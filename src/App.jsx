@@ -538,6 +538,9 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickPar
             className={cls}
             style={{ "--i": Math.min(i, 10), position: "relative", overflow: "visible", cursor: "pointer" }}
             onClick={() => onClickParticipante(p)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClickParticipante(p); } }}
+            role="button"
+            tabIndex={0}
             title={`Ver palpites de ${p.nome}`}
           >
             {p.exatosHoje > 0 && primeiraVez && (
@@ -2725,6 +2728,9 @@ function ProximoJogo({ jogos, offsetMs = 0, onFechar, onNavegar }) {
     <div
       className={"prox-jogo entra-2" + (aoVivo ? " prox-jogo-vivo" : "")}
       onClick={() => onNavegar(jogo.id)}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onNavegar(jogo.id); } }}
+      role="button"
+      tabIndex={0}
       style={{ cursor: "pointer" }}
       title="Abrir palpites deste jogo"
     >

@@ -5,7 +5,7 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 
 **Última atualização:** 2026-06-16
 
-**Placar:** Críticos 3/3 ✅ · Importantes 2/6 · Polimento 0/8 (1 parcial)
+**Placar:** Críticos 3/3 ✅ · Importantes 3/6 · Polimento 0/8 (1 parcial)
 
 ---
 
@@ -28,7 +28,7 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 
 ---
 
-## 🟡 Importantes — 2/6
+## 🟡 Importantes — 3/6
 
 - [ ] **M1 — Lógica de pontuação duplicada em ~6 lugares**
   Não existe `calcularRanking` ainda; a soma de pontos e o critério de desempate estão
@@ -54,10 +54,11 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
   > ⚠️ O commit recente "ranking atualiza pontos durante jogo ao vivo" mexeu nisso — pode
   > ter **ampliado** a divergência. Revisar junto com M1.
 
-- [ ] **M5 — Elementos clicáveis não focáveis por teclado**
-  Linha do ranking, banner do próximo jogo e cartão de jogo são `div` com `onClick` sem
-  `role="button"`, `tabIndex={0}` nem handler de teclado. *Solução:* virar `<button>` ou
-  adicionar role/tabIndex/onKeyDown (Enter/Espaço).
+- [x] **M5 — Elementos clicáveis não focáveis por teclado**
+  Linha do ranking e banner do próximo jogo (os dois `div` com `onClick`) ganharam
+  `role="button"`, `tabIndex={0}` e `onKeyDown` (Enter/Espaço com `preventDefault`).
+  Abordagem aditiva — não muda nada pra mouse/toque, só adiciona acesso por teclado.
+  O "cartão de jogo" que o relatório citava já é `<button>` hoje (não precisou mexer).
 
 - [x] **M6 — Horário exibido no fuso do dispositivo, não de SP** (`src/App.jsx` `fmtQuando`)
   Adicionado `timeZone: "America/Sao_Paulo"` no `toLocaleString` do `fmtQuando`. Agora o amigo
@@ -109,7 +110,7 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 | 2 | C2 + C3 | Médio esforço | ✅ feito |
 | 3 | M3 + M4 | Baixo esforço · confusão visível | 🟡 M3 feito · M4 falta (ver M1) |
 | 4 | M1 + M2 | Médio esforço · destrava o resto | ⬜ próximo sugerido |
-| 5 | M5 + M6 | Baixo esforço | 🟡 M6 feito · M5 falta |
+| 5 | M5 + M6 | Baixo esforço | ✅ feito |
 | 6 | P1–P8 | Alto esforço · manutenibilidade | ⬜ |
 
 > Observação: o relatório coloca M3+M4 antes de M1, mas M4 ("alinhar pontos ao vivo") fica
