@@ -1656,7 +1656,7 @@ const FLAG_CODES = {
   "Mali":"ml",
   "Burkina Faso":"bf",
   "Cabo Verde":"cv","Cape Verde":"cv","Cape Verde Islands":"cv",
-  "República Democrática do Congo":"cd","DR Congo":"cd",
+  "República Democrática do Congo":"cd","DR Congo":"cd","Congo DR":"cd",
   // AFC
   "Japão":"jp","Japan":"jp",
   "Coreia do Sul":"kr","South Korea":"kr","Korea Republic":"kr",
