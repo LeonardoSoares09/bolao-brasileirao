@@ -5,7 +5,7 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 
 **Última atualização:** 2026-06-16
 
-**Placar:** Críticos 3/3 ✅ · Importantes 6/6 ✅ · Polimento 0/8 (1 parcial)
+**Placar:** Críticos 3/3 ✅ · Importantes 6/6 ✅ · Polimento 2/8
 
 ---
 
@@ -71,21 +71,24 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 
 ---
 
-## 🟢 Polimento — 0/8 (1 parcial)
+## 🟢 Polimento — 2/8
 
 - [ ] **P1 — Feature morta: push notifications**
   Tabela `push_subscriptions` existe, mas **não há** endpoint de inscrição nem handler de
   `push` no `sw.js` (confirmado: `public/sw.js` só tem install/activate). Implementar ou
   remover a tabela.
 
-- [ ] **P2 — Código morto**
-  `api/futebol.js` — `const { casa, fora } = rows[0]` atribuído e nunca usado dentro do
-  `acaoPlacares`. `api/reacao.js` documenta um GET não usado. Comentários de seção órfãos
-  em `App.jsx`.
+- [x] **P2 — Código morto**
+  Removido: `const { casa, fora } = rows[0]` morto em `api/futebol.js` (`acaoPlacares`) +
+  `RETURNING` simplificado pra `id`; comentário obsoleto de GET em `api/reacao.js` (não há
+  GET, só POST); comentário de seção órfão `/* NOTIFICAÇÕES */` no `App.jsx` (sobra do push).
 
-- [ ] **P3 — Números mágicos espalhados** *(parcial)*
-  Já existem `PTS_EXATO` / `PTS_RESULTADO`. Ainda hardcoded: bônus +9/+6, R$20, janela de
-  14 dias, deadline de pagamento, `99`, etc. *Solução:* extrair pra constantes nomeadas no topo.
+- [x] **P3 — Números mágicos espalhados**
+  Extraídas as constantes **duplicadas/visíveis**: `VALOR_ENTRADA` (R$20, em 3 lugares),
+  `DEADLINE_PAGAMENTO` + `DEADLINE_PAGAMENTO_LABEL` (data em 3 lugares). Bônus +9/+6 já eram
+  constantes (`BONUS_CAMPEAO`/`BONUS_ARTILHEIRO` no `ranking.js`). *Sobraram de fora* só
+  literais **de uso único** (janela de 14 dias no `futebol.js`, etc.) — não são "espalhados",
+  baixa prioridade.
 
 - [ ] **P4 — Whitelist de emojis duplicada client/server**
   `EMOJIS_REACAO` (App.jsx) e `EMOJIS_VALIDOS` (api/reacao.js) são idênticos mas mantidos

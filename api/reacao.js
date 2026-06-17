@@ -1,6 +1,6 @@
 /* /api/reacao — reações emoji em jogos
    POST { t, jogoId, emoji }  → toggle: insere ou remove a reação do usuário
-   GET  ?t=TOKEN&jogoId=ID    → lista reações de um jogo (não usado agora, estado.js cobre) */
+   (a leitura das reações é coberta pelo /api/estado, não há GET aqui) */
 
 import { sql, autenticar } from "../lib/db.js";
 

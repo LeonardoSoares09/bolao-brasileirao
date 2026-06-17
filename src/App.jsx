@@ -14,6 +14,12 @@ import {
 /* PTS_EXATO, PTS_RESULTADO, criterioDesempate e pontosDoPalpite agora vêm de
    ./ranking.js (fonte única — item M1 do review). */
 
+/* Constantes do bolão (item P3 — tira números mágicos espalhados).
+   DEADLINE_PAGAMENTO e _LABEL precisam ficar em sincronia se a data mudar. */
+const VALOR_ENTRADA = 20; // R$ por participante
+const DEADLINE_PAGAMENTO = new Date("2026-06-13T21:59:00Z"); // 18:59 BRT (UTC-3)
+const DEADLINE_PAGAMENTO_LABEL = "13/06 às 18:59";
+
 const reduzMovimento = () =>
   typeof window !== "undefined" &&
   window.matchMedia &&
@@ -1371,10 +1377,9 @@ function LinhaPalpite({ jogo, participante, palpite, bloqueado, destaque, token,
   );
 }
 
-/* ================= NOTIFICAÇÕES ================= */
 /* ================= TIMER PAGAMENTO ================= */
 function TimerPagamento() {
-  const DEADLINE = new Date("2026-06-13T21:59:00Z"); // 18:59 BRT (UTC-3)
+  const DEADLINE = DEADLINE_PAGAMENTO;
   const [seg, setSeg] = useState(() => Math.max(0, Math.floor((DEADLINE - Date.now()) / 1000)));
 
   useEffect(() => {
@@ -1403,7 +1408,7 @@ function TimerPagamento() {
         <span className="timer-sep">:</span>
         <span className="timer-bloco"><span className="timer-num">{pad(s)}</span><span className="timer-unidade">s</span></span>
       </div>
-      <span className="timer-data">13/06 às 18:59</span>
+      <span className="timer-data">{DEADLINE_PAGAMENTO_LABEL}</span>
     </div>
   );
 }
@@ -1539,7 +1544,7 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
       {lista && lista.length > 0 && (() => {
         const pagos = lista.filter((p) => p.pagou).length;
         const total = lista.length;
-        const caixa = pagos * 20;
+        const caixa = pagos * VALOR_ENTRADA;
         return (
           <div className="resumo-pagamento">
             <span className="resumo-pagamento-txt">
@@ -2518,7 +2523,7 @@ function Campeao({ token, euId }) {
 /* ================= MODAL REGRAS ================= */
 /* ================= MODAL PAGAMENTO ================= */
 function ModalPagamento({ onFechar }) {
-  const DEADLINE = new Date("2026-06-13T21:59:00Z");
+  const DEADLINE = DEADLINE_PAGAMENTO;
   const [seg, setSeg] = useState(() => Math.max(0, Math.floor((DEADLINE - Date.now()) / 1000)));
   const [copiado, setCopiado] = useState(false);
   const PIX = "04554360024";
@@ -2553,7 +2558,7 @@ function ModalPagamento({ onFechar }) {
         <div className="pagamento-corpo">
           <p className="pagamento-aviso">Você ainda não confirmou seu pagamento.<br/>Garante sua vaga no bolão!</p>
 
-          <div className="pagamento-valor">R$ 20,00</div>
+          <div className="pagamento-valor">R$ {VALOR_ENTRADA},00</div>
 
           <div className="pagamento-pix-bloco">
             <span className="pagamento-pix-label">Chave PIX (CPF)</span>
@@ -2575,7 +2580,7 @@ function ModalPagamento({ onFechar }) {
                 <span className="timer-sep">:</span>
                 <span className="timer-bloco"><span className="timer-num">{pad(s)}</span><span className="timer-unidade">s</span></span>
               </div>
-              <span className="timer-data">13/06 às 18:59</span>
+              <span className="timer-data">{DEADLINE_PAGAMENTO_LABEL}</span>
             </div>
           )}
 
@@ -2643,7 +2648,7 @@ function ModalRegras({ onFechar }) {
 
           <div className="regras-secao">Prêmio 🏆</div>
           <p className="regras-p">
-            O <strong>1º lugar</strong> no ranking final leva o valor total em caixa (R$ 20 × número de participantes).
+            O <strong>1º lugar</strong> no ranking final leva o valor total em caixa (R$ {VALOR_ENTRADA} × número de participantes).
             Em caso de empate técnico após todos os critérios de desempate, o prêmio é dividido igualmente entre os empatados.
           </p>
 

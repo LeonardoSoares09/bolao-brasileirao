@@ -346,11 +346,10 @@ async function acaoPlacares() {
            SET gh = ${gh}, ga = ${ga}, live = false
          WHERE external_id = ${externalId}
            AND (gh IS DISTINCT FROM ${gh} OR ga IS DISTINCT FROM ${ga} OR live = true)
-        RETURNING id, casa, fora
+        RETURNING id
       `;
       if (rows.length > 0) {
         atualizados++;
-        const { casa, fora } = rows[0];
       }
     } else if (status === "IN_PLAY" || status === "PAUSED") {
       const gh = m.score?.fullTime?.home ?? 0;
