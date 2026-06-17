@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  PTS_EXATO, PTS_RESULTADO,
+  pontosDoPalpite, calcularStats, compararRanking, criterioDesempate,
+} from "./ranking";
 
 /* ============================================================
    BOLÃO DA COPA 2026 — versão compartilhada (Vercel + Neon)
@@ -7,32 +11,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
    Travamento de palpites validado NO SERVIDOR.
    ============================================================ */
 
-const PTS_EXATO = 3;
-const PTS_RESULTADO = 1;
-
-function criterioDesempate(a, b) {
-  if (a.pontos !== b.pontos) return null;
-  if (a.exatos !== b.exatos) return { icon: "🎯", label: "mais exatos" };
-  if (!!a.acertouCampeao !== !!b.acertouCampeao) return { icon: "🏆", label: "acertou a campeã" };
-  if (!!a.acertouArtilheiro !== !!b.acertouArtilheiro) return { icon: "⚽", label: "acertou o artilheiro" };
-  if (a.resultados !== b.resultados) return { icon: "✅", label: "mais resultados" };
-  return { icon: "⏱", label: "palpitou antes" };
-}
+/* PTS_EXATO, PTS_RESULTADO, criterioDesempate e pontosDoPalpite agora vêm de
+   ./ranking.js (fonte única — item M1 do review). */
 
 const reduzMovimento = () =>
   typeof window !== "undefined" &&
   window.matchMedia &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-function pontosDoPalpite(palpite, jogo) {
-  if (!palpite || jogo.gh === null || jogo.ga === null) return null;
-  const ph = Number(palpite.h), pa = Number(palpite.a);
-  if (Number.isNaN(ph) || Number.isNaN(pa)) return null;
-  if (ph === jogo.gh && pa === jogo.ga) return PTS_EXATO;
-  const sinal = (x, y) => (x > y ? 1 : x < y ? -1 : 0);
-  if (sinal(ph, pa) === sinal(jogo.gh, jogo.ga)) return PTS_RESULTADO;
-  return 0;
-}
 
 const temResultado = (m) => m.gh !== null && m.ga !== null && !m.live;
 
@@ -251,64 +236,25 @@ export default function App() {
   for (const r of estado.primeiroPalpites || []) primeiroPalpiteMap[r.participante_id] = r.ts;
 
   const ranking = estado.participantes
-    .map((p) => {
-      let bonus = 0;
-      const re = estado.resultadoEspecial;
-      const acertouCampeao = !!(re?.campeao?.confirmado && (estado.palpitesCampeao || []).some(
-        (pc) => pc.participante_id === p.id && pc.selecao === re.campeao.valor
-      ));
-      if (acertouCampeao) bonus += 9;
-      const acertouArtilheiro = !!(re?.artilheiro?.confirmado && (estado.premiadosArtilheiro || []).includes(p.id));
-      if (acertouArtilheiro) bonus += 6;
-      let pontos = bonus, exatos = 0, resultados = 0, exatosHoje = 0;
-      for (const m of estado.jogos) {
-        const pts = pontosDoPalpite(palpitesMap[m.id]?.[p.id], m);
-        if (pts === PTS_EXATO) {
-          exatos++; pontos += pts;
-          if (m.kickoff && chaveData(m.kickoff) === hojeKey) exatosHoje++;
-        } else if (pts === PTS_RESULTADO) { resultados++; pontos += pts; }
-      }
-      return { ...p, pontos, exatos, resultados, bonus, exatosHoje, acertouCampeao, acertouArtilheiro };
-    })
-    .sort((a, b) =>
-      b.pontos - a.pontos ||
-      b.exatos - a.exatos ||
-      (b.acertouCampeao ? 1 : 0) - (a.acertouCampeao ? 1 : 0) ||
-      (b.acertouArtilheiro ? 1 : 0) - (a.acertouArtilheiro ? 1 : 0) ||
-      b.resultados - a.resultados ||
-      (primeiroPalpiteMap[a.id] && primeiroPalpiteMap[b.id]
-        ? new Date(primeiroPalpiteMap[a.id]) - new Date(primeiroPalpiteMap[b.id])
-        : 0)
-    );
+    .map((p) => calcularStats(p, estado, palpitesMap, { jogos: estado.jogos, hojeKey, chaveData }))
+    .sort((a, b) => compararRanking(a, b, primeiroPalpiteMap));
 
-  /* posições antes dos jogos de hoje — para setas de tendência */
+  /* posições antes dos jogos de hoje — para setas de tendência.
+     Usa o MESMO comparador do ranking (compararRanking), só que sobre os jogos
+     de antes de hoje. Antes usava um comparador diferente (por nome), o que
+     gerava setas ↑/↓ falsas entre empatados — item M2 do review. */
   const posAntes = {};
   const temJogoEncerradoHoje = estado.jogos.some(
     (m) => temResultado(m) && m.kickoff && chaveData(m.kickoff) === hojeKey
   );
   if (temJogoEncerradoHoje) {
-    const re = estado.resultadoEspecial;
-    const antesLista = estado.participantes.map((p) => {
-      let bonus = 0;
-      if (re?.campeao?.confirmado) {
-        const ok = (estado.palpitesCampeao || []).some(
-          (pc) => pc.participante_id === p.id && pc.selecao === re.campeao.valor
-        );
-        if (ok) bonus += 9;
-      }
-      if (re?.artilheiro?.confirmado) {
-        if ((estado.premiadosArtilheiro || []).includes(p.id)) bonus += 6;
-      }
-      let pontos = bonus, exatos = 0;
-      for (const m of estado.jogos) {
-        if (m.kickoff && chaveData(m.kickoff) === hojeKey) continue;
-        const pts = pontosDoPalpite(palpitesMap[m.id]?.[p.id], m);
-        if (pts === PTS_EXATO) { exatos++; pontos += pts; }
-        else if (pts === PTS_RESULTADO) { pontos += pts; }
-      }
-      return { id: p.id, nome: p.nome, pontos, exatos };
-    }).sort((a, b) => b.pontos - a.pontos || b.exatos - a.exatos || a.nome.localeCompare(b.nome));
-    antesLista.forEach((p, i) => { posAntes[p.id] = i; });
+    const jogosAntes = estado.jogos.filter(
+      (m) => !(m.kickoff && chaveData(m.kickoff) === hojeKey)
+    );
+    estado.participantes
+      .map((p) => calcularStats(p, estado, palpitesMap, { jogos: jogosAntes }))
+      .sort((a, b) => compararRanking(a, b, primeiroPalpiteMap))
+      .forEach((p, i) => { posAntes[p.id] = i; });
   }
 
   const encerrados = estado.jogos.filter(temResultado).length;

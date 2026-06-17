@@ -5,7 +5,7 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 
 **Última atualização:** 2026-06-16
 
-**Placar:** Críticos 3/3 ✅ · Importantes 3/6 · Polimento 0/8 (1 parcial)
+**Placar:** Críticos 3/3 ✅ · Importantes 5/6 · Polimento 0/8 (1 parcial)
 
 ---
 
@@ -28,17 +28,17 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 
 ---
 
-## 🟡 Importantes — 3/6
+## 🟡 Importantes — 5/6
 
-- [ ] **M1 — Lógica de pontuação duplicada em ~6 lugares**
-  Não existe `calcularRanking` ainda; a soma de pontos e o critério de desempate estão
-  repetidos (ranking, posAntes, gráfico, estatísticas, modal de palpites, perfil).
-  *Solução:* extrair `calcularRanking(estado, { incluirAoVivo })` único + array único de
-  critérios de desempate (usado pra ordenar e pra rotular). **Destrava M2 e M4.**
+- [x] **M1 — Lógica de pontuação duplicada em ~6 lugares**
+  Extraído `src/ranking.js` (módulo puro, testável): `pontosDoPalpite`, `calcularStats`,
+  `compararRanking`, `criterioDesempate` + constantes. O `App.jsx` importa de lá; ranking
+  principal e `posAntes` passam por `calcularStats`/`compararRanking`. Rede de segurança:
+  `src/ranking.test.mjs` prova que o ranking novo == antigo (rodar com `npm test`).
 
-- [ ] **M2 — Setas de tendência usam ordenação diferente do ranking**
-  Ranking desempata por "primeiro palpite"; o "antes" desempata por nome → seta ↑/↓ falsa
-  entre empatados. *Depende de M1* (gerar o "antes" com o mesmo comparador).
+- [x] **M2 — Setas de tendência usam ordenação diferente do ranking**
+  O `posAntes` agora usa o **mesmo** `compararRanking` do ranking principal (antes desempatava
+  por nome e pulava campeã/artilheiro). Setas ↑/↓ entre empatados deixam de mentir.
 
 - [x] **M3 — Ação manual do admin engolida pelo dedup**
   `buscarResultados` agora trata `r.cached`: mostra "busca automática roda no máx. 1x/min,
@@ -108,8 +108,8 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 |---|-------|-----------------|--------|
 | 1 | C1 | Baixo esforço · Risco altíssimo | ✅ feito |
 | 2 | C2 + C3 | Médio esforço | ✅ feito |
-| 3 | M3 + M4 | Baixo esforço · confusão visível | 🟡 M3 feito · M4 falta (ver M1) |
-| 4 | M1 + M2 | Médio esforço · destrava o resto | ⬜ próximo sugerido |
+| 3 | M3 + M4 | Baixo esforço · confusão visível | 🟡 M3 feito · M4 falta (decisão A/B) |
+| 4 | M1 + M2 | Médio esforço · destrava o resto | ✅ feito (com golden test) |
 | 5 | M5 + M6 | Baixo esforço | ✅ feito |
 | 6 | P1–P8 | Alto esforço · manutenibilidade | ⬜ |
 
