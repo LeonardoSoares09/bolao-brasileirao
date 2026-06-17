@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  PTS_EXATO, PTS_RESULTADO,
+  PTS_EXATO, PTS_RESULTADO, temPlacar,
   pontosDoPalpite, calcularStats, compararRanking, criterioDesempate,
 } from "./ranking";
 
@@ -258,6 +258,8 @@ export default function App() {
   }
 
   const encerrados = estado.jogos.filter(temResultado).length;
+  /* "tem placar" inclui jogo ao vivo: o ranking já acende com pontos parciais — M4 */
+  const comPlacar = estado.jogos.filter(temPlacar).length;
   const ehAdmin = estado.eu.isAdmin;
   const euParticipante = estado.participantes.find((p) => p.id === estado.eu.id);
 
@@ -358,7 +360,7 @@ export default function App() {
         {tab === "ranking" && (
           <Ranking
             ranking={ranking}
-            temJogos={encerrados > 0}
+            temJogos={comPlacar > 0}
             primeiraVez={!rankingJaAbriu.current}
             aoAbrir={() => { rankingJaAbriu.current = true; }}
             posAntes={posAntes}
@@ -453,7 +455,21 @@ function LedPontos({ valor }) {
   return <span className="col-pts led">{v}</span>;
 }
 
+/* selinho "⚡ parcial": aparece onde os pontos incluem um jogo AO VIVO,
+   que ainda pode mudar (item M4 do review). */
+function SeloParcial({ style }) {
+  return (
+    <span
+      title="Inclui pontos de jogo ao vivo — ainda pode mudar"
+      style={{ fontSize: "10px", fontWeight: 700, color: "#ffb020", letterSpacing: ".03em", whiteSpace: "nowrap", ...style }}
+    >
+      ⚡ parcial
+    </span>
+  );
+}
+
 function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickParticipante, palpitesMap, jogos }) {
+  const temAoVivo = (jogos || []).some((m) => m.live && temPlacar(m));
   useEffect(() => { aoAbrir(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (ranking.length === 0)
     return <Vazio texto="O organizador ainda não cadastrou os participantes." />;
@@ -462,6 +478,11 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickPar
       {primeiraVez && ranking.some((p) => p.exatosHoje > 0) && <Confete />}
       {!temJogos && (
         <p className="dica">Nenhum jogo encerrado ainda — o placar acende quando entrar o primeiro resultado.</p>
+      )}
+      {temAoVivo && (
+        <div style={{ textAlign: "right", margin: "0 2px 6px" }}>
+          <SeloParcial /> <span style={{ fontSize: "10px", color: "#9aa" }}>· ranking conta o jogo ao vivo</span>
+        </div>
       )}
       <div className="placar">
         <div className="placar-cab">
@@ -541,9 +562,11 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickPar
 function GraficoEvolucao({ ranking, palpitesMap, jogos }) {
   const [aberto, setAberto] = useState(false);
 
+  /* inclui jogo ao vivo (temPlacar) para o último ponto bater com o ranking — M4 */
   const jogosEncerrados = jogos
-    .filter(temResultado)
+    .filter(temPlacar)
     .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
+  const temAoVivo = jogosEncerrados.some((m) => m.live);
 
   if (jogosEncerrados.length < 2 || ranking.length < 2) return null;
 
@@ -572,7 +595,7 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos }) {
   return (
     <div className="grafico-bloco">
       <button className="grafico-toggle" onClick={() => setAberto((v) => !v)}>
-        📈 Evolução do ranking <span className="grafico-chevron">{aberto ? "▲" : "▼"}</span>
+        📈 Evolução do ranking {temAoVivo && <SeloParcial />} <span className="grafico-chevron">{aberto ? "▲" : "▼"}</span>
       </button>
       {aberto && (
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", marginTop: 8 }}>
@@ -2020,7 +2043,9 @@ function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, on
   const iniciais = nome.split(" ").filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join("");
 
   /* ── stats ── */
-  const jogosEncerrados = (estado?.jogos || []).filter(temResultado);
+  /* inclui jogo ao vivo (temPlacar) p/ os totais baterem com o ranking — M4 */
+  const jogosEncerrados = (estado?.jogos || []).filter(temPlacar);
+  const perfilTemAoVivo = jogosEncerrados.some((m) => m.live);
   const meusPalpites = jogosEncerrados.map((m) => {
     const palpite = palpitesMap?.[m.id]?.[euId];
     const pts = pontosDoPalpite(palpite, m);
@@ -2089,6 +2114,7 @@ function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, on
             <span className="perfil-bd-item perfil-bd-result">✓ {acertosResult} certo{acertosResult !== 1 ? "s" : ""}</span>
             <span className="perfil-bd-item perfil-bd-erro">✗ {erros} erro{erros !== 1 ? "s" : ""}</span>
             <span className="perfil-bd-item perfil-bd-miss">{apostasFeitas}/{jogosEncerrados.length} apostas</span>
+            {perfilTemAoVivo && <SeloParcial style={{ alignSelf: "center" }} />}
           </div>
 
           {/* mini gráfico */}
@@ -2700,14 +2726,16 @@ function ProximoJogo({ jogos, offsetMs = 0, onFechar, onNavegar }) {
 
 /* ================= MODAL PALPITES ================= */
 function ModalPalpites({ participante, jogos, palpitesMap, euId, onFechar }) {
+  /* inclui jogo ao vivo (temPlacar) p/ o total bater com o ranking — M4 */
   const encerrados = [...jogos]
-    .filter(temResultado)
+    .filter(temPlacar)
     .sort((a, b) => {
       if (!a.kickoff && !b.kickoff) return 0;
       if (!a.kickoff) return 1;
       if (!b.kickoff) return -1;
       return new Date(b.kickoff) - new Date(a.kickoff);
     });
+  const modalTemAoVivo = encerrados.some((m) => m.live);
 
   let totalPts = 0, totalExatos = 0, totalResultados = 0;
   for (const m of encerrados) {
@@ -2728,13 +2756,14 @@ function ModalPalpites({ participante, jogos, palpitesMap, euId, onFechar }) {
               </div>
               <div className="modal-stats">
                 {totalPts} pts · {totalExatos} exato{totalExatos !== 1 ? "s" : ""} · {totalResultados} resultado{totalResultados !== 1 ? "s" : ""}
+                {modalTemAoVivo && <> · <SeloParcial /></>}
               </div>
             </div>
           </div>
           <button className="apagar" onClick={onFechar} aria-label="Fechar">✕</button>
         </div>
 
-        {encerrados.length === 0 && <Vazio texto="Nenhum jogo encerrado ainda." />}
+        {encerrados.length === 0 && <Vazio texto="Nenhum jogo com placar ainda." />}
 
         {encerrados.map((m, i) => {
           const palpite = palpitesMap[m.id]?.[participante.id];

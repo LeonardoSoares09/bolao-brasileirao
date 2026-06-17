@@ -5,7 +5,7 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 
 **Última atualização:** 2026-06-16
 
-**Placar:** Críticos 3/3 ✅ · Importantes 5/6 · Polimento 0/8 (1 parcial)
+**Placar:** Críticos 3/3 ✅ · Importantes 6/6 ✅ · Polimento 0/8 (1 parcial)
 
 ---
 
@@ -28,7 +28,7 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 
 ---
 
-## 🟡 Importantes — 5/6
+## 🟡 Importantes — 6/6 ✅
 
 - [x] **M1 — Lógica de pontuação duplicada em ~6 lugares**
   Extraído `src/ranking.js` (módulo puro, testável): `pontosDoPalpite`, `calcularStats`,
@@ -46,13 +46,18 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
   trava). *Parte opcional não feita:* deixar a ação manual do admin furar o dedup (decidido
   manter o limite por enquanto, pra não reabrir a porta do rate limit).
 
-- [ ] **M4 — Pontos ao vivo inconsistentes entre ranking e perfil/gráfico/modal**
-  `pontosDoPalpite` (App.jsx:27) conta pontos mesmo com jogo `live`, mas `temResultado`
-  (App.jsx:37) exige `!live`. Ranking e perfil podem divergir durante o jogo; confete pode
-  disparar em placar exato que ainda vai mudar. *Solução:* definir uma política (sugestão:
-  parcial com selinho visual) e aplicar em todo lugar via M1.
-  > ⚠️ O commit recente "ranking atualiza pontos durante jogo ao vivo" mexeu nisso — pode
-  > ter **ampliado** a divergência. Revisar junto com M1.
+- [x] **M4 — Pontos ao vivo inconsistentes entre ranking e perfil/gráfico/modal**
+  Política escolhida (Opção A, decidida com o Leonardo): **conta o jogo ao vivo em todo
+  lugar**, com selo visual **"⚡ parcial"**. Novo helper `temPlacar` (inclui ao vivo) em
+  `ranking.js`. Perfil, gráfico e modal trocaram `temResultado` → `temPlacar`, então seus
+  totais batem com o ranking durante o jogo. Selo aparece no ranking, perfil, gráfico e modal
+  quando há jogo ao vivo contando. `temJogos` do ranking passou a considerar `temPlacar`
+  (a dica "placar acende com o 1º resultado" some quando o ao vivo já está pontuando).
+  - *Decidido manter:* **confete dispara no exato ao vivo** (preferência do Leonardo por
+    "o mais ao vivo possível"); fácil mudar pra só-no-final depois (1 linha).
+  - *Decidido NÃO mexer:* **EstatísticasInúteis** ficam sobre jogos encerrados — são métricas
+    retrospectivas de zoeira (pé-frio, sniper%), não o total de pontos do jogador, então não
+    criam a inconsistência que o M4 trata.
 
 - [x] **M5 — Elementos clicáveis não focáveis por teclado**
   Linha do ranking e banner do próximo jogo (os dois `div` com `onClick`) ganharam
@@ -108,7 +113,7 @@ Marca o que já foi feito e o que falta. Atualizar conforme avançamos.
 |---|-------|-----------------|--------|
 | 1 | C1 | Baixo esforço · Risco altíssimo | ✅ feito |
 | 2 | C2 + C3 | Médio esforço | ✅ feito |
-| 3 | M3 + M4 | Baixo esforço · confusão visível | 🟡 M3 feito · M4 falta (decisão A/B) |
+| 3 | M3 + M4 | Baixo esforço · confusão visível | ✅ feito (M4 = Opção A) |
 | 4 | M1 + M2 | Médio esforço · destrava o resto | ✅ feito (com golden test) |
 | 5 | M5 + M6 | Baixo esforço | ✅ feito |
 | 6 | P1–P8 | Alto esforço · manutenibilidade | ⬜ |

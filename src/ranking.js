@@ -9,6 +9,11 @@ export const PTS_RESULTADO = 1;
 export const BONUS_CAMPEAO = 9;
 export const BONUS_ARTILHEIRO = 6;
 
+/* "Tem placar que conta pontos" — INCLUI jogo ao vivo (gh/ga preenchidos).
+   Diferente de `temResultado` (no App.jsx), que exige jogo encerrado (!live).
+   Usado para alinhar os totais ao vivo em todo lugar (item M4 do review). */
+export const temPlacar = (m) => m.gh !== null && m.ga !== null;
+
 /* Pontos de UM palpite contra UM jogo.
    Retorna null se não há palpite ou o jogo ainda não tem placar.
    (Conta jogo ao vivo: basta gh/ga preenchidos — política tratada por quem chama.) */
