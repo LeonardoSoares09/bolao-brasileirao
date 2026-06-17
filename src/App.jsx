@@ -40,7 +40,7 @@ function fmtQuando(m) {
   if (!m.kickoff) return "";
   const d = new Date(m.kickoff);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
 /* kickoff (ISO do banco) -> valor de input datetime-local */
@@ -987,12 +987,17 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
     try {
       const r = await api(`/api/futebol?t=${encodeURIComponent(token)}&acao=resultados`);
       recarregar();
-      const atualizados = r.atualizados || 0;
-      setAviso(
-        atualizados === 0
-          ? "Nenhum resultado final novo — rode 'Jogos de hoje' antes se faltar carimbar o ID externo."
-          : `${atualizados} resultado${atualizados === 1 ? "" : "s"} atualizado${atualizados === 1 ? "" : "s"} — confere o ranking! 🏆`
-      );
+      if (r.cached) {
+        /* o dedup bloqueou: a busca automática roda no máx. 1x/min. Não é falha. */
+        setAviso("Busca automática roda no máximo 1x por minuto — aguarde alguns segundos e tente de novo. ⏳");
+      } else {
+        const atualizados = r.atualizados || 0;
+        setAviso(
+          atualizados === 0
+            ? "Nenhum resultado final novo — rode 'Jogos de hoje' antes se faltar carimbar o ID externo."
+            : `${atualizados} resultado${atualizados === 1 ? "" : "s"} atualizado${atualizados === 1 ? "" : "s"} — confere o ranking! 🏆`
+        );
+      }
     } catch (e) {
       console.error(e);
       setAviso(e.message || "Não consegui buscar os resultados — tenta de novo ou lança manualmente.");
