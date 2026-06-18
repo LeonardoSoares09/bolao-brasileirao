@@ -46,7 +46,12 @@ export default async function handler(req, res) {
     }
     const gh = intOuNull(req.body?.gh);
     const ga = intOuNull(req.body?.ga);
-    await sql`UPDATE jogos SET gh = ${gh}, ga = ${ga}, live = false WHERE id = ${jid}`;
+    /* encerrar=false → correção AO VIVO: mantém live=true e deixa o automático
+       retomar sozinho (a trava "nunca regride" no futebol.js protege o valor).
+       encerrar=true (ou ausente) → finaliza o jogo (live=false). Default seguro
+       é finalizar, pra clientes antigos / chamadas sem o campo. */
+    const live = req.body?.encerrar === false;
+    await sql`UPDATE jogos SET gh = ${gh}, ga = ${ga}, live = ${live} WHERE id = ${jid}`;
     res.status(200).json({ ok: true });
 
     return;

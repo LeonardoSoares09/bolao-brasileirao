@@ -354,19 +354,25 @@ async function acaoPlacares() {
     } else if (status === "IN_PLAY" || status === "PAUSED") {
       const gh = m.score?.fullTime?.home ?? 0;
       const ga = m.score?.fullTime?.away ?? 0;
-      /* Duas travas pra não re-acender "ao vivo" indevidamente:
+      /* Travas pra não estragar o placar ao vivo:
          (1) jogo JÁ FINALIZADO (live=false com placar — pela rama FINISHED ou
-             lançado na mão) não volta a ao vivo. Sem isso, um status IN_PLAY
-             atrasado da football-data (free tier vira FINISHED com horas de
-             atraso) sobrescrevia o placar final lançado manualmente.
+             pelo botão Encerrar) não volta a ao vivo.
          (2) jogo com kickoff > 4h atrás (mesma janela do JANELA_VIVO no front):
-             nenhuma partida real segue em jogo tão tarde — é status fantasma. */
+             nenhuma partida real segue em jogo tão tarde — é status fantasma.
+         (3) NUNCA REGRIDE o placar: gols não voltam atrás, então a API só
+             atualiza se não diminuir nenhum dos lados. É isso que faz a correção
+             manual do admin (ex.: 1-0 enquanto a API atrasada ainda diz 0-0)
+             SOBREVIVER ao atraso — e o automático retomar sozinho assim que a
+             API alcança (reporta >= o placar atual). Tradeoff: um gol anulado por
+             VAR só reflete ao vivo quando a API confirma; o FINISHED corrige no fim. */
       await sql`
         UPDATE jogos
            SET gh = ${gh}, ga = ${ga}, live = true
          WHERE external_id = ${externalId}
            AND NOT (live = false AND gh IS NOT NULL AND ga IS NOT NULL)
            AND kickoff > NOW() - INTERVAL '4 hours'
+           AND (gh IS NULL OR ${gh} >= gh)
+           AND (ga IS NULL OR ${ga} >= ga)
            AND (live IS DISTINCT FROM true OR gh IS DISTINCT FROM ${gh} OR ga IS DISTINCT FROM ${ga})
       `;
       vivos++;

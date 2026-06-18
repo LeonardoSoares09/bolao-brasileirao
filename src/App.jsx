@@ -921,11 +921,11 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
     } catch (e) { setAviso(e.message); }
   };
 
-  const salvarResultado = async (jogo, gh, ga) => {
+  const salvarResultado = async (jogo, gh, ga, encerrar) => {
     try {
       await api("/api/jogo", {
         method: "PUT",
-        body: JSON.stringify({ t: token, jogoId: jogo.id, gh, ga }),
+        body: JSON.stringify({ t: token, jogoId: jogo.id, gh, ga, encerrar }),
       });
       recarregar();
     } catch (e) { setAviso(e.message); }
@@ -1095,7 +1095,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                       )}
                     </div>
                     {ehAdmin ? (
-                      <ResultadoAdmin jogo={m} salvar={salvarResultado} remover={() => delJogo(m.id)} />
+                      <ResultadoAdmin jogo={m} salvar={salvarResultado} remover={() => delJogo(m.id)} emAndamento={travado && !encerrado} />
                     ) : encerrado ? (
                       <div className="placar-final led-mini">{m.gh} : {m.ga}</div>
                     ) : m.live ? (
@@ -1124,7 +1124,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
   );
 }
 
-function ResultadoAdmin({ jogo, salvar, remover }) {
+function ResultadoAdmin({ jogo, salvar, remover, emAndamento = false }) {
   const [gh, setGh] = useState(jogo.gh ?? "");
   const [ga, setGa] = useState(jogo.ga ?? "");
   const timer = useRef(null);
@@ -1137,8 +1137,20 @@ function ResultadoAdmin({ jogo, salvar, remover }) {
     campo === "gh" ? setGh(valor) : setGa(valor);
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      salvar(jogo, nh === "" ? null : nh, na === "" ? null : na);
+      /* Editar o placar de um jogo JÁ ENCERRADO = corrigir o final (continua
+         encerrado). De um jogo EM ANDAMENTO = correção AO VIVO: mantém ao vivo e
+         o automático retoma sozinho quando a API alcança (trava "nunca regride"). */
+      const encerrar = temResultado(jogo);
+      salvar(jogo, nh === "" ? null : nh, na === "" ? null : na, encerrar);
     }, 800);
+  };
+
+  /* botão de escape: finaliza na hora. Só é necessário se o automático não
+     fechar sozinho (ex.: a API nunca mandar o FINISHED). */
+  const encerrarAgora = () => {
+    clearTimeout(timer.current);
+    if (gh === "" || ga === "") return;
+    salvar(jogo, gh, ga, true);
   };
 
   return (
@@ -1151,6 +1163,14 @@ function ResultadoAdmin({ jogo, salvar, remover }) {
       <span className="vs">:</span>
       <input type="number" min="0" inputMode="numeric" value={ga} placeholder="–"
         onChange={(e) => mudar("ga", e.target.value)} aria-label={"Gols " + jogo.fora} />
+      {emAndamento && (
+        <button
+          className="encerrar-jogo"
+          onClick={encerrarAgora}
+          disabled={gh === "" || ga === ""}
+          title="Finalizar o jogo agora — use só se o automático não fechar sozinho"
+        >🏁 Encerrar</button>
+      )}
       <button className="apagar" onClick={remover} aria-label="Remover jogo">✕</button>
     </div>
   );
@@ -3114,6 +3134,16 @@ function Estilo() {
         transition: border-color var(--t), transform var(--t); opacity: .75;
       }
       .apagar:hover { border-color: var(--erro); opacity: 1; transform: scale(1.06); }
+
+      .encerrar-jogo {
+        background: transparent; color: #ffc53d;
+        border: 1px solid rgba(255,197,61,.45); border-radius: 6px; cursor: pointer;
+        font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700;
+        padding: 4px 8px; white-space: nowrap;
+        transition: background var(--t), border-color var(--t);
+      }
+      .encerrar-jogo:hover:not(:disabled) { background: rgba(255,197,61,.12); border-color: #ffc53d; }
+      .encerrar-jogo:disabled { opacity: .4; cursor: not-allowed; }
 
       .badge-pago, .badge-pendente {
         font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700;
