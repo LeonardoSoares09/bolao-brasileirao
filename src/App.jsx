@@ -1090,7 +1090,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                         )}
                         {(() => { const p = palpitesMap[m.id]?.[estado.eu.id]; return p != null ? <span className="tag tag-meu-palpite">você: {p.h}-{p.a}</span> : null; })()}
                       </div>
-                      {!encerrado && !travado && m.kickoff && (
+                      {!encerrado && !travado && faltam > 0 && m.kickoff && (
                         <Countdown kickoff={m.kickoff} offsetMs={offsetMs} />
                       )}
                     </div>
