@@ -1074,6 +1074,11 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                 const encerrado = temResultado(m);
                 const travado = comecou(m);
                 const faltam = !encerrado ? estado.participantes.length - (contagensMap[m.id] || 0) : 0;
+                /* começou e ainda plausivelmente rolando (mesma janela de 4h do polling):
+                   mostra "ao vivo · a confirmar" enquanto a API não traz o placar, em vez
+                   de o card parecer que nem começou. Fora da janela vira jogo órfão. */
+                const noAr = travado && !encerrado && !m.live && m.kickoff &&
+                  (Date.now() + offsetMs) - new Date(m.kickoff).getTime() <= 4 * 60 * 60 * 1000;
                 return (
                   <div key={m.id} className={"cartao jogo entra-cartao" + (encerrado ? " encerrado" : "")} style={{ "--i": Math.min(i, 8) }}>
                     <div className="jogo-info">
@@ -1102,6 +1107,11 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                       <div className="placar-vivo led-mini">
                         <span className="placar-vivo-dot" aria-hidden="true" />
                         {m.gh} : {m.ga}
+                      </div>
+                    ) : noAr ? (
+                      <div className="placar-vivo led-mini placar-vivo-aguardando" title="O jogo começou — placar ainda não confirmado pela API">
+                        <span className="placar-vivo-dot" aria-hidden="true" />
+                        – : –
                       </div>
                     ) : null}
                     <ReacaoStrip
@@ -3313,6 +3323,10 @@ function Estilo() {
         width: 8px; height: 8px; border-radius: 50%; flex: none;
         background: var(--erro); animation: pulsa-cd .85s ease-in-out infinite;
       }
+      /* jogo começou mas a API ainda não confirmou o placar: mostra "ao vivo"
+         com placar a confirmar, em vez de o card parecer que não começou. */
+      .placar-vivo-aguardando { color: var(--ambar); opacity: .85; letter-spacing: .08em; }
+      .placar-vivo-aguardando .placar-vivo-dot { background: var(--ambar); }
 
       .reacao-strip { width: 100%; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.07); }
       .reacao-chip {
