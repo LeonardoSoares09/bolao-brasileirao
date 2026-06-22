@@ -674,9 +674,17 @@ function EstatisticasInutils({ ranking, palpitesMap, jogos }) {
     return { ps, valor: max };
   };
 
-  /* 🥄 Lanterna — todos com a MENOR pontuação */
-  const lanterna = topEmpatados((p) => -p.pontos, -Infinity);
-  const ptsLanterna = -lanterna.valor;
+  /* 🥄 Lanterna — verdadeiro último colocado, usando os MESMOS critérios de
+     desempate do ranking (pontos → exatos → campeã → artilheiro → resultados).
+     Só agrupa quem for idêntico em TODOS esses critérios. */
+  const piorColocado = ranking[ranking.length - 1];
+  const mesmaLanterna = (a, b) =>
+    a.pontos === b.pontos &&
+    a.exatos === b.exatos &&
+    !!a.acertouCampeao === !!b.acertouCampeao &&
+    !!a.acertouArtilheiro === !!b.acertouArtilheiro &&
+    a.resultados === b.resultados;
+  const lanternaPs = ranking.filter((p) => mesmaLanterna(p, piorColocado)).sort((a, b) => a.nome.localeCompare(b.nome));
 
   /* 🧊 Pé Frio — mais zeros em jogos encerrados */
   const contaZeros = (id) => jogosEncerrados.filter((m) => pontosDoPalpite(palpitesMap[m.id]?.[id], m) === 0).length;
@@ -754,7 +762,7 @@ function EstatisticasInutils({ ranking, palpitesMap, jogos }) {
   const doContra = topEmpatados((p) => fugiuManada[p.id] || 0, 1);
 
   const premios = [
-    { emoji: "🥄", titulo: "Lanterna", ps: lanterna.ps, detalhe: `${ptsLanterna} pt${plural(ptsLanterna)}` },
+    { emoji: "🥄", titulo: "Lanterna", ps: lanternaPs, detalhe: `${piorColocado.pontos} pt${plural(piorColocado.pontos)} · ${piorColocado.exatos} exato${plural(piorColocado.exatos)}` },
     peFrio && { emoji: "🧊", titulo: "Pé Frio", ps: peFrio.ps, detalhe: `${peFrio.valor} zero${plural(peFrio.valor)} em jogos encerrados` },
     otimista && { emoji: "🔮", titulo: "Otimista", ps: otimista.ps, detalhe: `média ${otimista.valor.toFixed(1)} gols/jogo` },
     sniper && { emoji: "🎯", titulo: "Sniper", ps: sniper.ps, detalhe: `${sniper.valor.toFixed(0)}% de placares exatos` },
