@@ -662,75 +662,71 @@ function EstatisticasInutils({ ranking, palpitesMap, jogos }) {
   const jogosEncerrados = jogos.filter(temResultado);
   if (jogosEncerrados.length < 5 || ranking.length < 2) return null;
 
-  /* 🥄 Lanterna */
-  const lanterna = ranking[ranking.length - 1];
+  const plural = (n) => (n === 1 ? "" : "s");
+
+  /* Retorna TODOS os participantes empatados no maior valor de `valorFn`.
+     Devolve { ps, valor } ou null se o maior valor não atingir `min`. */
+  const topEmpatados = (valorFn, min = 1) => {
+    let max = -Infinity;
+    for (const p of ranking) { const v = valorFn(p); if (v > max) max = v; }
+    if (!Number.isFinite(max) || max < min) return null;
+    const ps = ranking.filter((p) => valorFn(p) === max).sort((a, b) => a.nome.localeCompare(b.nome));
+    return { ps, valor: max };
+  };
+
+  /* 🥄 Lanterna — todos com a MENOR pontuação */
+  const lanterna = topEmpatados((p) => -p.pontos, -Infinity);
+  const ptsLanterna = -lanterna.valor;
 
   /* 🧊 Pé Frio — mais zeros em jogos encerrados */
-  const comZeros = [...ranking].sort((a, b) => {
-    const az = jogosEncerrados.filter((m) => pontosDoPalpite(palpitesMap[m.id]?.[a.id], m) === 0).length;
-    const bz = jogosEncerrados.filter((m) => pontosDoPalpite(palpitesMap[m.id]?.[b.id], m) === 0).length;
-    return bz - az || a.nome.localeCompare(b.nome);
-  });
-  const qtdZerosPF = jogosEncerrados.filter((m) => pontosDoPalpite(palpitesMap[m.id]?.[comZeros[0].id], m) === 0).length;
-  const peFrio = qtdZerosPF > 0 ? { ...comZeros[0], qtdZeros: qtdZerosPF } : null;
+  const contaZeros = (id) => jogosEncerrados.filter((m) => pontosDoPalpite(palpitesMap[m.id]?.[id], m) === 0).length;
+  const peFrio = topEmpatados((p) => contaZeros(p.id), 1);
 
   /* 🔮 Otimista — maior média de gols palpitados (mín. 3 palpites em jogos encerrados) */
-  const comMedia = ranking.map((p) => {
+  const mediaById = {};
+  for (const p of ranking) {
     const pals = jogosEncerrados.filter((m) => palpitesMap[m.id]?.[p.id]);
-    if (pals.length < 3) return { ...p, media: -1, qtdPals: pals.length };
-    const soma = pals.reduce((acc, m) => acc + Number(palpitesMap[m.id][p.id].h) + Number(palpitesMap[m.id][p.id].a), 0);
-    return { ...p, media: soma / pals.length, qtdPals: pals.length };
-  }).sort((a, b) => b.media - a.media || a.nome.localeCompare(b.nome));
-  const otimista = comMedia[0]?.media >= 0 ? comMedia[0] : null;
+    mediaById[p.id] = pals.length < 3 ? -1
+      : pals.reduce((acc, m) => acc + Number(palpitesMap[m.id][p.id].h) + Number(palpitesMap[m.id][p.id].a), 0) / pals.length;
+  }
+  const otimista = topEmpatados((p) => mediaById[p.id], 0);
 
   /* 🎯 Sniper — maior % de exatos entre quem palpitou mín. 3 jogos encerrados */
-  const comPct = ranking.map((p) => {
-    const comPalpite = jogosEncerrados.filter((m) => palpitesMap[m.id]?.[p.id]);
-    if (comPalpite.length < 3) return { ...p, pct: -1 };
-    return { ...p, pct: (p.exatos / comPalpite.length) * 100 };
-  }).sort((a, b) => b.pct - a.pct || a.nome.localeCompare(b.nome));
-  const sniper = comPct[0]?.pct >= 0 ? comPct[0] : null;
+  const pctById = {};
+  for (const p of ranking) {
+    const comPalpite = jogosEncerrados.filter((m) => palpitesMap[m.id]?.[p.id]).length;
+    pctById[p.id] = comPalpite < 3 ? -1 : (p.exatos / comPalpite) * 100;
+  }
+  const sniper = topEmpatados((p) => pctById[p.id], 0);
 
   /* ⚽ Sr. 1×0 — palpitou 1×0 mais vezes */
-  const com1x0 = [...ranking].sort((a, b) => {
-    const ac = jogos.filter((m) => { const pal = palpitesMap[m.id]?.[a.id]; return pal && Number(pal.h) === 1 && Number(pal.a) === 0; }).length;
-    const bc = jogos.filter((m) => { const pal = palpitesMap[m.id]?.[b.id]; return pal && Number(pal.h) === 1 && Number(pal.a) === 0; }).length;
-    return bc - ac || a.nome.localeCompare(b.nome);
-  });
-  const cnt1x0 = jogos.filter((m) => { const pal = palpitesMap[m.id]?.[com1x0[0].id]; return pal && Number(pal.h) === 1 && Number(pal.a) === 0; }).length;
-  const sr1x0 = cnt1x0 > 0 ? { ...com1x0[0], cnt: cnt1x0 } : null;
+  const conta1x0 = (id) => jogos.filter((m) => { const pal = palpitesMap[m.id]?.[id]; return pal && Number(pal.h) === 1 && Number(pal.a) === 0; }).length;
+  const sr1x0 = topEmpatados((p) => conta1x0(p.id), 1);
 
   /* 🦍 Trave — mais vezes que errou o placar exato por só 1 gol (em jogos encerrados) */
   const contaTrave = (id) => jogosEncerrados.filter((m) => {
     const pal = palpitesMap[m.id]?.[id];
     if (!pal) return false;
-    const d = Math.abs(Number(pal.h) - m.gh) + Math.abs(Number(pal.a) - m.ga);
-    return d === 1;
+    return Math.abs(Number(pal.h) - m.gh) + Math.abs(Number(pal.a) - m.ga) === 1;
   }).length;
-  const comTrave = [...ranking].sort((a, b) => contaTrave(b.id) - contaTrave(a.id) || a.nome.localeCompare(b.nome));
-  const cntTrave = contaTrave(comTrave[0].id);
-  const trave = cntTrave > 0 ? { ...comTrave[0], cnt: cntTrave } : null;
+  const trave = topEmpatados((p) => contaTrave(p.id), 1);
 
   /* 🎰 Empatador — mais palpites de empate (h === a) */
   const contaEmpates = (id) => jogos.filter((m) => { const pal = palpitesMap[m.id]?.[id]; return pal && Number(pal.h) === Number(pal.a); }).length;
-  const comEmpates = [...ranking].sort((a, b) => contaEmpates(b.id) - contaEmpates(a.id) || a.nome.localeCompare(b.nome));
-  const cntEmp = contaEmpates(comEmpates[0].id);
-  const empatador = cntEmp > 0 ? { ...comEmpates[0], cnt: cntEmp } : null;
+  const empatador = topEmpatados((p) => contaEmpates(p.id), 1);
 
-  /* 🎆 Festival de Gols — maior placar (soma h+a) palpitado num único jogo */
-  let festival = null;
-  for (const m of jogos) {
-    for (const p of ranking) {
-      const pal = palpitesMap[m.id]?.[p.id];
+  /* 🎆 Festival de Gols — maior nº de gols (soma h+a) cravado num único jogo */
+  const melhorSoma = (id) => {
+    let best = -1;
+    for (const m of jogos) {
+      const pal = palpitesMap[m.id]?.[id];
       if (!pal) continue;
-      const h = Number(pal.h), a = Number(pal.a), soma = h + a;
-      if (Number.isNaN(soma)) continue;
-      if (!festival || soma > festival.soma || (soma === festival.soma && p.nome.localeCompare(festival.nome) < 0)) {
-        festival = { ...p, soma, h, a };
-      }
+      const s = Number(pal.h) + Number(pal.a);
+      if (!Number.isNaN(s) && s > best) best = s;
     }
-  }
-  if (festival && festival.soma < 4) festival = null; // só conta se for goleada de verdade
+    return best;
+  };
+  const festival = topEmpatados((p) => melhorSoma(p.id), 4); // só conta se for goleada de verdade
 
   /* 🐑 Manada / 🦄 Do Contra — quem mais seguiu (ou mais fugiu) do placar mais palpitado pela galera
      (só conta jogos com mín. 3 palpites e uma maioria real, mín. 2 iguais) */
@@ -754,25 +750,20 @@ function EstatisticasInutils({ ranking, palpitesMap, jogos }) {
       else fugiuManada[id] = (fugiuManada[id] || 0) + 1;
     }
   }
-  const comManada = [...ranking].sort((a, b) => (seguiuManada[b.id] || 0) - (seguiuManada[a.id] || 0) || a.nome.localeCompare(b.nome));
-  const cntSeg = seguiuManada[comManada[0]?.id] || 0;
-  const manada = cntSeg > 0 ? { ...comManada[0], cnt: cntSeg } : null;
-
-  const comContra = [...ranking].sort((a, b) => (fugiuManada[b.id] || 0) - (fugiuManada[a.id] || 0) || a.nome.localeCompare(b.nome));
-  const cntContra = fugiuManada[comContra[0]?.id] || 0;
-  const doContra = cntContra > 0 ? { ...comContra[0], cnt: cntContra } : null;
+  const manada = topEmpatados((p) => seguiuManada[p.id] || 0, 1);
+  const doContra = topEmpatados((p) => fugiuManada[p.id] || 0, 1);
 
   const premios = [
-    { emoji: "🥄", titulo: "Lanterna", p: lanterna, detalhe: `${lanterna.pontos} pt${lanterna.pontos === 1 ? "" : "s"}` },
-    peFrio && { emoji: "🧊", titulo: "Pé Frio", p: peFrio, detalhe: `${peFrio.qtdZeros} zero${peFrio.qtdZeros === 1 ? "" : "s"} em jogos encerrados` },
-    otimista && { emoji: "🔮", titulo: "Otimista", p: otimista, detalhe: `média ${otimista.media.toFixed(1)} gols/jogo` },
-    sniper && { emoji: "🎯", titulo: "Sniper", p: sniper, detalhe: `${sniper.pct.toFixed(0)}% de placares exatos` },
-    sr1x0 && { emoji: "⚽", titulo: "Sr. 1×0", p: sr1x0, detalhe: `palpitou 1×0 em ${sr1x0.cnt} jogo${sr1x0.cnt === 1 ? "" : "s"}` },
-    trave && { emoji: "🦍", titulo: "Trave", p: trave, detalhe: `errou por 1 gol em ${trave.cnt} jogo${trave.cnt === 1 ? "" : "s"}` },
-    empatador && { emoji: "🎰", titulo: "Empatador", p: empatador, detalhe: `cravou empate em ${empatador.cnt} jogo${empatador.cnt === 1 ? "" : "s"}` },
-    festival && { emoji: "🎆", titulo: "Festival de Gols", p: festival, detalhe: `cravou um ${festival.h}×${festival.a} (${festival.soma} gols!)` },
-    manada && { emoji: "🐑", titulo: "Manada", p: manada, detalhe: `seguiu a maioria em ${manada.cnt} jogo${manada.cnt === 1 ? "" : "s"}` },
-    doContra && { emoji: "🦄", titulo: "Do Contra", p: doContra, detalhe: `discordou da maioria em ${doContra.cnt} jogo${doContra.cnt === 1 ? "" : "s"}` },
+    { emoji: "🥄", titulo: "Lanterna", ps: lanterna.ps, detalhe: `${ptsLanterna} pt${plural(ptsLanterna)}` },
+    peFrio && { emoji: "🧊", titulo: "Pé Frio", ps: peFrio.ps, detalhe: `${peFrio.valor} zero${plural(peFrio.valor)} em jogos encerrados` },
+    otimista && { emoji: "🔮", titulo: "Otimista", ps: otimista.ps, detalhe: `média ${otimista.valor.toFixed(1)} gols/jogo` },
+    sniper && { emoji: "🎯", titulo: "Sniper", ps: sniper.ps, detalhe: `${sniper.valor.toFixed(0)}% de placares exatos` },
+    sr1x0 && { emoji: "⚽", titulo: "Sr. 1×0", ps: sr1x0.ps, detalhe: `palpitou 1×0 em ${sr1x0.valor} jogo${plural(sr1x0.valor)}` },
+    trave && { emoji: "🦍", titulo: "Trave", ps: trave.ps, detalhe: `errou por 1 gol em ${trave.valor} jogo${plural(trave.valor)}` },
+    empatador && { emoji: "🎰", titulo: "Empatador", ps: empatador.ps, detalhe: `cravou empate em ${empatador.valor} jogo${plural(empatador.valor)}` },
+    festival && { emoji: "🎆", titulo: "Festival de Gols", ps: festival.ps, detalhe: `cravou um jogo de ${festival.valor} gols` },
+    manada && { emoji: "🐑", titulo: "Manada", ps: manada.ps, detalhe: `seguiu a maioria em ${manada.valor} jogo${plural(manada.valor)}` },
+    doContra && { emoji: "🦄", titulo: "Do Contra", ps: doContra.ps, detalhe: `discordou da maioria em ${doContra.valor} jogo${plural(doContra.valor)}` },
   ].filter(Boolean);
 
   return (
@@ -783,15 +774,20 @@ function EstatisticasInutils({ ranking, palpitesMap, jogos }) {
       </button>
       {aberto && (
         <div className="stats-grid">
-          {premios.map(({ emoji, titulo, p, detalhe }, i) => (
+          {premios.map(({ emoji, titulo, ps, detalhe }, i) => (
             <div key={titulo} className="stats-card entra-cartao" style={{ "--i": i }}>
               <div className="stats-emoji">{emoji}</div>
               <div className="stats-info">
-                <div className="stats-titulo">{titulo}</div>
-                <div className="stats-nome">
-                  <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={20} />
-                  {p.nome}
+                <div className="stats-titulo">
+                  {titulo}
+                  {ps.length > 1 && <span className="stats-empate"> (empate)</span>}
                 </div>
+                {ps.map((p) => (
+                  <div key={p.id} className="stats-nome">
+                    <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={20} />
+                    {p.nome}
+                  </div>
+                ))}
                 <div className="stats-detalhe">{detalhe}</div>
               </div>
             </div>
@@ -3706,7 +3702,8 @@ function Estilo() {
         font-size: 14px; font-weight: 700; margin-bottom: 3px;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       }
-      .stats-detalhe { font-size: 11px; opacity: .55; font-family: 'IBM Plex Mono', monospace; }
+      .stats-detalhe { font-size: 11px; opacity: .55; font-family: 'IBM Plex Mono', monospace; margin-top: 2px; }
+      .stats-empate { opacity: .6; }
 
       .perfil-picker {
         background: rgba(0,0,0,.32); border: 2px solid var(--linha);
