@@ -700,8 +700,16 @@ function EstatisticasInutils({ ranking, palpitesMap, jogos }) {
   const cnt1x0 = jogos.filter((m) => { const pal = palpitesMap[m.id]?.[com1x0[0].id]; return pal && Number(pal.h) === 1 && Number(pal.a) === 0; }).length;
   const sr1x0 = cnt1x0 > 0 ? { ...com1x0[0], cnt: cnt1x0 } : null;
 
-  /* 🥶 Muralha — MENOR média de gols palpitados (oposto do Otimista, reusa comMedia, mín. 3 palpites) */
-  const muralha = [...comMedia].filter((p) => p.media >= 0).sort((a, b) => a.media - b.media || a.nome.localeCompare(b.nome))[0] || null;
+  /* 🦍 Trave — mais vezes que errou o placar exato por só 1 gol (em jogos encerrados) */
+  const contaTrave = (id) => jogosEncerrados.filter((m) => {
+    const pal = palpitesMap[m.id]?.[id];
+    if (!pal) return false;
+    const d = Math.abs(Number(pal.h) - m.gh) + Math.abs(Number(pal.a) - m.ga);
+    return d === 1;
+  }).length;
+  const comTrave = [...ranking].sort((a, b) => contaTrave(b.id) - contaTrave(a.id) || a.nome.localeCompare(b.nome));
+  const cntTrave = contaTrave(comTrave[0].id);
+  const trave = cntTrave > 0 ? { ...comTrave[0], cnt: cntTrave } : null;
 
   /* 🎰 Empatador — mais palpites de empate (h === a) */
   const contaEmpates = (id) => jogos.filter((m) => { const pal = palpitesMap[m.id]?.[id]; return pal && Number(pal.h) === Number(pal.a); }).length;
@@ -760,7 +768,7 @@ function EstatisticasInutils({ ranking, palpitesMap, jogos }) {
     otimista && { emoji: "🔮", titulo: "Otimista", p: otimista, detalhe: `média ${otimista.media.toFixed(1)} gols/jogo` },
     sniper && { emoji: "🎯", titulo: "Sniper", p: sniper, detalhe: `${sniper.pct.toFixed(0)}% de placares exatos` },
     sr1x0 && { emoji: "⚽", titulo: "Sr. 1×0", p: sr1x0, detalhe: `palpitou 1×0 em ${sr1x0.cnt} jogo${sr1x0.cnt === 1 ? "" : "s"}` },
-    muralha && { emoji: "🥶", titulo: "Muralha", p: muralha, detalhe: `média ${muralha.media.toFixed(1)} gols/jogo` },
+    trave && { emoji: "🦍", titulo: "Trave", p: trave, detalhe: `errou por 1 gol em ${trave.cnt} jogo${trave.cnt === 1 ? "" : "s"}` },
     empatador && { emoji: "🎰", titulo: "Empatador", p: empatador, detalhe: `cravou empate em ${empatador.cnt} jogo${empatador.cnt === 1 ? "" : "s"}` },
     festival && { emoji: "🎆", titulo: "Festival de Gols", p: festival, detalhe: `cravou um ${festival.h}×${festival.a} (${festival.soma} gols!)` },
     manada && { emoji: "🐑", titulo: "Manada", p: manada, detalhe: `seguiu a maioria em ${manada.cnt} jogo${manada.cnt === 1 ? "" : "s"}` },
