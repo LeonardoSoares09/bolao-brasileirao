@@ -700,12 +700,71 @@ function EstatisticasInutils({ ranking, palpitesMap, jogos }) {
   const cnt1x0 = jogos.filter((m) => { const pal = palpitesMap[m.id]?.[com1x0[0].id]; return pal && Number(pal.h) === 1 && Number(pal.a) === 0; }).length;
   const sr1x0 = cnt1x0 > 0 ? { ...com1x0[0], cnt: cnt1x0 } : null;
 
+  /* 🥶 Muralha — MENOR média de gols palpitados (oposto do Otimista, reusa comMedia, mín. 3 palpites) */
+  const muralha = [...comMedia].filter((p) => p.media >= 0).sort((a, b) => a.media - b.media || a.nome.localeCompare(b.nome))[0] || null;
+
+  /* 🎰 Empatador — mais palpites de empate (h === a) */
+  const contaEmpates = (id) => jogos.filter((m) => { const pal = palpitesMap[m.id]?.[id]; return pal && Number(pal.h) === Number(pal.a); }).length;
+  const comEmpates = [...ranking].sort((a, b) => contaEmpates(b.id) - contaEmpates(a.id) || a.nome.localeCompare(b.nome));
+  const cntEmp = contaEmpates(comEmpates[0].id);
+  const empatador = cntEmp > 0 ? { ...comEmpates[0], cnt: cntEmp } : null;
+
+  /* 🎆 Festival de Gols — maior placar (soma h+a) palpitado num único jogo */
+  let festival = null;
+  for (const m of jogos) {
+    for (const p of ranking) {
+      const pal = palpitesMap[m.id]?.[p.id];
+      if (!pal) continue;
+      const h = Number(pal.h), a = Number(pal.a), soma = h + a;
+      if (Number.isNaN(soma)) continue;
+      if (!festival || soma > festival.soma || (soma === festival.soma && p.nome.localeCompare(festival.nome) < 0)) {
+        festival = { ...p, soma, h, a };
+      }
+    }
+  }
+  if (festival && festival.soma < 4) festival = null; // só conta se for goleada de verdade
+
+  /* 🐑 Manada / 🦄 Do Contra — quem mais seguiu (ou mais fugiu) do placar mais palpitado pela galera
+     (só conta jogos com mín. 3 palpites e uma maioria real, mín. 2 iguais) */
+  const seguiuManada = {};
+  const fugiuManada = {};
+  for (const m of jogos) {
+    const palsJogo = ranking
+      .map((p) => ({ id: p.id, pal: palpitesMap[m.id]?.[p.id] }))
+      .filter((x) => x.pal);
+    if (palsJogo.length < 3) continue;
+    const cont = {};
+    for (const { pal } of palsJogo) {
+      const k = `${Number(pal.h)}-${Number(pal.a)}`;
+      cont[k] = (cont[k] || 0) + 1;
+    }
+    let modK = null, modN = 0;
+    for (const [k, n] of Object.entries(cont)) if (n > modN) { modN = n; modK = k; }
+    if (modN < 2) continue; // sem maioria de verdade
+    for (const { id, pal } of palsJogo) {
+      if (`${Number(pal.h)}-${Number(pal.a)}` === modK) seguiuManada[id] = (seguiuManada[id] || 0) + 1;
+      else fugiuManada[id] = (fugiuManada[id] || 0) + 1;
+    }
+  }
+  const comManada = [...ranking].sort((a, b) => (seguiuManada[b.id] || 0) - (seguiuManada[a.id] || 0) || a.nome.localeCompare(b.nome));
+  const cntSeg = seguiuManada[comManada[0]?.id] || 0;
+  const manada = cntSeg > 0 ? { ...comManada[0], cnt: cntSeg } : null;
+
+  const comContra = [...ranking].sort((a, b) => (fugiuManada[b.id] || 0) - (fugiuManada[a.id] || 0) || a.nome.localeCompare(b.nome));
+  const cntContra = fugiuManada[comContra[0]?.id] || 0;
+  const doContra = cntContra > 0 ? { ...comContra[0], cnt: cntContra } : null;
+
   const premios = [
     { emoji: "🥄", titulo: "Lanterna", p: lanterna, detalhe: `${lanterna.pontos} pt${lanterna.pontos === 1 ? "" : "s"}` },
     peFrio && { emoji: "🧊", titulo: "Pé Frio", p: peFrio, detalhe: `${peFrio.qtdZeros} zero${peFrio.qtdZeros === 1 ? "" : "s"} em jogos encerrados` },
     otimista && { emoji: "🔮", titulo: "Otimista", p: otimista, detalhe: `média ${otimista.media.toFixed(1)} gols/jogo` },
     sniper && { emoji: "🎯", titulo: "Sniper", p: sniper, detalhe: `${sniper.pct.toFixed(0)}% de placares exatos` },
     sr1x0 && { emoji: "⚽", titulo: "Sr. 1×0", p: sr1x0, detalhe: `palpitou 1×0 em ${sr1x0.cnt} jogo${sr1x0.cnt === 1 ? "" : "s"}` },
+    muralha && { emoji: "🥶", titulo: "Muralha", p: muralha, detalhe: `média ${muralha.media.toFixed(1)} gols/jogo` },
+    empatador && { emoji: "🎰", titulo: "Empatador", p: empatador, detalhe: `cravou empate em ${empatador.cnt} jogo${empatador.cnt === 1 ? "" : "s"}` },
+    festival && { emoji: "🎆", titulo: "Festival de Gols", p: festival, detalhe: `cravou um ${festival.h}×${festival.a} (${festival.soma} gols!)` },
+    manada && { emoji: "🐑", titulo: "Manada", p: manada, detalhe: `seguiu a maioria em ${manada.cnt} jogo${manada.cnt === 1 ? "" : "s"}` },
+    doContra && { emoji: "🦄", titulo: "Do Contra", p: doContra, detalhe: `discordou da maioria em ${doContra.cnt} jogo${doContra.cnt === 1 ? "" : "s"}` },
   ].filter(Boolean);
 
   return (
