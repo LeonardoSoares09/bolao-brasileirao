@@ -576,11 +576,17 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos }) {
 
   if (jogosEncerrados.length < 2 || ranking.length < 2) return null;
 
-  const W = 560, H = 210;
-  const ml = 28, mr = 76, mt = 12, mb = 22;
+  const W = 560, H = 220;
+  const ml = 28, mr = 84, mt = 12, mb = 24;
   const pw = W - ml - mr;
   const ph = H - mt - mb;
   const n = jogosEncerrados.length;
+
+  /* com muitos jogos, o ponto-por-rodada vira poeira visual: deixa só a linha
+     (e o ponto final). E afina os rótulos do eixo X pra não se amontoarem. */
+  const mostrarPontos = n <= 14;
+  const passoX = Math.ceil(n / 9);
+  const mostrarX = (i) => i === 0 || i === n - 1 || (i % passoX === 0 && n - 1 - i >= passoX);
 
   const xOf = (i) => ml + (n === 1 ? pw / 2 : (i * pw) / (n - 1));
 
@@ -597,6 +603,24 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos }) {
   const yOf = (v) => mt + ph - (v / maxPts) * ph;
 
   const CORES = ["#ffc53d","#4ade80","#60a5fa","#f472b6","#a78bfa","#fb923c","#34d399","#e879f9","#facc15","#94a3b8"];
+
+  /* rótulos dos nomes à direita: posição ideal = y do último ponto. Quando dois
+     ficam colados (empate ou pontuação próxima), os nomes se sobrepõem — então
+     empilha com espaçamento mínimo (GAP) e, se estourar embaixo, sobe o bloco
+     todo. Cada rótulo nudgeado ganha um fio-guia até a ponta real da linha. */
+  const GAP = 12;
+  const labels = series
+    .map((s, si) => ({
+      nome: s.nome.split(" ")[0].slice(0, 9),
+      cor: s.avatarCor || CORES[si % CORES.length],
+      yReal: yOf(s.pts[n - 1]),
+    }))
+    .sort((a, b) => a.yReal - b.yReal);
+  let prevY = -Infinity;
+  for (const L of labels) { L.y = Math.max(L.yReal, prevY + GAP); prevY = L.y; }
+  const estouro = prevY - (mt + ph);
+  if (estouro > 0) for (const L of labels) L.y -= estouro;
+  if (labels.length && labels[0].y < mt) { const d = mt - labels[0].y; for (const L of labels) L.y += d; }
 
   return (
     <div className="grafico-bloco">
@@ -618,28 +642,39 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos }) {
           {series.map((s, si) => {
             const cor = s.avatarCor || CORES[si % CORES.length];
             const pontos = s.pts.map((v, i) => `${xOf(i)},${yOf(v)}`).join(" ");
-            const ultimo = s.pts[n - 1];
             return (
               <g key={s.id}>
-                <polyline points={pontos} fill="none" stroke={cor} strokeWidth="2.5"
-                  strokeLinejoin="round" strokeLinecap="round" />
-                {s.pts.map((v, i) => (
-                  <circle key={i} cx={xOf(i)} cy={yOf(v)} r="3.5" fill={cor} />
-                ))}
-                <text x={ml + pw + 7} y={yOf(ultimo) + 4} fill={cor}
-                  fontSize="10" fontFamily="IBM Plex Mono, monospace" dominantBaseline="middle">
-                  {s.nome.split(" ")[0].slice(0, 9)}
-                </text>
+                <polyline points={pontos} fill="none" stroke={cor} strokeWidth="2"
+                  strokeLinejoin="round" strokeLinecap="round" opacity="0.92" />
+                {mostrarPontos
+                  ? s.pts.map((v, i) => <circle key={i} cx={xOf(i)} cy={yOf(v)} r="3" fill={cor} />)
+                  : <circle cx={xOf(n - 1)} cy={yOf(s.pts[n - 1])} r="3.5" fill={cor} />}
               </g>
             );
           })}
 
-          {/* rótulos eixo X */}
+          {/* nomes à direita, sem sobreposição, com fio-guia até a ponta da linha */}
+          {labels.map((L, idx) => (
+            <g key={idx}>
+              {Math.abs(L.y - L.yReal) > 1.5 && (
+                <line x1={ml + pw} y1={L.yReal} x2={ml + pw + 7} y2={L.y}
+                  stroke={L.cor} strokeWidth="1" opacity="0.4" />
+              )}
+              <text x={ml + pw + 10} y={L.y} fill={L.cor}
+                fontSize="10" fontFamily="IBM Plex Mono, monospace" dominantBaseline="middle">
+                {L.nome}
+              </text>
+            </g>
+          ))}
+
+          {/* rótulos eixo X (afinados pra não amontoar) */}
           {jogosEncerrados.map((j, i) => (
-            <text key={j.id} x={xOf(i)} y={mt + ph + 16} fill="rgba(255,255,255,0.35)"
-              fontSize="9" textAnchor="middle" fontFamily="IBM Plex Mono, monospace">
-              {i + 1}
-            </text>
+            mostrarX(i) && (
+              <text key={j.id} x={xOf(i)} y={mt + ph + 16} fill="rgba(255,255,255,0.35)"
+                fontSize="9" textAnchor="middle" fontFamily="IBM Plex Mono, monospace">
+                {i + 1}
+              </text>
+            )
           ))}
 
           {/* rótulos eixo Y */}
