@@ -326,9 +326,20 @@ async function acaoPlacares() {
 
   const hoje = hojeEmSP();
   /* janela dos últimos 14 dias para não perder resultados atrasados */
-  const partidas = await buscarPartidas(
-    `dateFrom=${addDias(hoje, -14)}&dateTo=${addDias(hoje, +1)}`
-  );
+  let partidas;
+  try {
+    partidas = await buscarPartidas(
+      `dateFrom=${addDias(hoje, -14)}&dateTo=${addDias(hoje, +1)}`
+    );
+  } catch (e) {
+    /* O lock já avançou ANTES do fetch (pra evitar chamadas concorrentes à
+       football-data). Se o fetch falha (timeout, 429, instabilidade), sem isto
+       todas as chamadas receberiam "cached" por 55s sem nada ter atualizado —
+       falha silenciosa. Liberamos o lock (atualizado_em = NULL) pra a próxima
+       chamada (~1 min) já tentar de novo, em vez de esperar a janela inteira. */
+    await sql`UPDATE config SET atualizado_em = NULL WHERE chave = 'ultima_busca_live'`;
+    throw e;
+  }
 
   let atualizados = 0;
   let vivos = 0;
