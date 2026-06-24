@@ -53,7 +53,11 @@ export function calcularStats(p, estado, palpitesMap, opts = {}) {
     const pts = pontosDoPalpite(palpitesMap[m.id]?.[p.id], m);
     if (pts === PTS_EXATO) {
       exatos++; pontos += pts;
-      if (hojeKey && chaveData && m.kickoff && chaveData(m.kickoff) === hojeKey) exatosHoje++;
+      /* exatosHoje dispara o GOOOL + confete: só vale CRAVADA confirmada, isto é,
+         jogo ENCERRADO (não ao vivo). Sem o !m.live, um placar parcial igual ao
+         palpite (ex.: 1×1 com a bola rolando) faria todo mundo "gritar gol" sem
+         ter acertado de verdade. */
+      if (hojeKey && chaveData && !m.live && m.kickoff && chaveData(m.kickoff) === hojeKey) exatosHoje++;
     } else if (pts === PTS_RESULTADO) { resultados++; pontos += pts; }
   }
   return { ...p, pontos, exatos, resultados, bonus, exatosHoje, acertouCampeao, acertouArtilheiro };

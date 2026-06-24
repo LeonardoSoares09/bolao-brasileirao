@@ -30,7 +30,7 @@ function rankingAntigo(estado, palpitesMap, hojeKey, chaveData, primeiroPalpiteM
     let pontos = bonus, exatos = 0, resultados = 0, exatosHoje = 0;
     for (const m of estado.jogos) {
       const pts = pontosAntigo(palpitesMap[m.id]?.[p.id], m);
-      if (pts === 3) { exatos++; pontos += pts; if (m.kickoff && chaveData(m.kickoff) === hojeKey) exatosHoje++; }
+      if (pts === 3) { exatos++; pontos += pts; if (m.kickoff && !m.live && chaveData(m.kickoff) === hojeKey) exatosHoje++; }
       else if (pts === 1) { resultados++; pontos += pts; }
     }
     return { ...p, pontos, exatos, resultados, bonus, exatosHoje, acertouCampeao, acertouArtilheiro };
@@ -62,6 +62,7 @@ const estado = {
     { id: 11, kickoff: "2026-06-15T18:00:00Z", gh: 0, ga: 0, live: false }, // encerrado
     { id: 12, kickoff: "2026-06-16T18:00:00Z", gh: 1, ga: 0, live: true },  // AO VIVO hoje
     { id: 13, kickoff: "2026-06-16T21:00:00Z", gh: null, ga: null, live: false }, // não começou
+    { id: 14, kickoff: "2026-06-16T15:00:00Z", gh: 3, ga: 1, live: false }, // ENCERRADO hoje (cravada conta no exatosHoje)
   ],
   resultadoEspecial: {
     campeao: { confirmado: true, valor: "BRA" },
@@ -77,6 +78,7 @@ const palpitesMap = {
   10: { 1: { h: 2, a: 1 }, 2: { h: 1, a: 0 }, 3: { h: 2, a: 1 }, 4: { h: 0, a: 0 }, 5: { h: 2, a: 1 } },
   11: { 1: { h: 0, a: 0 }, 2: { h: 0, a: 0 }, 3: { h: 1, a: 1 }, 5: { h: 0, a: 0 } },
   12: { 1: { h: 1, a: 0 }, 2: { h: 2, a: 0 }, 3: { h: 1, a: 0 }, 4: { h: 1, a: 0 }, 5: { h: 0, a: 1 } },
+  14: { 1: { h: 3, a: 1 }, 2: { h: 2, a: 1 }, 3: { h: 1, a: 1 }, 4: { h: 3, a: 1 }, 5: { h: 0, a: 0 } }, // Ana e Duda cravam 3×1 hoje
 };
 const primeiroPalpiteMap = {
   1: "2026-06-01T10:00:00Z", 2: "2026-06-01T11:00:00Z", 3: "2026-06-01T09:00:00Z",
@@ -101,6 +103,15 @@ for (let i = 0; i < velho.length; i++) {
     check(a[k] === b[k], `${a.nome}.${k}: antigo=${a[k]} novo=${b[k]}`);
   }
 }
+
+/* 2b) exatosHoje (GOOOL + confete): só conta CRAVADA em jogo ENCERRADO de hoje.
+   Jogo 14 (3×1, encerrado hoje): Ana e Duda cravaram → 1 cada.
+   Jogo 12 (1×0, AO VIVO hoje): Ana/Caio/Duda palpitaram 1×0 = placar parcial,
+   mas NÃO pode comemorar (jogo rolando). */
+const porNome = (n) => novo.find((p) => p.nome === n);
+check(porNome("Ana").exatosHoje === 1, `Ana.exatosHoje deveria ser 1 (cravou jogo encerrado de hoje), veio ${porNome("Ana").exatosHoje}`);
+check(porNome("Duda").exatosHoje === 1, `Duda.exatosHoje deveria ser 1, veio ${porNome("Duda").exatosHoje}`);
+check(porNome("Caio").exatosHoje === 0, `Caio.exatosHoje deveria ser 0 (só bateu placar de jogo AO VIVO), veio ${porNome("Caio").exatosHoje}`);
 
 /* 3) compararRanking coerente com criterioDesempate: se há critério (empate em
       pontos), o comparador NÃO pode dizer que são iguais (0). */
