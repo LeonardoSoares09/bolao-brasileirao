@@ -209,6 +209,20 @@ export default async function handler(req, res) {
       res.status(200).json(await acaoPlacares());
       return;
     }
+    /* TEMP DIAGNÓSTICO — remover após medir o ao vivo no próximo jogo. Mostra o
+       status CRU da football-data, pra checar se ela manda IN_PLAY com a bola rolando. */
+    if (acao === "debug-status") {
+      const hoje = hojeEmSP();
+      const partidas = await buscarPartidas(`dateFrom=${addDias(hoje, -1)}&dateTo=${addDias(hoje, +2)}`);
+      res.status(200).json({
+        total: partidas.length,
+        matches: partidas.map((m) => ({
+          id: m.id, status: m.status, utcDate: m.utcDate,
+          home: m.homeTeam?.name, away: m.awayTeam?.name, score: m.score?.fullTime,
+        })),
+      });
+      return;
+    }
     res.status(400).json({ error: "acao inválida — use 'jogos-hoje', 'resultados' ou 'placar-vivo'" });
   } catch (e) {
     console.error(e);
