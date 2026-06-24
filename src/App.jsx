@@ -1219,6 +1219,11 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                         {fmtQuando(m) && <span className="jogo-quando">{fmtQuando(m)}</span>}
                         {m.fase === "eliminatórias" && <span className="tag tag-elim">⚔ Mata-mata</span>}
                         {!encerrado && travado && <span className="tag tag-travado">🔒 em jogo</span>}
+                        {noAr && ehAdmin && (
+                          <span className="tag tag-aguardando" title="O jogo começou — placar ainda não veio da API. O automático preenche em instantes; se quiser, lance na mão.">
+                            ⏳ aguardando placar
+                          </span>
+                        )}
                         {!encerrado && !travado && faltam > 0 && (
                           <span className="tag tag-pendente">⚠ faltam {faltam} palpite{faltam === 1 ? "" : "s"}</span>
                         )}
@@ -3491,6 +3496,8 @@ function Estilo() {
       .tag-ok { border: 1.5px solid rgba(255,255,255,.35); opacity: .8; }
       .tag-meu-palpite { border: 1.5px solid rgba(255,197,61,.4); color: var(--ambar); opacity: .9; }
       .tag-travado { background: var(--ambar); color: var(--ambar-escuro); }
+      .tag-aguardando { border: 1.5px solid var(--ambar); color: var(--ambar); animation: piscaAguard 1.6s ease-in-out infinite; }
+      @keyframes piscaAguard { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
 
       .countdown {
         display: flex; align-items: center; justify-content: space-between; gap: 8px;
