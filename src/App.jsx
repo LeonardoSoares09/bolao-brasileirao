@@ -723,14 +723,16 @@ function EstatisticasInutils({ ranking, palpitesMap, jogos }) {
   const contaEmpates = (id) => jogos.filter((m) => { const pal = palpitesMap[m.id]?.[id]; return pal && Number(pal.h) === Number(pal.a); }).length;
   const empatador = topEmpatados((p) => contaEmpates(p.id), 1);
 
-  /* 🎆 Festival de Gols — maior nº de gols (soma h+a) cravado num único jogo */
+  /* 🎆 Festival de Gols — maior nº de gols (soma h+a) num jogo encerrado em que
+     CRAVOU o placar exato (não basta chutar uma goleada: tem que ter acertado) */
   const melhorSoma = (id) => {
     let best = -1;
-    for (const m of jogos) {
+    for (const m of jogosEncerrados) {
       const pal = palpitesMap[m.id]?.[id];
       if (!pal) continue;
-      const s = Number(pal.h) + Number(pal.a);
-      if (!Number.isNaN(s) && s > best) best = s;
+      if (Number(pal.h) !== m.gh || Number(pal.a) !== m.ga) continue; // só placar exato
+      const s = m.gh + m.ga;
+      if (s > best) best = s;
     }
     return best;
   };
