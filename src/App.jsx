@@ -719,9 +719,17 @@ function EstatisticasInutils({ ranking, palpitesMap, jogos }) {
   }).length;
   const trave = topEmpatados((p) => contaTrave(p.id), 1);
 
-  /* 🎰 Empatador — mais palpites de empate (h === a) */
+  /* 🎰 Empatador — mais palpites de empate (h === a), acertando ou não */
   const contaEmpates = (id) => jogos.filter((m) => { const pal = palpitesMap[m.id]?.[id]; return pal && Number(pal.h) === Number(pal.a); }).length;
   const empatador = topEmpatados((p) => contaEmpates(p.id), 1);
+
+  /* ⚖️ Equilibrista — cravou o empate: palpitou empate com o placar EXATO
+     (ex.: apostou 2×2 e o jogo terminou 2×2) */
+  const contaEmpateCravou = (id) => jogosEncerrados.filter((m) => {
+    const pal = palpitesMap[m.id]?.[id];
+    return pal && Number(pal.h) === Number(pal.a) && Number(pal.h) === m.gh && Number(pal.a) === m.ga;
+  }).length;
+  const equilibrista = topEmpatados((p) => contaEmpateCravou(p.id), 1);
 
   /* 🎆 Festival de Gols — maior nº de gols (soma h+a) num jogo encerrado em que
      CRAVOU o placar exato (não basta chutar uma goleada: tem que ter acertado) */
@@ -737,6 +745,20 @@ function EstatisticasInutils({ ranking, palpitesMap, jogos }) {
     return best;
   };
   const festival = topEmpatados((p) => melhorSoma(p.id), 4); // só conta se for goleada de verdade
+
+  /* 🎇 Sonhador de Gols — maior nº de gols (soma h+a) que PALPITOU num jogo,
+     acertando ou não (a contraparte honesta da Festival de Gols) */
+  const melhorSomaPalpite = (id) => {
+    let best = -1;
+    for (const m of jogos) {
+      const pal = palpitesMap[m.id]?.[id];
+      if (!pal) continue;
+      const s = Number(pal.h) + Number(pal.a);
+      if (!Number.isNaN(s) && s > best) best = s;
+    }
+    return best;
+  };
+  const sonhador = topEmpatados((p) => melhorSomaPalpite(p.id), 4);
 
   /* 🐑 Manada / 🦄 Do Contra — quem mais seguiu (ou mais fugiu) do placar mais palpitado pela galera
      (só conta jogos com mín. 3 palpites e uma maioria real, mín. 2 iguais) */
@@ -764,14 +786,16 @@ function EstatisticasInutils({ ranking, palpitesMap, jogos }) {
   const doContra = topEmpatados((p) => fugiuManada[p.id] || 0, 1);
 
   const premios = [
-    { emoji: "🥄", titulo: "Lanterna", ps: lanternaPs, detalhe: `${piorColocado.pontos} pt${plural(piorColocado.pontos)} · ${piorColocado.exatos} exato${plural(piorColocado.exatos)}` },
+    { emoji: "🔦", titulo: "Lanterna", ps: lanternaPs, detalhe: `${piorColocado.pontos} pt${plural(piorColocado.pontos)} · ${piorColocado.exatos} exato${plural(piorColocado.exatos)}` },
     peFrio && { emoji: "🧊", titulo: "Pé Frio", ps: peFrio.ps, detalhe: `${peFrio.valor} zero${plural(peFrio.valor)} em jogos encerrados` },
     otimista && { emoji: "🔮", titulo: "Otimista", ps: otimista.ps, detalhe: `média ${otimista.valor.toFixed(1)} gols/jogo` },
     sniper && { emoji: "🎯", titulo: "Sniper", ps: sniper.ps, detalhe: `${sniper.valor.toFixed(0)}% de placares exatos` },
     sr1x0 && { emoji: "⚽", titulo: "Sr. 1×0", ps: sr1x0.ps, detalhe: `palpitou 1×0 em ${sr1x0.valor} jogo${plural(sr1x0.valor)}` },
     trave && { emoji: "🦍", titulo: "Trave", ps: trave.ps, detalhe: `errou por 1 gol em ${trave.valor} jogo${plural(trave.valor)}` },
-    empatador && { emoji: "🎰", titulo: "Empatador", ps: empatador.ps, detalhe: `cravou empate em ${empatador.valor} jogo${plural(empatador.valor)}` },
+    empatador && { emoji: "🎰", titulo: "Empatador", ps: empatador.ps, detalhe: `palpitou empate em ${empatador.valor} jogo${plural(empatador.valor)}` },
+    equilibrista && { emoji: "⚖️", titulo: "Equilibrista", ps: equilibrista.ps, detalhe: `cravou o empate em ${equilibrista.valor} jogo${plural(equilibrista.valor)}` },
     festival && { emoji: "🎆", titulo: "Festival de Gols", ps: festival.ps, detalhe: `cravou um jogo de ${festival.valor} gols` },
+    sonhador && { emoji: "🎇", titulo: "Sonhador de Gols", ps: sonhador.ps, detalhe: `palpitou um jogo de ${sonhador.valor} gols` },
     manada && { emoji: "🐑", titulo: "Manada", ps: manada.ps, detalhe: `seguiu a maioria em ${manada.valor} jogo${plural(manada.valor)}` },
     doContra && { emoji: "🦄", titulo: "Do Contra", ps: doContra.ps, detalhe: `discordou da maioria em ${doContra.valor} jogo${plural(doContra.valor)}` },
   ].filter(Boolean);
