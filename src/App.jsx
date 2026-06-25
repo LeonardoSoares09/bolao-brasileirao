@@ -1048,7 +1048,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
         await navigator.clipboard.writeText(msg);
         setAviso("Texto copiado! Cole no WhatsApp 📋");
       } catch {
-        window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+        window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
       }
     }
   };
@@ -1662,6 +1662,24 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
     finally { setToggling(null); }
   };
 
+  const regenerarLink = async (p) => {
+    /* Guard anti-lockout: trocar o próprio token invalida a sessão atual do
+       admin (o token está na URL/localStorage). Bloqueia pra não se trancar. */
+    if (p.id === estado.eu.id) {
+      setAviso("Não dá pra trocar o seu próprio link por aqui — peça pra outro organizador.");
+      return;
+    }
+    if (!window.confirm(`Gerar um link NOVO para ${p.nome}?\n\nO link antigo dele para de funcionar na hora — você vai precisar enviar o novo.`)) return;
+    try {
+      await api("/api/participante", {
+        method: "PUT",
+        body: JSON.stringify({ t: token, id: p.id, regenerarToken: true }),
+      });
+      await carregarLista();
+      setAviso(`Link novo de ${p.nome} gerado — copie e mande pra ele 📲`);
+    } catch (e) { setAviso(e.message); }
+  };
+
   const copiarLink = async (p) => {
     const url = `${window.location.origin}/?t=${p.token}`;
     try {
@@ -1761,6 +1779,13 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
             <button className="botao-fantasma" onClick={() => copiarLink(p)}>
               {copiado === p.id ? "✓ Copiado" : "📋 Copiar link"}
             </button>
+            {p.id !== estado.eu.id && (
+              <button
+                className="botao-fantasma"
+                onClick={() => regenerarLink(p)}
+                title="Gera um link novo e invalida o antigo (sem apagar os palpites)"
+              >🔄 Novo link</button>
+            )}
             <button className="apagar" onClick={() => remover(p.id)} aria-label={`Remover ${p.nome}`}>✕</button>
           </div>
         ))}

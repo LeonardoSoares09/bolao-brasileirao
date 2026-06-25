@@ -57,6 +57,23 @@ export default async function handler(req, res) {
       res.status(400).json({ error: "id obrigatório" });
       return;
     }
+    /* Regenerar token: gera um link novo e invalida o antigo, SEM apagar os
+       palpites (diferente do DELETE, que cascateia). Para quando um link vaza
+       ou foi pro contato errado. Aditivo: chamadas de "pagou" não mandam esta
+       flag, então o comportamento antigo do PUT fica intacto. */
+    if (req.body?.regenerarToken === true) {
+      const novoToken = randomBytes(12).toString("hex");
+      const rows = await sql`
+        UPDATE participantes SET token = ${novoToken} WHERE id = ${id}
+        RETURNING id, nome, token
+      `;
+      if (rows.length === 0) {
+        res.status(404).json({ error: "Participante não encontrado" });
+        return;
+      }
+      res.status(200).json({ ok: true, participante: rows[0] });
+      return;
+    }
     const pagou = req.body?.pagou === true;
     await sql`UPDATE participantes SET pagou = ${pagou} WHERE id = ${id}`;
     res.status(200).json({ ok: true });
