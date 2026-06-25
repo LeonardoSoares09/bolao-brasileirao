@@ -18,7 +18,16 @@ function pontosAntigo(palpite, jogo) {
   if (sinal(ph, pa) === sinal(jogo.gh, jogo.ga)) return 1;
   return 0;
 }
-function rankingAntigo(estado, palpitesMap, hojeKey, chaveData, primeiroPalpiteMap) {
+/* mesma regra do compararAntecedencia em ranking.js: maior média vence,
+   quem tem dado vence quem não tem, empate real → 0 */
+function cmpAnt(antA, antB) {
+  const temA = antA != null, temB = antB != null;
+  if (temA && temB) return antB - antA;
+  if (temA) return -1;
+  if (temB) return 1;
+  return 0;
+}
+function rankingAntigo(estado, palpitesMap, hojeKey, chaveData, antecedenciaMap) {
   return estado.participantes.map((p) => {
     let bonus = 0;
     const re = estado.resultadoEspecial;
@@ -39,13 +48,12 @@ function rankingAntigo(estado, palpitesMap, hojeKey, chaveData, primeiroPalpiteM
     (b.acertouCampeao ? 1 : 0) - (a.acertouCampeao ? 1 : 0) ||
     (b.acertouArtilheiro ? 1 : 0) - (a.acertouArtilheiro ? 1 : 0) ||
     b.resultados - a.resultados ||
-    (primeiroPalpiteMap[a.id] && primeiroPalpiteMap[b.id]
-      ? new Date(primeiroPalpiteMap[a.id]) - new Date(primeiroPalpiteMap[b.id]) : 0));
+    cmpAnt(antecedenciaMap[a.id], antecedenciaMap[b.id]));
 }
-function rankingNovo(estado, palpitesMap, hojeKey, chaveData, primeiroPalpiteMap) {
+function rankingNovo(estado, palpitesMap, hojeKey, chaveData, antecedenciaMap) {
   return estado.participantes
     .map((p) => calcularStats(p, estado, palpitesMap, { jogos: estado.jogos, hojeKey, chaveData }))
-    .sort((a, b) => compararRanking(a, b, primeiroPalpiteMap));
+    .sort((a, b) => compararRanking(a, b, antecedenciaMap));
 }
 
 /* ---- cenário sintético com jogos encerrados, ao vivo, bônus e desempate ---- */
@@ -80,9 +88,10 @@ const palpitesMap = {
   12: { 1: { h: 1, a: 0 }, 2: { h: 2, a: 0 }, 3: { h: 1, a: 0 }, 4: { h: 1, a: 0 }, 5: { h: 0, a: 1 } },
   14: { 1: { h: 3, a: 1 }, 2: { h: 2, a: 1 }, 3: { h: 1, a: 1 }, 4: { h: 3, a: 1 }, 5: { h: 0, a: 0 } }, // Ana e Duda cravam 3×1 hoje
 };
-const primeiroPalpiteMap = {
-  1: "2026-06-01T10:00:00Z", 2: "2026-06-01T11:00:00Z", 3: "2026-06-01T09:00:00Z",
-  4: "2026-06-02T10:00:00Z", 5: "2026-06-01T08:00:00Z",
+/* antecedência média em segundos antes do kickoff (maior = mais cedo = vence).
+   Valores distintos pra que qualquer empate total seja resolvido por aqui. */
+const antecedenciaMap = {
+  1: 100000, 2: 90000, 3: 120000, 4: 50000, 5: 70000,
 };
 
 /* 1) pontosDoPalpite idêntico em todos os jogos/palpites */
@@ -93,8 +102,8 @@ for (const j of estado.jogos) for (const pid of [1, 2, 3, 4, 5]) {
 }
 
 /* 2) ranking principal: ordem E stats idênticos */
-const velho = rankingAntigo(estado, palpitesMap, hojeKey, chaveData, primeiroPalpiteMap);
-const novo = rankingNovo(estado, palpitesMap, hojeKey, chaveData, primeiroPalpiteMap);
+const velho = rankingAntigo(estado, palpitesMap, hojeKey, chaveData, antecedenciaMap);
+const novo = rankingNovo(estado, palpitesMap, hojeKey, chaveData, antecedenciaMap);
 check(velho.length === novo.length, "tamanho do ranking diferente");
 for (let i = 0; i < velho.length; i++) {
   const a = velho[i], b = novo[i];
@@ -119,7 +128,7 @@ for (let i = 0; i < novo.length; i++) for (let j = 0; j < novo.length; j++) {
   if (i === j) continue;
   const c = criterioDesempate(novo[i], novo[j]);
   if (c) {
-    const cmp = compararRanking(novo[i], novo[j], primeiroPalpiteMap);
+    const cmp = compararRanking(novo[i], novo[j], antecedenciaMap);
     check(cmp !== 0, `criterioDesempate diz "${c.label}" mas comparador empatou (${novo[i].nome} vs ${novo[j].nome})`);
   }
 }

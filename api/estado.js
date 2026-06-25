@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const [participantes, jogos, contagens, palpitesCampeao, palpitesArtilheiro, resultadoEspecialRows, premiadosArtilheiro, primeiroPalpitesRows, reacoesRows] = await Promise.all([
+  const [participantes, jogos, contagens, palpitesCampeao, palpitesArtilheiro, resultadoEspecialRows, premiadosArtilheiro, antecedenciaRows, reacoesRows] = await Promise.all([
     sql`SELECT id, nome, is_admin, avatar_emoji, avatar_cor, pagou FROM participantes ORDER BY nome`,
     sql`SELECT id, casa, fora, kickoff, gh, ga, fase, live FROM jogos ORDER BY kickoff NULLS LAST, id`,
     sql`SELECT jogo_id, COUNT(*)::int AS total FROM palpites GROUP BY jogo_id`,
@@ -23,7 +23,19 @@ export default async function handler(req, res) {
       : sql`SELECT participante_id, jogador FROM palpite_artilheiro WHERE confirmado = TRUE`,
     sql`SELECT tipo, valor, confirmado FROM resultado_especial`,
     sql`SELECT participante_id FROM artilheiro_premiado`,
-    sql`SELECT participante_id, MIN(criado_em) AS primeiro_palpite FROM palpites GROUP BY participante_id`,
+    /* Desempate (5º critério): ANTECEDÊNCIA MÉDIA — quão antes do kickoff a
+       pessoa costuma palpitar, em segundos (kickoff - criado_em), média sobre
+       todos os jogos que ela palpitou e que têm horário. Maior = mais rápida.
+       Premia consistência (não a data de entrada), então não penaliza quem
+       entrou depois do 1º jogo. Só jogos com kickoff definido entram. */
+    sql`
+      SELECT p.participante_id,
+             AVG(EXTRACT(EPOCH FROM (j.kickoff - p.criado_em))) AS antecedencia_seg
+      FROM palpites p
+      JOIN jogos j ON j.id = p.jogo_id
+      WHERE j.kickoff IS NOT NULL
+      GROUP BY p.participante_id
+    `,
     sql`SELECT jogo_id, participante_id, emoji FROM reacoes`,
   ]);
 
@@ -54,7 +66,7 @@ export default async function handler(req, res) {
     palpitesArtilheiro,
     reacoes: reacoesRows,
     premiadosArtilheiro: premiadosArtilheiro.map((r) => r.participante_id),
-    primeiroPalpites: primeiroPalpitesRows.map((r) => ({ participante_id: r.participante_id, ts: r.primeiro_palpite })),
+    antecedenciaMedia: antecedenciaRows.map((r) => ({ participante_id: r.participante_id, segundos: Number(r.antecedencia_seg) })),
     resultadoEspecial: { campeao: reMap.campeao || null, artilheiro: reMap.artilheiro || null },
     agora: new Date().toISOString(),
   });

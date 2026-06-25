@@ -67,6 +67,30 @@ palpites). Agora dá pra gerar um link novo preservando os palpites.
   próprio `estado.eu.id` — trocar o próprio token invalidaria a sessão atual do
   admin. Master token (`eu.id === null`) não é participante, então não afetado.
 
+### [x] Regra — 5º critério de desempate: média de antecedência
+**Status:** aplicado (aguardando deploy).
+**Por quê:** o 5º critério era "quem fez o **primeiro palpite** mais cedo"
+(`MIN(criado_em)`), o que **penalizava permanentemente quem entrou depois do 1º
+jogo** — vantagem estrutural pros fundadores. Não era bug (código, regras no app
+e regras escritas batiam), era uma regra injusta.
+**Nova regra:** desempata por **antecedência média** — quão antes do kickoff a
+pessoa costuma palpitar (`AVG(kickoff - criado_em)` em segundos, sobre os jogos
+que ela palpitou e que têm horário). Maior = mais rápida = vence. Premia
+consistência, ignora data de entrada. Quem tem dado vence quem não tem; empate
+real (mesma média) → divisão do prêmio.
+**Arquivos:**
+- `api/estado.js` → query agora calcula `antecedencia_seg` via `AVG(EXTRACT(EPOCH
+  FROM (j.kickoff - p.criado_em)))`; campo retornado renomeado de
+  `primeiroPalpites` → `antecedenciaMedia` (`{participante_id, segundos}`).
+- `src/ranking.js` → `compararRanking` usa `compararAntecedencia` (maior média
+  primeiro); label do `criterioDesempate` virou "palpita com mais antecedência".
+- `src/App.jsx` → consome `estado.antecedenciaMedia` (var `antecedenciaMap`);
+  texto do `ModalRegras` (5º) atualizado.
+- `src/ranking.test.mjs` → referência e mapa do teste atualizados; **passa**.
+**⚠️ As regras publicadas FORA do app** (onde você colou a lista) também precisam
+trocar o 5º item pra: *"Quem palpita com mais antecedência (média antes do
+apito)"*.
+
 ### [x] Item 8 — `window.open` do WhatsApp com `noopener`
 **Status:** aplicado. `src/App.jsx` ~linha 1051: `window.open(..., "_blank",
 "noopener")`. Risco era irrelevante (destino confiável), mas é boa prática.

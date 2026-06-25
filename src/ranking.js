@@ -63,20 +63,30 @@ export function calcularStats(p, estado, palpitesMap, opts = {}) {
   return { ...p, pontos, exatos, resultados, bonus, exatosHoje, acertouCampeao, acertouArtilheiro };
 }
 
+/* 5º critério de desempate: ANTECEDÊNCIA MÉDIA (segundos antes do kickoff).
+   Maior = palpita mais cedo, em média = vence. Quem tem dado vence quem não tem
+   (não palpitou nenhum jogo com horário). Empate real (mesma média ou ambos sem
+   dado) cai pra divisão do prêmio. */
+function compararAntecedencia(antA, antB) {
+  const temA = antA != null, temB = antB != null;
+  if (temA && temB) return antB - antA; // maior média primeiro
+  if (temA) return -1;                   // só A tem dado → A na frente
+  if (temB) return 1;                    // só B tem dado → B na frente
+  return 0;                              // empate técnico
+}
+
 /* Comparador canônico do ranking. MESMA ordem do criterioDesempate abaixo —
    precisam ficar em sincronia (antes estavam em dois lugares com regras
    diferentes, o que gerava setas de tendência falsas: item M2).
-   primeiroPalpiteMap: { [participante_id]: timestamp do 1º palpite }. */
-export function compararRanking(a, b, primeiroPalpiteMap = {}) {
+   antecedenciaMap: { [participante_id]: antecedência média em segundos }. */
+export function compararRanking(a, b, antecedenciaMap = {}) {
   return (
     b.pontos - a.pontos ||
     b.exatos - a.exatos ||
     (b.acertouCampeao ? 1 : 0) - (a.acertouCampeao ? 1 : 0) ||
     (b.acertouArtilheiro ? 1 : 0) - (a.acertouArtilheiro ? 1 : 0) ||
     b.resultados - a.resultados ||
-    (primeiroPalpiteMap[a.id] && primeiroPalpiteMap[b.id]
-      ? new Date(primeiroPalpiteMap[a.id]) - new Date(primeiroPalpiteMap[b.id])
-      : 0)
+    compararAntecedencia(antecedenciaMap[a.id], antecedenciaMap[b.id])
   );
 }
 
@@ -88,5 +98,5 @@ export function criterioDesempate(a, b) {
   if (!!a.acertouCampeao !== !!b.acertouCampeao) return { icon: "🏆", label: "acertou a campeã" };
   if (!!a.acertouArtilheiro !== !!b.acertouArtilheiro) return { icon: "⚽", label: "acertou o artilheiro" };
   if (a.resultados !== b.resultados) return { icon: "✅", label: "mais resultados" };
-  return { icon: "⏱", label: "palpitou antes" };
+  return { icon: "⏱", label: "palpita com mais antecedência" };
 }

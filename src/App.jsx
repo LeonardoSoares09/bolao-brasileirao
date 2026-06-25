@@ -263,12 +263,12 @@ export default function App() {
 
   const hojeKey = fmtSP(Date.now() + offsetRef.current);
 
-  const primeiroPalpiteMap = {};
-  for (const r of estado.primeiroPalpites || []) primeiroPalpiteMap[r.participante_id] = r.ts;
+  const antecedenciaMap = {};
+  for (const r of estado.antecedenciaMedia || []) antecedenciaMap[r.participante_id] = r.segundos;
 
   const ranking = estado.participantes
     .map((p) => calcularStats(p, estado, palpitesMap, { jogos: estado.jogos, hojeKey, chaveData }))
-    .sort((a, b) => compararRanking(a, b, primeiroPalpiteMap));
+    .sort((a, b) => compararRanking(a, b, antecedenciaMap));
 
   /* posições antes dos jogos de hoje — para setas de tendência.
      Usa o MESMO comparador do ranking (compararRanking), só que sobre os jogos
@@ -284,7 +284,7 @@ export default function App() {
     );
     estado.participantes
       .map((p) => calcularStats(p, estado, palpitesMap, { jogos: jogosAntes }))
-      .sort((a, b) => compararRanking(a, b, primeiroPalpiteMap))
+      .sort((a, b) => compararRanking(a, b, antecedenciaMap))
       .forEach((p, i) => { posAntes[p.id] = i; });
   }
 
@@ -2861,7 +2861,7 @@ function ModalRegras({ onFechar }) {
           <div className="regras-item"><span className="pts pts-3">2º</span><span>Acertou a seleção campeã</span></div>
           <div className="regras-item"><span className="pts pts-3">3º</span><span>Acertou o artilheiro da Copa</span></div>
           <div className="regras-item"><span className="pts pts-1">4º</span><span>Mais resultados certos</span></div>
-          <div className="regras-item"><span className="pts pts-0">5º</span><span>Quem enviou o primeiro palpite mais cedo</span></div>
+          <div className="regras-item"><span className="pts pts-0">5º</span><span>Quem palpita com mais antecedência (média antes do apito)</span></div>
 
           <div className="regras-secao">Prêmio 🏆</div>
           <p className="regras-p">
