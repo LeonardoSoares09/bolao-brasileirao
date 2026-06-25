@@ -116,11 +116,14 @@ API controla esses dados; o boundary é a rede de segurança.
 
 ## ⚪ Cosmético (não vale o risco de mexer)
 
-- **Item 7:** no ranking, jogo **ao vivo** conta pro critério de desempate
-  `exatos` (não só `pontos`) → micro-oscilação de posição entre empatados durante
-  a partida; corrige sozinho no fim. `src/ranking.js` `calcularStats`. **Não
-  mexido:** alterar isso mexe na lógica de pontuação (que decide quem ganha) —
-  risco alto pra um ganho puramente estético. Deixar como está.
+- **Item 7 — INTENCIONAL, NÃO MEXER (decisão de produto):** no ranking, jogo
+  **ao vivo** conta pro critério de desempate `exatos` (não só `pontos`), então a
+  posição entre empatados oscila durante a partida e só estabiliza no apito
+  final. `src/ranking.js` `calcularStats`.
+  **Não é bug — é recurso.** O dono decidiu manter de propósito: a oscilação ao
+  vivo dá uma sensação de poder/tensão na hora do jogo, e a "ilusão" quando a
+  cravada não se confirma faz parte da graça do bolão. Além disso, mexer aqui
+  tocaria na lógica que decide quem ganha. **Deixar exatamente como está.**
 
 ---
 
@@ -136,7 +139,7 @@ API controla esses dados; o boundary é a rede de segurança.
 | 2 | remover `debug-status` | ⏳ manter até medir o ao vivo |
 | 4 | segredo do cron na URL | ⏳ exige reconfig externa primeiro |
 | 5 | rate limiting | 🟢 ok nesta escala |
-| 7 | `exatos` ao vivo no desempate | ⚪ cosmético, não mexer |
+| 7 | `exatos` ao vivo no desempate | ✋ intencional (decisão de produto) — não mexer |
 
 ## Como verificar após o deploy
 
