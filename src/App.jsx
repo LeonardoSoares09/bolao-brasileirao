@@ -66,6 +66,33 @@ function lerToken() {
   }
 }
 
+/* Lê o estado salvo em cache, mas SÓ devolve se tiver o formato esperado.
+   O estado serve de render inicial (antes do fetch) — se for de um deploy
+   antigo e faltar um campo (ex.: `jogos`), o primeiro render estoura de
+   forma síncrona e o app some, deixando só o fundo verde. Validar o formato
+   evita que um cache velho "brique" quem já abriu o app antes. */
+function lerEstadoCache(token) {
+  try {
+    const c = localStorage.getItem(`bolao-${token}`);
+    if (!c) return null;
+    const e = JSON.parse(c);
+    const ok =
+      e && typeof e === "object" &&
+      e.eu && typeof e.eu === "object" &&
+      Array.isArray(e.jogos) &&
+      Array.isArray(e.participantes) &&
+      Array.isArray(e.palpites) &&
+      Array.isArray(e.contagens);
+    if (!ok) {
+      localStorage.removeItem(`bolao-${token}`);
+      return null;
+    }
+    return e;
+  } catch {
+    return null;
+  }
+}
+
 /* Contagem animada (placar de estádio subindo) */
 function useCountUp(valor, dur = 800) {
   const [v, setV] = useState(valor);
@@ -91,9 +118,7 @@ function useCountUp(valor, dur = 800) {
 
 export default function App() {
   const [token] = useState(lerToken);
-  const [estado, setEstado] = useState(() => {
-    try { const c = localStorage.getItem(`bolao-${lerToken()}`); return c ? JSON.parse(c) : null; } catch { return null; }
-  });
+  const [estado, setEstado] = useState(() => lerEstadoCache(lerToken()));
   const [erroAuth, setErroAuth] = useState("");
   const [tab, setTab] = useState(() => {
     try { return localStorage.getItem("bolao-tab") || "ranking"; } catch { return "ranking"; }
