@@ -4284,6 +4284,7 @@ function Estilo() {
       @keyframes fade-modal { from { opacity: 0; } to { opacity: 1; } }
       .modal-painel {
         width: 100%; max-width: 680px; max-height: 84vh; overflow-y: auto;
+        color: var(--giz); /* cor base do texto (modais via portal ficam fora do .bolao-root) */
         background: var(--grama); border: 2px solid var(--linha); border-bottom: none;
         border-radius: calc(var(--r) + 4px) calc(var(--r) + 4px) 0 0;
         padding: 18px 16px 48px;
