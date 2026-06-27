@@ -43,9 +43,9 @@ export default async function handler(req, res) {
   for (const r of resultadoEspecialRows) reMap[r.tipo] = { valor: r.valor, confirmado: r.confirmado };
 
   const palpites = eu.isAdmin
-    ? await sql`SELECT jogo_id, participante_id, h, a FROM palpites`
+    ? await sql`SELECT jogo_id, participante_id, h, a, criado_em FROM palpites`
     : await sql`
-        SELECT p.jogo_id, p.participante_id, p.h, p.a
+        SELECT p.jogo_id, p.participante_id, p.h, p.a, p.criado_em
         FROM palpites p
         JOIN jogos j ON j.id = p.jogo_id
         WHERE p.participante_id = ${eu.id ?? -1}

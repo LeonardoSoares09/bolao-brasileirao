@@ -42,6 +42,28 @@ function fmtHora(m) {
   return d.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
 }
 
+/* momento absoluto de um ISO (dd/mm hh:mm em SP) */
+function fmtMomento(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+/* quanto antes do kickoff o palpite foi feito (ex.: "3d 5h antes") */
+function fmtAntecedencia(kickoff, criadoIso) {
+  if (!kickoff || !criadoIso) return "";
+  const diff = new Date(kickoff).getTime() - new Date(criadoIso).getTime();
+  if (!(diff > 0)) return "";
+  const min = Math.floor(diff / 60000);
+  const d = Math.floor(min / 1440);
+  const h = Math.floor((min % 1440) / 60);
+  const m = min % 60;
+  if (d > 0) return `${d}d ${h}h antes`;
+  if (h > 0) return `${h}h ${m}min antes`;
+  return `${m}min antes`;
+}
+
 /* kickoff (ISO do banco) -> valor de input datetime-local */
 function kickoffParaInput(iso) {
   if (!iso) return "";
@@ -264,7 +286,7 @@ export default function App() {
   /* mapa de palpites: jogoId -> participanteId -> {h, a} */
   const palpitesMap = {};
   for (const p of estado.palpites) {
-    (palpitesMap[p.jogo_id] ||= {})[p.participante_id] = { h: p.h, a: p.a };
+    (palpitesMap[p.jogo_id] ||= {})[p.participante_id] = { h: p.h, a: p.a, criado_em: p.criado_em };
   }
   const contagensMap = {};
   for (const c of estado.contagens) contagensMap[c.jogo_id] = c.total;
@@ -1639,6 +1661,13 @@ function LinhaPalpite({ jogo, participante, palpite, bloqueado, destaque, token,
         )}
         {encerrado && pts === null && <span className="pts pts-0">—</span>}
       </div>
+      {palpite?.criado_em && (() => {
+        const txt = [fmtAntecedencia(jogo.kickoff, palpite.criado_em), fmtMomento(palpite.criado_em)]
+          .filter(Boolean).join(" · ");
+        return txt
+          ? <div className="palpite-quando" title="Quando o palpite foi registrado (1º envio) — comprovação do desempate por antecedência">⏱ {txt}</div>
+          : null;
+      })()}
     </div>
   );
 }
@@ -3759,7 +3788,12 @@ function Estilo() {
         animation: sobe .35s var(--t) both;
       }
 
-      .palpite-linha { display: flex; align-items: center; gap: 10px; }
+      .palpite-linha { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+      .palpite-quando {
+        flex-basis: 100%; width: 100%;
+        font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+        letter-spacing: .04em; color: rgba(242,246,239,.42);
+      }
       .palpite-nome { flex: 1; font-size: 18px; font-weight: 600; letter-spacing: .03em; display: flex; align-items: center; gap: 8px; overflow: hidden; min-width: 0; }
       .palpite-inputs { display: flex; align-items: center; gap: 6px; }
       .palpite-time-flag { display: flex; align-items: center; opacity: .75; line-height: 1; }
