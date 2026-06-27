@@ -2516,6 +2516,7 @@ function Campeao({ token, euId }) {
 
   const [carregando, setCarregando] = useState(true);
   const [aviso, setAviso] = useState("");
+  const [sub, setSub] = useState("campeao"); // sub-aba: "campeao" | "artilheiro"
 
   const carregar = useCallback(async () => {
     try {
@@ -2622,9 +2623,24 @@ function Campeao({ token, euId }) {
 
   return (
     <div>
-      {!isMaster && (
+      <div className="segmento" role="tablist" aria-label="Campeão ou artilheiro">
+        <button
+          type="button" role="tab" aria-selected={sub === "campeao"}
+          className={"segmento-btn" + (sub === "campeao" ? " segmento-btn-ativo" : "")}
+          onClick={() => setSub("campeao")}
+        >🏆 Campeão</button>
+        <button
+          type="button" role="tab" aria-selected={sub === "artilheiro"}
+          className={"segmento-btn" + (sub === "artilheiro" ? " segmento-btn-ativo" : "")}
+          onClick={() => setSub("artilheiro")}
+        >⚽ Artilheiro</button>
+      </div>
+
+      {sub === "campeao" && (
         <>
-          <div className="secao-titulo">SELEÇÃO CAMPEÃ 🏆</div>
+          {!isMaster && (
+            <>
+              <div className="secao-titulo">SEU PALPITE</div>
 
           {confirmado ? (
             <div className="cartao meu-palpite" style={{ textAlign: "center", padding: "22px 16px" }}>
@@ -2700,8 +2716,34 @@ function Campeao({ token, euId }) {
               )}
             </div>
           )}
+            </>
+          )}
 
-          <div className="secao-titulo" style={{ marginTop: "22px" }}>ARTILHEIRO DA COPA ⚽</div>
+          <div className="secao-titulo">QUEM JÁ CONFIRMOU</div>
+          {confirmados.length === 0 ? (
+            <Vazio texto="Nenhum palpite confirmado ainda — seja o primeiro!" />
+          ) : (
+            confirmados.map((c, i) => (
+              <div
+                key={c.participante_id}
+                className={"cartao palpite-linha entra-cartao" + (c.participante_id === euId ? " meu-palpite" : "")}
+                style={{ "--i": Math.min(i, 8) }}
+              >
+                <span className="palpite-nome">
+                  {c.nome}{c.participante_id === euId ? " (você)" : ""}
+                </span>
+                <span className="pts pts-1">{c.selecao}</span>
+              </div>
+            ))
+          )}
+        </>
+      )}
+
+      {sub === "artilheiro" && (
+        <>
+          {!isMaster && (
+            <>
+              <div className="secao-titulo">SEU PALPITE</div>
 
           {confirmadoArt ? (
             <div className="cartao meu-palpite" style={{ textAlign: "center", padding: "22px 16px" }}>
@@ -2767,46 +2809,30 @@ function Campeao({ token, euId }) {
               )}
             </div>
           )}
+            </>
+          )}
 
-          {aviso && <p className="dica toast" role="status">{aviso}</p>}
+          <div className="secao-titulo">QUEM JÁ CONFIRMOU</div>
+          {confirmadosArt.length === 0 ? (
+            <Vazio texto="Nenhum palpite confirmado ainda — seja o primeiro!" />
+          ) : (
+            confirmadosArt.map((c, i) => (
+              <div
+                key={c.participante_id}
+                className={"cartao palpite-linha entra-cartao" + (c.participante_id === euId ? " meu-palpite" : "")}
+                style={{ "--i": Math.min(i, 8) }}
+              >
+                <span className="palpite-nome">
+                  {c.nome}{c.participante_id === euId ? " (você)" : ""}
+                </span>
+                <span className="pts pts-1">{c.jogador}</span>
+              </div>
+            ))
+          )}
         </>
       )}
 
-      <div className="secao-titulo">CAMPEÃO CONFIRMADO</div>
-      {confirmados.length === 0 ? (
-        <Vazio texto="Nenhum palpite confirmado ainda — seja o primeiro!" />
-      ) : (
-        confirmados.map((c, i) => (
-          <div
-            key={c.participante_id}
-            className={"cartao palpite-linha entra-cartao" + (c.participante_id === euId ? " meu-palpite" : "")}
-            style={{ "--i": Math.min(i, 8) }}
-          >
-            <span className="palpite-nome">
-              {c.nome}{c.participante_id === euId ? " (você)" : ""}
-            </span>
-            <span className="pts pts-1">{c.selecao}</span>
-          </div>
-        ))
-      )}
-
-      <div className="secao-titulo">ARTILHEIRO CONFIRMADO</div>
-      {confirmadosArt.length === 0 ? (
-        <Vazio texto="Nenhum palpite confirmado ainda — seja o primeiro!" />
-      ) : (
-        confirmadosArt.map((c, i) => (
-          <div
-            key={c.participante_id}
-            className={"cartao palpite-linha entra-cartao" + (c.participante_id === euId ? " meu-palpite" : "")}
-            style={{ "--i": Math.min(i, 8) }}
-          >
-            <span className="palpite-nome">
-              {c.nome}{c.participante_id === euId ? " (você)" : ""}
-            </span>
-            <span className="pts pts-1">{c.jogador}</span>
-          </div>
-        ))
-      )}
+      {aviso && <p className="dica toast" role="status">{aviso}</p>}
     </div>
   );
 }
@@ -3222,6 +3248,25 @@ function Estilo() {
       .prox-fechar:hover { opacity: 1; }
 
       .abas { display: flex; gap: 0; border: 2px solid var(--linha); border-radius: var(--r); overflow: hidden; margin-bottom: 18px; background: rgba(0,0,0,.18); }
+
+      /* sub-abas internas (ex.: Campeão | Artilheiro): controle segmentado em pílula */
+      .segmento {
+        display: flex; gap: 4px; margin-bottom: 16px;
+        background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.1);
+        border-radius: 999px; padding: 4px;
+      }
+      .segmento-btn {
+        flex: 1; padding: 9px 12px; border: none; cursor: pointer;
+        background: transparent; color: var(--giz); border-radius: 999px;
+        font: 700 13px 'Barlow Condensed', sans-serif; letter-spacing: .06em; text-transform: uppercase;
+        transition: background-color var(--t), color var(--t), box-shadow var(--t);
+      }
+      .segmento-btn:hover:not(.segmento-btn-ativo) { background: rgba(255,255,255,.06); }
+      .segmento-btn-ativo {
+        background: var(--ambar); color: var(--ambar-escuro); font-weight: 800;
+        box-shadow: 0 1px 6px rgba(255,197,61,.25);
+      }
+      .segmento-btn:focus-visible { outline: 3px solid var(--ambar); outline-offset: 2px; }
       .aba {
         flex: 1; padding: 10px 4px; background: transparent; color: var(--giz);
         border: none; border-right: 2px solid var(--linha);
