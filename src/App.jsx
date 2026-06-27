@@ -1115,8 +1115,137 @@ function Countdown({ kickoff, offsetMs = 0 }) {
   );
 }
 
+/* ================= ESTATÍSTICAS DO JOGO (100% client-side) ================= */
+
+/* grupo inferido dos nossos próprios jogos: na fase de grupos (round-robin de
+   4), os times que enfrentam casa/fora são justamente os 4 do grupo. Mata-mata
+   não tem grupo (devolve []). */
+function grupoDoJogo(jogos, jogo) {
+  if (jogo.fase !== "grupos") return [];
+  const { casa: a, fora: b } = jogo;
+  const set = new Set([a, b]);
+  for (const j of jogos) {
+    if (j.fase !== "grupos") continue;
+    if (j.casa === a || j.fora === a || j.casa === b || j.fora === b) {
+      set.add(j.casa); set.add(j.fora);
+    }
+  }
+  return [...set];
+}
+
+/* tabela do grupo calculada dos nossos jogos (inclui ao vivo via temPlacar). */
+function tabelaDoGrupo(jogos, times) {
+  const tset = new Set(times);
+  const tab = {};
+  for (const t of times) tab[t] = { time: t, j: 0, v: 0, e: 0, d: 0, gp: 0, gc: 0, pts: 0 };
+  for (const j of jogos) {
+    if (j.fase !== "grupos" || !tset.has(j.casa) || !tset.has(j.fora) || !temPlacar(j)) continue;
+    const A = tab[j.casa], B = tab[j.fora];
+    A.j++; B.j++;
+    A.gp += j.gh; A.gc += j.ga; B.gp += j.ga; B.gc += j.gh;
+    if (j.gh > j.ga) { A.v++; A.pts += 3; B.d++; }
+    else if (j.gh < j.ga) { B.v++; B.pts += 3; A.d++; }
+    else { A.e++; B.e++; A.pts++; B.pts++; }
+  }
+  return Object.values(tab)
+    .map((r) => ({ ...r, sg: r.gp - r.gc }))
+    .sort((x, y) => y.pts - x.pts || y.sg - x.sg || y.gp - x.gp || x.time.localeCompare(y.time, "pt-BR"));
+}
+
+/* últimos jogos do time NO TORNEIO (só nossos dados), mais recentes primeiro. */
+function formaDoTime(jogos, time, limite = 5) {
+  return jogos
+    .filter((j) => (j.casa === time || j.fora === time) && temPlacar(j) && j.kickoff)
+    .sort((a, b) => new Date(b.kickoff) - new Date(a.kickoff))
+    .slice(0, limite)
+    .map((j) => {
+      const emCasa = j.casa === time;
+      const gf = emCasa ? j.gh : j.ga;
+      const gc = emCasa ? j.ga : j.gh;
+      return { id: j.id, adversario: emCasa ? j.fora : j.casa, gf, gc, res: gf > gc ? "V" : gf < gc ? "D" : "E" };
+    });
+}
+
+const STAT_RES_LABEL = { V: "Vitória", E: "Empate", D: "Derrota" };
+
+function ModalEstatisticas({ jogo, jogos, onFechar }) {
+  const grupo = grupoDoJogo(jogos, jogo);
+  const tabela = grupo.length ? tabelaDoGrupo(jogos, grupo) : [];
+
+  const blocoForma = (time) => {
+    const forma = formaDoTime(jogos, time);
+    return (
+      <div className="stat-forma-bloco">
+        <div className="stat-forma-time">
+          <span className="stat-forma-nome">{fl(time)}{time}</span>
+          <span className="stat-forma-badges">
+            {forma.length === 0
+              ? <span className="stat-forma-vazio">sem jogos ainda</span>
+              : forma.map((f) => <span key={f.id} className={"stat-badge stat-badge-" + f.res} title={STAT_RES_LABEL[f.res]}>{f.res}</span>)}
+          </span>
+        </div>
+        {forma.map((f) => (
+          <div key={f.id} className="stat-forma-linha">
+            <span className={"stat-res stat-res-" + f.res}>{STAT_RES_LABEL[f.res]}</span>
+            <span className="stat-forma-placar">
+              {fl(time)} <strong>{f.gf}–{f.gc}</strong> {fl(f.adversario)}{f.adversario}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onFechar}>
+      <div className="modal-painel" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-nome">📊 {jogo.casa} × {jogo.fora}</div>
+          <button className="apagar" onClick={onFechar} aria-label="Fechar">✕</button>
+        </div>
+
+        {jogo.kickoff && <p className="stat-data">{fmtQuando(jogo)}</p>}
+
+        {tabela.length > 0 && (
+          <>
+            <div className="secao-titulo">CLASSIFICAÇÃO DO GRUPO</div>
+            <div className="stat-tabela-wrap">
+              <table className="stat-tabela">
+                <thead>
+                  <tr>
+                    <th className="stat-th-time">Equipe</th>
+                    <th>PTS</th><th>J</th><th>V</th><th>E</th><th>D</th><th>GP</th><th>GC</th><th>SG</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tabela.map((r, i) => {
+                    const on = r.time === jogo.casa || r.time === jogo.fora;
+                    return (
+                      <tr key={r.time} className={on ? "stat-row-on" : ""}>
+                        <td className="stat-td-time">{i + 1} {fl(r.time)}{r.time}</td>
+                        <td className="stat-pts">{r.pts}</td>
+                        <td>{r.j}</td><td>{r.v}</td><td>{r.e}</td><td>{r.d}</td><td>{r.gp}</td><td>{r.gc}</td>
+                        <td className={r.sg > 0 ? "stat-sg-pos" : r.sg < 0 ? "stat-sg-neg" : ""}>{r.sg > 0 ? "+" : ""}{r.sg}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        <div className="secao-titulo">ÚLTIMOS JOGOS NA COPA</div>
+        {blocoForma(jogo.casa)}
+        {blocoForma(jogo.fora)}
+      </div>
+    </div>
+  );
+}
+
 /* ================= JOGOS ================= */
 function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, recarregar, offsetMs = 0 }) {
+  const [statsJogo, setStatsJogo] = useState(null);
   const [casa, setCasa] = useState("");
   const [fora, setFora] = useState("");
   const [kickoff, setKickoff] = useState("");
@@ -1405,6 +1534,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                       {!encerrado && !travado && faltam > 0 && m.kickoff && (
                         <Countdown kickoff={m.kickoff} offsetMs={offsetMs} />
                       )}
+                      <button className="stat-btn" onClick={() => setStatsJogo(m)}>📊 Estatísticas</button>
                     </div>
                     {ehAdmin ? (
                       <ResultadoAdmin jogo={m} salvar={salvarResultado} remover={() => delJogo(m.id)} emAndamento={travado && !encerrado} />
@@ -1437,6 +1567,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
       })()}
 
       {ehAdmin && <BonusAdmin token={token} estado={estado} recarregar={recarregar} />}
+      {statsJogo && <ModalEstatisticas jogo={statsJogo} jogos={estado.jogos} onFechar={() => setStatsJogo(null)} />}
     </div>
   );
 }
@@ -3923,6 +4054,55 @@ function Estilo() {
       .jogo-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; flex-wrap: wrap; }
       .jogo-quando { font-family: 'IBM Plex Mono', monospace; font-size: 11px; opacity: .7; }
       .jogo-resultado { display: flex; align-items: center; gap: 6px; }
+
+      /* botão de estatísticas no card de jogo */
+      .stat-btn {
+        margin-top: 8px; align-self: flex-start;
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 5px 11px; border-radius: 999px; cursor: pointer;
+        background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.16);
+        color: rgba(242,246,239,.8);
+        font: 700 11px 'Barlow Condensed', sans-serif; letter-spacing: .06em; text-transform: uppercase;
+        transition: border-color var(--t), background-color var(--t), color var(--t);
+      }
+      .stat-btn:hover { border-color: var(--ambar); color: var(--ambar); background: rgba(255,197,61,.08); }
+
+      /* modal de estatísticas: tabela do grupo */
+      .stat-data { text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: rgba(242,246,239,.55); margin: -4px 0 14px; }
+      .stat-tabela-wrap { overflow-x: auto; margin-bottom: 4px; }
+      .stat-tabela { width: 100%; border-collapse: collapse; font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+      .stat-tabela th { font-size: 9px; letter-spacing: .06em; color: rgba(255,255,255,.4); font-weight: 700; padding: 6px 3px; text-align: center; text-transform: uppercase; }
+      .stat-tabela th.stat-th-time { text-align: left; padding-left: 4px; }
+      .stat-tabela td { padding: 9px 3px; text-align: center; border-top: 1px solid rgba(255,255,255,.07); color: var(--giz); }
+      .stat-td-time { text-align: left !important; white-space: nowrap; padding-left: 4px !important; }
+      .stat-pts { font-weight: 800; color: var(--ambar); }
+      .stat-row-on { background: rgba(255,197,61,.08); }
+      .stat-sg-pos { color: #7ee2a0; }
+      .stat-sg-neg { color: var(--erro); }
+
+      /* modal de estatísticas: forma / últimos jogos */
+      .stat-forma-bloco {
+        background: rgba(0,0,0,.25); border: 1px solid var(--linha); border-radius: var(--r);
+        padding: 10px 12px; margin-bottom: 10px;
+      }
+      .stat-forma-time { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 16px; margin-bottom: 8px; }
+      .stat-forma-nome { display: inline-flex; align-items: center; min-width: 0; }
+      .stat-forma-badges { display: inline-flex; gap: 4px; margin-left: auto; flex-shrink: 0; }
+      .stat-badge {
+        width: 19px; height: 19px; border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
+        font: 700 10px 'IBM Plex Mono', monospace; color: #fff;
+      }
+      .stat-badge-V { background: #2f9e5e; }
+      .stat-badge-E { background: #6b7280; }
+      .stat-badge-D { background: #b54a3f; }
+      .stat-forma-vazio { font-size: 12px; color: rgba(242,246,239,.45); font-weight: 400; }
+      .stat-forma-linha { display: flex; align-items: center; gap: 12px; padding: 5px 0; font-size: 14px; }
+      .stat-res { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; width: 60px; flex-shrink: 0; }
+      .stat-res-V { color: #7ee2a0; }
+      .stat-res-E { color: rgba(242,246,239,.6); }
+      .stat-res-D { color: var(--erro); }
+      .stat-forma-placar { display: inline-flex; align-items: center; gap: 6px; }
 
       .placar-final {
         font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 20px;
