@@ -1814,9 +1814,19 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
     </div>
   ) : null;
 
+  const pote = estado.participantes.length * VALOR_ENTRADA;
+  const PremioCard = estado.participantes.length > 0 ? (
+    <div className="premio-card">
+      <div className="premio-eyebrow">🏆 EM JOGO</div>
+      <div className="premio-valor">R$ {pote}</div>
+      <div className="premio-sub">{estado.participantes.length} × R$ {VALOR_ENTRADA} · 1º lugar leva tudo</div>
+    </div>
+  ) : null;
+
   if (!ehAdmin) {
     return (
       <div>
+        {PremioCard}
         <TimerPagamento />
         {BotaoInstalar}
         {estado.participantes.length === 0 && <Vazio texto="Ainda não há participantes." />}
@@ -1835,6 +1845,7 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
 
   return (
     <div>
+      {PremioCard}
       <div className="cartao form-jogo">
         <div className="form-linha">
           <input value={nome} onChange={(e) => setNome(e.target.value)}
@@ -3296,6 +3307,26 @@ function Estilo() {
         box-shadow: 0 1px 6px rgba(255,197,61,.25);
       }
       .segmento-btn:focus-visible { outline: 3px solid var(--ambar); outline-offset: 2px; }
+
+      /* card "o que está em jogo" (aba Galera) */
+      .premio-card {
+        text-align: center; margin-bottom: 16px;
+        border: 2px solid rgba(255,197,61,.45); border-radius: var(--r);
+        background: linear-gradient(180deg, rgba(255,197,61,.12), rgba(255,197,61,.03));
+        padding: 18px 16px;
+      }
+      .premio-eyebrow {
+        font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+        letter-spacing: .18em; color: var(--ambar); margin-bottom: 6px;
+      }
+      .premio-valor {
+        font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 44px;
+        color: var(--ambar); text-shadow: 0 0 16px rgba(255,197,61,.45); line-height: 1;
+      }
+      .premio-sub {
+        font-size: 14px; color: var(--giz); opacity: .9;
+        margin-top: 8px; letter-spacing: .02em;
+      }
       .aba {
         flex: 1; padding: 10px 4px; background: transparent; color: var(--giz);
         border: none; border-right: 2px solid var(--linha);
