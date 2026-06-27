@@ -3493,6 +3493,20 @@ function Estilo() {
     <style>{`
       @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=IBM+Plex+Mono:wght@500;700&display=swap');
 
+      /* variáveis no :root também — modais via portal (document.body) ficam fora
+         do .bolao-root e precisam resolver as cores igual. */
+      :root {
+        --grama: #071a0e;
+        --grama2: #0b2a17;
+        --linha: rgba(255,255,255,.28);
+        --giz: #f2f6ef;
+        --ambar: #ffc53d;
+        --ambar-escuro: #1a1408;
+        --erro: #ff7b6b;
+        --t: .22s cubic-bezier(.2,.7,.3,1);
+        --r: 6px;
+      }
+
       .bolao-root {
         --grama: #071a0e;
         --grama2: #0b2a17;
