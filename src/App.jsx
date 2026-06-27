@@ -20,6 +20,13 @@ const VALOR_ENTRADA = 20; // R$ por participante
 const DEADLINE_PAGAMENTO = new Date("2026-06-13T21:59:00Z"); // 18:59 BRT (UTC-3)
 const DEADLINE_PAGAMENTO_LABEL = "13/06 às 18:59";
 
+/* Lembrete de palpites: só jogos começando em até 26h (jogos do dia + madrugada
+   seguinte). Depois de fechado, reaparece faltando 2h e depois 30min pro mais
+   próximo (estágios 0=no dia, 1=2h, 2=30min). */
+const LEMBRETE_JANELA = 26 * 60 * 60 * 1000;
+const LEMBRETE_2H = 2 * 60 * 60 * 1000;
+const LEMBRETE_30MIN = 30 * 60 * 1000;
+
 const reduzMovimento = () =>
   typeof window !== "undefined" &&
   window.matchMedia &&
@@ -48,6 +55,29 @@ function fmtMomento(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+/* jogos abertos (em até 26h) que EU ainda não palpitei, + estágio de urgência
+   do mais próximo: 0 = no dia, 1 = faltam ≤2h, 2 = faltam ≤30min, -1 = nenhum. */
+function analisarLembrete(estado, nowMs) {
+  const eu = estado?.eu?.id;
+  if (eu == null) return { pendentes: [], nearest: null, stage: -1 };
+  const meus = new Set();
+  for (const p of estado.palpites) if (p.participante_id === eu) meus.add(p.jogo_id);
+  const pendentes = estado.jogos
+    .filter((m) => m.kickoff && !temResultado(m) && !meus.has(m.id))
+    .filter((m) => {
+      const t = new Date(m.kickoff).getTime() - nowMs;
+      return t > 0 && t <= LEMBRETE_JANELA;
+    })
+    .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
+  const nearest = pendentes[0] || null;
+  let stage = -1;
+  if (nearest) {
+    const t = new Date(nearest.kickoff).getTime() - nowMs;
+    stage = t <= LEMBRETE_30MIN ? 2 : t <= LEMBRETE_2H ? 1 : 0;
+  }
+  return { pendentes, nearest, stage };
 }
 
 /* quanto antes do kickoff o palpite foi feito (ex.: "3d 5h antes") */
@@ -156,13 +186,20 @@ export default function App() {
   const [abrirPerfil, setAbrirPerfil] = useState(false);
   const [abrirRegras, setAbrirRegras] = useState(false);
   const [abrirPagamento, setAbrirPagamento] = useState(false);
+  const [abrirLembrete, setAbrirLembrete] = useState(false);
   const [participanteModal, setParticipanteModal] = useState(null);
   const [proximoFechado, setProximoFechado] = useState(false);
   const [jogoPreSel, setJogoPreSel] = useState(null);
   const offsetRef = useRef(0);
   const rankingJaAbriu = useRef(false);
   const pagamentoVerificado = useRef(false);
-  const [, setTick] = useState(0);
+  const lembreteDismiss = useRef(undefined); // { jogoId: estágioJáFechado } (localStorage)
+  if (lembreteDismiss.current === undefined) {
+    let d = {};
+    try { d = JSON.parse(localStorage.getItem("bolao-lembrete") || "{}"); } catch { /* ignore */ }
+    lembreteDismiss.current = d && typeof d === "object" ? d : {};
+  }
+  const [tick, setTick] = useState(0);
   const [installPrompt, setInstallPrompt] = useState(null);
 
   const carregar = useCallback(async () => {
@@ -193,6 +230,36 @@ export default function App() {
     const euP = estado.participantes.find((p) => p.id === estado.eu.id);
     if (euP && !euP.pagou && !estado.eu.isAdmin) setAbrirPagamento(true);
   }, [estado]);
+
+  /* lembrete de palpites: abre quando o estágio de urgência do jogo pendente
+     mais próximo ultrapassa o que o usuário já fechou. Reavalia na carga e a
+     cada tick (30s), então escalona sozinho para 2h e 30min. Pagamento tem
+     prioridade (não empilha). */
+  useEffect(() => {
+    if (!estado || abrirPagamento || abrirLembrete) return;
+    const { nearest, stage } = analisarLembrete(estado, Date.now() + offsetRef.current);
+    if (!nearest || stage < 0) return;
+    const jaFechado = lembreteDismiss.current[nearest.id] ?? -1;
+    if (stage > jaFechado) setAbrirLembrete(true);
+  }, [estado, tick, abrirPagamento, abrirLembrete]);
+
+  const fecharLembrete = useCallback(() => {
+    setAbrirLembrete(false);
+    if (!estado) return;
+    const { pendentes, stage } = analisarLembrete(estado, Date.now() + offsetRef.current);
+    if (stage < 0) return;
+    const d = lembreteDismiss.current;
+    for (const m of pendentes) d[m.id] = stage; // marca todos os pendentes neste estágio
+    const ids = new Set(estado.jogos.map((j) => j.id));
+    for (const k of Object.keys(d)) if (!ids.has(Number(k))) delete d[k]; // poda jogos antigos
+    try { localStorage.setItem("bolao-lembrete", JSON.stringify(d)); } catch { /* ignore */ }
+  }, [estado]);
+
+  const palpitarDoLembrete = useCallback(() => {
+    const { nearest } = analisarLembrete(estado, Date.now() + offsetRef.current);
+    fecharLembrete();
+    if (nearest) irParaPalpites(nearest.id);
+  }, [estado, fecharLembrete]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* registra service worker uma vez */
   useEffect(() => {
@@ -362,6 +429,18 @@ export default function App() {
 
       {abrirRegras && <ModalRegras onFechar={() => setAbrirRegras(false)} />}
       {abrirPagamento && <ModalPagamento onFechar={() => setAbrirPagamento(false)} />}
+      {abrirLembrete && !abrirPagamento && (() => {
+        const { pendentes, nearest } = analisarLembrete(estado, Date.now() + offsetRef.current);
+        return nearest ? (
+          <ModalLembretePalpites
+            pendentes={pendentes}
+            nearest={nearest}
+            offsetMs={offsetRef.current}
+            onPalpitar={palpitarDoLembrete}
+            onFechar={fecharLembrete}
+          />
+        ) : null;
+      })()}
 
       {abrirPerfil && estado.eu.id !== null && (
         <PerfilPicker
@@ -2950,6 +3029,66 @@ function ModalPagamento({ onFechar }) {
   );
 }
 
+/* ================= MODAL LEMBRETE DE PALPITES ================= */
+function ModalLembretePalpites({ pendentes, nearest, offsetMs, onPalpitar, onFechar }) {
+  const calc = () => Math.max(0, Math.floor((new Date(nearest.kickoff).getTime() - (Date.now() + offsetMs)) / 1000));
+  const [seg, setSeg] = useState(calc);
+  useEffect(() => {
+    const id = setInterval(() => setSeg(calc()), 1000);
+    return () => clearInterval(id);
+  }, [nearest.kickoff, offsetMs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pad = (n) => String(n).padStart(2, "0");
+  const h = Math.floor(seg / 3600);
+  const m = Math.floor((seg % 3600) / 60);
+  const s = seg % 60;
+  const n = pendentes.length;
+
+  return (
+    <div className="modal-overlay" onClick={onFechar}>
+      <div className="modal-painel modal-pagamento" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-nome">⚽ Faltam seus palpites!</div>
+          <button className="apagar" onClick={onFechar} aria-label="Fechar">✕</button>
+        </div>
+
+        <div className="pagamento-corpo">
+          <p className="pagamento-aviso">
+            Você ainda não palpitou em <strong>{n} jogo{n === 1 ? "" : "s"}</strong> {n === 1 ? "que começa" : "que começam"} em breve.<br/>
+            Palpitar antes ainda vale no desempate! ⏱
+          </p>
+
+          {seg > 0 && (
+            <div className="pagamento-timer">
+              <span className="timer-label">⏰ Próximo jogo em</span>
+              <div className="timer-display">
+                <span className="timer-bloco"><span className="timer-num">{pad(h)}</span><span className="timer-unidade">h</span></span>
+                <span className="timer-sep">:</span>
+                <span className="timer-bloco"><span className="timer-num">{pad(m)}</span><span className="timer-unidade">m</span></span>
+                <span className="timer-sep">:</span>
+                <span className="timer-bloco"><span className="timer-num">{pad(s)}</span><span className="timer-unidade">s</span></span>
+              </div>
+              <span className="timer-data">{nearest.casa} × {nearest.fora}</span>
+            </div>
+          )}
+
+          <div className="lembrete-lista">
+            {pendentes.map((j) => (
+              <div key={j.id} className="lembrete-jogo">
+                <span className="lembrete-jogo-times">{fl(j.casa)}{j.casa} <span className="vs">×</span> {fl(j.fora)}{j.fora}</span>
+                <span className="lembrete-jogo-hora">{fmtQuando(j)}</span>
+              </div>
+            ))}
+          </div>
+
+          <button className="botao botao-largo" onClick={onPalpitar}>✍️ Palpitar agora</button>
+          <button className="botao-fantasma pagamento-fechar" onClick={onFechar}>Agora não</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ModalRegras({ onFechar }) {
   return (
     <div className="modal-overlay" onClick={onFechar}>
@@ -3612,6 +3751,19 @@ function Estilo() {
         gap: 18px; padding: 4px 0 8px;
       }
       .pagamento-aviso { text-align: center; font-size: 14px; color: #ccc; line-height: 1.5; margin: 0; }
+
+      /* lista de jogos sem palpite (modal lembrete) */
+      .lembrete-lista { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+      .lembrete-jogo {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        padding: 10px 12px; border: 1px solid var(--linha); border-radius: var(--r);
+        background: rgba(0,0,0,.25);
+      }
+      .lembrete-jogo-times { font-weight: 700; font-size: 15px; letter-spacing: .02em; }
+      .lembrete-jogo-hora {
+        font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+        color: rgba(242,246,239,.55); white-space: nowrap; flex-shrink: 0;
+      }
       .pagamento-valor {
         font-family: 'IBM Plex Mono', monospace; font-size: 42px; font-weight: 700;
         color: #4ade80; letter-spacing: -.02em;
