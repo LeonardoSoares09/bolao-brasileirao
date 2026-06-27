@@ -1392,6 +1392,16 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
       return s;
     });
   const [anterioresAberto, setAnterioresAberto] = useState(false);
+  const palpiteRef = useRef(null);
+  /* ao escolher um jogo, leva direto para a área do palpite (mesma página) */
+  const selecionar = (id) => {
+    setJogoSel(String(id));
+    const reduz = typeof window !== "undefined" && window.matchMedia
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    requestAnimationFrame(() => {
+      palpiteRef.current?.scrollIntoView({ behavior: reduz ? "auto" : "smooth", block: "start" });
+    });
+  };
 
   if (estado.jogos.length === 0) return <Vazio texto="Ainda não há jogos cadastrados." />;
   if (estado.participantes.length === 0) return <Vazio texto="Ainda não há participantes cadastrados." />;
@@ -1452,7 +1462,7 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
               role="option"
               aria-selected={ativo}
               className={cls}
-              onClick={() => setJogoSel(String(m.id))}
+              onClick={() => selecionar(m.id)}
             >
               <span className="sj-status">
                 <span className="sj-hora">{fmtHora(m)}</span>
@@ -1499,6 +1509,8 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
           </>
         )}
       </div>
+
+      <div ref={palpiteRef} style={{ scrollMarginTop: 12 }} aria-hidden="true" />
 
       {!encerrado && !travado && jogo.kickoff && (
         <Countdown kickoff={jogo.kickoff} offsetMs={offsetMs} />
@@ -3310,13 +3322,10 @@ function Estilo() {
       }
 
       .seletor-jogos {
-        max-height: 50vh;
-        overflow-y: auto;
+        overflow: hidden; /* sem rolagem própria: a página rola normal (mobile) */
         border: 2px solid var(--linha);
         margin-bottom: 14px;
         background: rgba(0,0,0,.22);
-        scrollbar-width: thin;
-        scrollbar-color: var(--linha) transparent;
       }
       .seletor-jogos::-webkit-scrollbar { width: 6px; }
       .seletor-jogos::-webkit-scrollbar-track { background: transparent; }
@@ -3594,7 +3603,6 @@ function Estilo() {
         color: var(--ambar); padding: 6px 12px 5px;
         background: rgba(0,0,0,.4);
         border: none; border-bottom: 1px solid rgba(255,197,61,.2);
-        position: sticky; top: 0; z-index: 1;
         cursor: pointer;
       }
       .seletor-data-header:hover { background: rgba(255,197,61,.08); }
