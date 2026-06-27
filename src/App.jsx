@@ -1167,11 +1167,58 @@ function formaDoTime(jogos, time, limite = 5) {
     });
 }
 
+/* Snapshot de Elo (World Football Elo, ~2026) por código de país — chaveado
+   pelo MESMO código que o FLAG_CODES, então casa com o nome do jogo em PT ou EN.
+   É uma ESTIMATIVA: serve pra dar uma noção de favoritismo, não é odds. */
+const ELO_BASE = {
+  ar:2130, fr:2095, es:2085, br:2035, "gb-eng":2010, pt:1995, nl:1975, de:1965,
+  it:1910, hr:1905, co:1900, ma:1890, be:1880, uy:1875, ch:1840, jp:1835,
+  no:1830, at:1820, tr:1815, dk:1810, us:1800, ir:1800, ec:1790, mx:1790,
+  sn:1790, ca:1765, kr:1760, rs:1760, pl:1745, dz:1720, ng:1720, au:1720,
+  cm:1700, ci:1700, eg:1700, cd:1690, gh:1680, qa:1680, tn:1680, za:1660,
+  ml:1660, cr:1640, pa:1635, sa:1635, uz:1620, hn:1585, jo:1565, cv:1560,
+  iq:1555, nz:1505,
+};
+
+/* Elo ajustado pelos resultados JÁ ENCERRADOS do torneio — mantém o snapshot
+   fresco conforme a Copa anda. Fórmula padrão (K=40 + multiplicador de saldo). */
+function eloAjustado(jogos) {
+  const elo = { ...ELO_BASE };
+  const finais = jogos
+    .filter((j) => temResultado(j) && j.kickoff)
+    .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
+  for (const j of finais) {
+    const ca = FLAG_CODES[j.casa], cb = FLAG_CODES[j.fora];
+    if (elo[ca] == null || elo[cb] == null) continue;
+    const exp = 1 / (1 + Math.pow(10, -(elo[ca] - elo[cb]) / 400));
+    const real = j.gh > j.ga ? 1 : j.gh < j.ga ? 0 : 0.5;
+    const gd = Math.abs(j.gh - j.ga);
+    const mult = gd <= 1 ? 1 : gd === 2 ? 1.5 : 1.75 + (gd - 3) / 8;
+    const delta = 40 * mult * (real - exp);
+    elo[ca] += delta; elo[cb] -= delta;
+  }
+  return elo;
+}
+
+/* probabilidades vitória/empate/derrota a partir do Elo (estimativa). */
+function chancesDoJogo(elo, casa, fora) {
+  const ea = elo[FLAG_CODES[casa]], eb = elo[FLAG_CODES[fora]];
+  if (ea == null || eb == null) return null;
+  const we = 1 / (1 + Math.pow(10, -(ea - eb) / 400)); // score esperado da casa (0..1)
+  const empate = 0.30 * (1 - Math.abs(2 * we - 1));
+  const casaP = Math.max(0, we - empate / 2);
+  const foraP = Math.max(0, 1 - we - empate / 2);
+  const s = casaP + empate + foraP || 1;
+  return { casa: casaP / s, empate: empate / s, fora: foraP / s };
+}
+
 const STAT_RES_LABEL = { V: "Vitória", E: "Empate", D: "Derrota" };
 
 function ModalEstatisticas({ jogo, jogos, onFechar }) {
   const grupo = grupoDoJogo(jogos, jogo);
   const tabela = grupo.length ? tabelaDoGrupo(jogos, grupo) : [];
+  const chances = chancesDoJogo(eloAjustado(jogos), jogo.casa, jogo.fora);
+  const pct = (x) => Math.round(x * 100);
 
   const blocoForma = (time) => {
     const forma = formaDoTime(jogos, time);
@@ -1206,6 +1253,41 @@ function ModalEstatisticas({ jogo, jogos, onFechar }) {
         </div>
 
         {jogo.kickoff && <p className="stat-data">{fmtQuando(jogo)}</p>}
+
+        {chances && (
+          <>
+            <div className="secao-titulo">CHANCES DE GANHAR <span className="stat-estimativa">· estimativa</span></div>
+            <div className="stat-chances">
+              <div className="stat-chance">
+                <div className="stat-chance-top">
+                  <span className="stat-chance-nome">
+                    {fl(jogo.casa)}{jogo.casa}
+                    {chances.casa > chances.fora && <span className="stat-fav">Favorito</span>}
+                  </span>
+                  <span className="stat-chance-pct stat-pct-casa">{pct(chances.casa)}%</span>
+                </div>
+                <div className="stat-barra"><div className="stat-barra-fill stat-fill-casa" style={{ width: pct(chances.casa) + "%" }} /></div>
+              </div>
+              <div className="stat-chance">
+                <div className="stat-chance-top">
+                  <span className="stat-chance-nome">Empate</span>
+                  <span className="stat-chance-pct stat-pct-empate">{pct(chances.empate)}%</span>
+                </div>
+                <div className="stat-barra"><div className="stat-barra-fill stat-fill-empate" style={{ width: pct(chances.empate) + "%" }} /></div>
+              </div>
+              <div className="stat-chance">
+                <div className="stat-chance-top">
+                  <span className="stat-chance-nome">
+                    {fl(jogo.fora)}{jogo.fora}
+                    {chances.fora > chances.casa && <span className="stat-fav">Favorito</span>}
+                  </span>
+                  <span className="stat-chance-pct stat-pct-fora">{pct(chances.fora)}%</span>
+                </div>
+                <div className="stat-barra"><div className="stat-barra-fill stat-fill-fora" style={{ width: pct(chances.fora) + "%" }} /></div>
+              </div>
+            </div>
+          </>
+        )}
 
         {tabela.length > 0 && (
           <>
@@ -4082,6 +4164,25 @@ function Estilo() {
         transition: border-color var(--t), background-color var(--t), color var(--t);
       }
       .stat-btn:hover { border-color: var(--ambar); color: var(--ambar); background: rgba(255,197,61,.08); }
+
+      /* modal de estatísticas: chances de ganhar */
+      .stat-estimativa { font-size: 9px; color: rgba(242,246,239,.4); letter-spacing: .04em; text-transform: none; }
+      .stat-chances { display: flex; flex-direction: column; gap: 12px; margin-bottom: 6px; }
+      .stat-chance-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+      .stat-chance-nome { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 15px; }
+      .stat-chance-pct { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 15px; }
+      .stat-pct-casa { color: var(--ambar); }
+      .stat-pct-empate { color: rgba(242,246,239,.7); }
+      .stat-pct-fora { color: #fb923c; }
+      .stat-fav {
+        font: 700 9px 'IBM Plex Mono', monospace; letter-spacing: .06em; text-transform: uppercase;
+        background: rgba(126,226,160,.16); color: #7ee2a0; border-radius: 999px; padding: 2px 7px;
+      }
+      .stat-barra { height: 7px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
+      .stat-barra-fill { height: 100%; border-radius: 999px; transition: width var(--t); }
+      .stat-fill-casa { background: var(--ambar); }
+      .stat-fill-empate { background: rgba(242,246,239,.45); }
+      .stat-fill-fora { background: #fb923c; }
 
       /* modal de estatísticas: tabela do grupo */
       .stat-data { text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: rgba(242,246,239,.55); margin: -4px 0 14px; }
