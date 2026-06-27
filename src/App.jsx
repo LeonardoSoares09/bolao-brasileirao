@@ -1452,7 +1452,7 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
   };
 
   return (
-    <div>
+    <div className="refino-arred">
       <div className="seletor-jogos" role="listbox" aria-label="Selecionar jogo">
         {futuros.map(([chave, grupo]) => renderDia(chave, grupo))}
         {passados.length > 0 && (
@@ -3089,6 +3089,7 @@ function Estilo() {
         --ambar-escuro: #1a1408;
         --erro: #ff7b6b;
         --t: .22s cubic-bezier(.2,.7,.3,1);
+        --r: 6px;
         min-height: 100vh;
         background-color: #071a0e;
         background-image:
@@ -3358,6 +3359,19 @@ function Estilo() {
       }
       .botao-fantasma:hover { background: rgba(255,197,61,.12); transform: translateY(-1px); }
       .botao-fantasma:active { transform: none; }
+
+      /* ===== PILOTO: refinamento de cantos (escopado na aba Palpites) =====
+         Arredonda só os elementos desta aba pra avaliar a direção sem mexer
+         no resto do app. Mantém a identidade âmbar/terminal; só tira a quina.
+         Se aprovado, é só remover o prefixo .refino-arred destas regras. */
+      .refino-arred .seletor-jogos { border-radius: var(--r); }
+      .refino-arred .cartao { border-radius: var(--r); }
+      .refino-arred .cartao:hover { box-shadow: 0 4px 16px rgba(0,0,0,.28); }
+      .refino-arred input { border-radius: calc(var(--r) - 2px); }
+      .refino-arred .seletor-jogo:active:not(.sj-ativo) { background: rgba(255,255,255,.09); }
+      @media (prefers-reduced-motion: reduce) {
+        .refino-arred .cartao:hover { box-shadow: none; }
+      }
 
       .apagar {
         background: transparent; color: var(--erro);
