@@ -2652,7 +2652,7 @@ function Campeao({ token, euId }) {
                 🔒 CONFIRMADO
               </div>
               <div style={{ fontSize: "28px", fontWeight: 800, letterSpacing: ".03em" }}>
-                {meu.selecao}
+                {fl(meu.selecao)}{meu.selecao}
               </div>
             </div>
           ) : (
@@ -2671,7 +2671,7 @@ function Campeao({ token, euId }) {
                     onClick={() => selecionarTime(s)}
                     disabled={salvando || confirmando}
                   >
-                    <span className="campeao-item-nome">{s}</span>
+                    <span className="campeao-item-nome">{fl(s)}{s}</span>
                     {s === selecao && (
                       salvando
                         ? <span className="palpite-status">salvando…</span>
@@ -2732,7 +2732,7 @@ function Campeao({ token, euId }) {
                 <span className="palpite-nome">
                   {c.nome}{c.participante_id === euId ? " (você)" : ""}
                 </span>
-                <span className="pts pts-1">{c.selecao}</span>
+                <span className="pts pts-1">{fl(c.selecao)}{c.selecao}</span>
               </div>
             ))
           )}
