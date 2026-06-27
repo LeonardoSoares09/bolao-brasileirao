@@ -1206,8 +1206,8 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                 className={"nav-ao-vivo" + (aoVivoFiltro ? " nav-ao-vivo-ativo" : "")}
                 onClick={() => setAoVivoFiltro((v) => !v)}
               >
-                <span className="nav-vivo-dot" aria-hidden="true" />
                 Ao vivo
+                <span className="nav-vivo-anel" aria-hidden="true" />
               </button>
               <div className="nav-data-nav">
                 <button
@@ -3541,25 +3541,25 @@ function Estilo() {
       .grupo-data-header:first-child { padding-top: 4px; }
 
       .nav-data {
-        display: flex; align-items: center; justify-content: space-between;
-        gap: 10px; margin-bottom: 12px;
-        padding: 6px 0;
-        border-bottom: 1px solid rgba(255,255,255,.1);
+        display: flex; align-items: center;
+        gap: 10px; margin-bottom: 14px;
       }
+      /* navegador de datas: uma pílula única com setas dentro e label central */
       .nav-data-nav {
-        display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0;
+        flex: 1; min-width: 0;
+        display: flex; align-items: center; gap: 4px;
+        background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.1);
+        border-radius: 999px; padding: 4px 6px;
       }
       .nav-data-seta {
-        flex: none; width: 34px; height: 34px;
-        background: rgba(0,0,0,.3); border: 2px solid var(--linha);
-        color: var(--giz); cursor: pointer; font-size: 20px; line-height: 1;
+        flex: none; width: 30px; height: 30px; border-radius: 50%;
+        background: transparent; border: none;
+        color: var(--ambar); cursor: pointer; font-size: 20px; line-height: 1;
         display: flex; align-items: center; justify-content: center;
-        transition: border-color var(--t), background-color var(--t), opacity var(--t);
+        transition: background-color var(--t), opacity var(--t);
       }
-      .nav-data-seta:hover:not(:disabled) {
-        border-color: rgba(255,255,255,.45); background: rgba(255,255,255,.07);
-      }
-      .nav-data-seta:disabled { opacity: .3; cursor: default; }
+      .nav-data-seta:hover:not(:disabled) { background: rgba(255,197,61,.14); }
+      .nav-data-seta:disabled { opacity: .25; cursor: default; }
       .nav-data-label {
         flex: 1; text-align: center; min-width: 0;
         font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700;
@@ -3567,23 +3567,26 @@ function Estilo() {
         transition: opacity var(--t); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       }
       .nav-data-label-dim { opacity: .35; }
+      /* "Ao vivo": pílula com contorno e texto vermelhos + aro */
       .nav-ao-vivo {
-        flex: none; display: flex; align-items: center; gap: 6px;
-        padding: 6px 12px;
-        background: rgba(0,0,0,.3); border: 2px solid rgba(255,123,107,.4);
-        color: rgba(255,123,107,.85); cursor: pointer; white-space: nowrap;
-        font: 700 11px 'IBM Plex Mono', monospace; letter-spacing: .08em; text-transform: uppercase;
-        transition: border-color var(--t), background-color var(--t), color var(--t);
+        flex: none; display: flex; align-items: center; gap: 7px;
+        padding: 7px 14px; border-radius: 999px;
+        background: rgba(0,0,0,.3); border: 1.5px solid rgba(255,123,107,.45);
+        color: rgba(255,123,107,.9); cursor: pointer; white-space: nowrap;
+        font: 700 12px 'IBM Plex Mono', monospace; letter-spacing: .06em; text-transform: uppercase;
+        transition: border-color var(--t), background-color var(--t), color var(--t), box-shadow var(--t);
       }
       .nav-ao-vivo:hover { border-color: var(--erro); color: var(--erro); background: rgba(255,123,107,.08); }
       .nav-ao-vivo-ativo {
         background: rgba(255,123,107,.15); border-color: var(--erro);
         color: var(--erro); box-shadow: 0 0 12px rgba(255,123,107,.25);
       }
-      .nav-vivo-dot {
-        width: 7px; height: 7px; border-radius: 50%; flex: none;
-        background: var(--erro); animation: pulsa-cd .85s ease-in-out infinite;
+      .nav-vivo-anel {
+        width: 13px; height: 13px; border-radius: 50%; flex: none;
+        border: 2px solid currentColor; background: transparent;
+        animation: pulsa-cd 1.1s ease-in-out infinite;
       }
+      @media (prefers-reduced-motion: reduce) { .nav-vivo-anel { animation: none; } }
       .nav-sem-jogos {
         font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: .06em;
         color: rgba(255,255,255,.45); text-align: center;
