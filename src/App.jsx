@@ -1489,7 +1489,7 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
   };
 
   return (
-    <div className="refino-arred">
+    <div>
       <div className="seletor-jogos" role="listbox" aria-label="Selecionar jogo">
         {futuros.map(([chave, grupo]) => renderDia(chave, grupo))}
         {passados.length > 0 && (
@@ -3221,7 +3221,7 @@ function Estilo() {
       }
       .prox-fechar:hover { opacity: 1; }
 
-      .abas { display: flex; gap: 0; border: 2px solid var(--linha); margin-bottom: 18px; background: rgba(0,0,0,.18); }
+      .abas { display: flex; gap: 0; border: 2px solid var(--linha); border-radius: var(--r); overflow: hidden; margin-bottom: 18px; background: rgba(0,0,0,.18); }
       .aba {
         flex: 1; padding: 10px 4px; background: transparent; color: var(--giz);
         border: none; border-right: 2px solid var(--linha);
@@ -3239,11 +3239,13 @@ function Estilo() {
 
       .cartao {
         border: 2px solid var(--linha);
+        border-radius: var(--r);
         background: rgba(0,0,0,.22);
         padding: 12px 14px; margin-bottom: 10px;
-        transition: border-color var(--t), transform var(--t), background-color var(--t);
+        transition: border-color var(--t), transform var(--t), background-color var(--t), box-shadow var(--t);
       }
-      .cartao:hover { border-color: rgba(255,255,255,.5); }
+      .cartao:hover { border-color: rgba(255,255,255,.5); box-shadow: 0 4px 16px rgba(0,0,0,.28); }
+      @media (prefers-reduced-motion: reduce) { .cartao:hover { box-shadow: none; } }
       .meu-palpite { border-color: var(--ambar); background: rgba(255,197,61,.07); }
 
       .secao-titulo {
@@ -3263,10 +3265,12 @@ function Estilo() {
       input, .seletor {
         width: 100%; min-width: 0;
         background: rgba(0,0,0,.35); color: var(--giz);
-        border: 2px solid var(--linha); padding: 9px 10px;
+        border: 2px solid var(--linha); border-radius: calc(var(--r) - 2px); padding: 9px 10px;
         font: 600 16px 'Barlow Condensed', sans-serif; letter-spacing: .03em;
         transition: border-color var(--t), box-shadow var(--t), opacity var(--t);
       }
+      /* input que serve de "busca" colado numa lista de resultados: arredonda só o topo */
+      input:has(+ .lista-campeao) { border-radius: calc(var(--r) - 2px) calc(var(--r) - 2px) 0 0; }
       input::placeholder { color: rgba(242,246,239,.45); }
       input:hover:not(:disabled), .seletor:hover { border-color: rgba(255,255,255,.45); }
       input:focus, .seletor:focus { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(255,197,61,.22); outline: none; }
@@ -3291,6 +3295,7 @@ function Estilo() {
       .lista-campeao {
         max-height: 230px; overflow-y: auto;
         border: 2px solid var(--linha); border-top: none;
+        border-radius: 0 0 var(--r) var(--r);
         background: rgba(0,0,0,.28);
         scrollbar-width: thin; scrollbar-color: var(--linha) transparent;
         margin-bottom: 0;
@@ -3324,6 +3329,7 @@ function Estilo() {
       .seletor-jogos {
         overflow: hidden; /* sem rolagem própria: a página rola normal (mobile) */
         border: 2px solid var(--linha);
+        border-radius: var(--r);
         margin-bottom: 14px;
         background: rgba(0,0,0,.22);
       }
@@ -3367,7 +3373,7 @@ function Estilo() {
 
       .botao {
         background: var(--ambar); color: var(--ambar-escuro);
-        border: none; padding: 10px 18px; cursor: pointer;
+        border: none; border-radius: var(--r); padding: 10px 18px; cursor: pointer;
         font: 800 15px 'Barlow Condensed', sans-serif;
         letter-spacing: .08em; text-transform: uppercase; white-space: nowrap;
         transition: transform var(--t), box-shadow var(--t), filter var(--t), opacity var(--t);
@@ -3388,7 +3394,7 @@ function Estilo() {
 
       .botao-fantasma {
         background: transparent; color: var(--ambar);
-        border: 2px solid var(--ambar); padding: 6px 12px; cursor: pointer;
+        border: 2px solid var(--ambar); border-radius: var(--r); padding: 6px 12px; cursor: pointer;
         font: 700 13px 'Barlow Condensed', sans-serif;
         letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
         transition: background-color var(--t), transform var(--t);
@@ -3396,18 +3402,7 @@ function Estilo() {
       .botao-fantasma:hover { background: rgba(255,197,61,.12); transform: translateY(-1px); }
       .botao-fantasma:active { transform: none; }
 
-      /* ===== PILOTO: refinamento de cantos (escopado na aba Palpites) =====
-         Arredonda só os elementos desta aba pra avaliar a direção sem mexer
-         no resto do app. Mantém a identidade âmbar/terminal; só tira a quina.
-         Se aprovado, é só remover o prefixo .refino-arred destas regras. */
-      .refino-arred .seletor-jogos { border-radius: var(--r); }
-      .refino-arred .cartao { border-radius: var(--r); }
-      .refino-arred .cartao:hover { box-shadow: 0 4px 16px rgba(0,0,0,.28); }
-      .refino-arred input { border-radius: calc(var(--r) - 2px); }
-      .refino-arred .seletor-jogo:active:not(.sj-ativo) { background: rgba(255,255,255,.09); }
-      @media (prefers-reduced-motion: reduce) {
-        .refino-arred .cartao:hover { box-shadow: none; }
-      }
+      .seletor-jogo:active:not(.sj-ativo) { background: rgba(255,255,255,.09); }
 
       /* ===== Linha de jogo estilo SofaScore (aba Palpites) =====
          3 colunas: status (hora + estado) | times empilhados | placar empilhado.
@@ -3454,7 +3449,7 @@ function Estilo() {
 
       .apagar {
         background: transparent; color: var(--erro);
-        border: 2px solid transparent; cursor: pointer;
+        border: 2px solid transparent; border-radius: var(--r); cursor: pointer;
         font-size: 15px; padding: 4px 8px;
         transition: border-color var(--t), transform var(--t); opacity: .75;
       }
@@ -3676,6 +3671,7 @@ function Estilo() {
       .tag {
         font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
         letter-spacing: .06em; padding: 2px 6px; white-space: nowrap;
+        border-radius: 4px;
         animation: pop .3s var(--t) both;
       }
       @keyframes pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: none; } }
@@ -3792,6 +3788,7 @@ function Estilo() {
       .modal-painel {
         width: 100%; max-width: 680px; max-height: 84vh; overflow-y: auto;
         background: var(--grama); border: 2px solid var(--linha); border-bottom: none;
+        border-radius: calc(var(--r) + 4px) calc(var(--r) + 4px) 0 0;
         padding: 18px 16px 48px;
         animation: sobe .28s var(--t) both;
         scrollbar-width: thin; scrollbar-color: var(--linha) transparent;
