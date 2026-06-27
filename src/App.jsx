@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   PTS_EXATO, PTS_RESULTADO, temPlacar, BONUS_CAMPEAO, BONUS_ARTILHEIRO,
   pontosDoPalpite, calcularStats, compararRanking, criterioDesempate,
@@ -1196,7 +1197,7 @@ function ModalEstatisticas({ jogo, jogos, onFechar }) {
     );
   };
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onFechar}>
       <div className="modal-painel" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
@@ -1239,7 +1240,8 @@ function ModalEstatisticas({ jogo, jogos, onFechar }) {
         {blocoForma(jogo.casa)}
         {blocoForma(jogo.fora)}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
