@@ -1167,17 +1167,23 @@ function formaDoTime(jogos, time, limite = 5) {
     });
 }
 
-/* Snapshot de Elo (World Football Elo, ~2026) por código de país — chaveado
-   pelo MESMO código que o FLAG_CODES, então casa com o nome do jogo em PT ou EN.
-   É uma ESTIMATIVA: serve pra dar uma noção de favoritismo, não é odds. */
+/* Snapshot de Elo (World Football Elo) por código de país — mesma chave do
+   FLAG_CODES, então casa com o nome do jogo em PT ou EN. TOP 20 com valores
+   REAIS de 24/06/2026 (eloratings.net/Wikipedia); demais calibrados na mesma
+   escala. O auto-ajuste pelos resultados da Copa mantém os números frescos.
+   Ainda é estimativa de favoritismo, não odds de mercado. */
 const ELO_BASE = {
-  ar:2130, fr:2095, es:2085, br:2035, "gb-eng":2010, pt:1995, nl:1975, de:1965,
-  it:1910, hr:1905, co:1900, ma:1890, be:1880, uy:1875, ch:1840, jp:1835,
-  no:1830, at:1820, tr:1815, dk:1810, us:1800, ir:1800, ec:1790, mx:1790,
-  sn:1790, ca:1765, kr:1760, rs:1760, pl:1745, dz:1720, ng:1720, au:1720,
-  cm:1700, ci:1700, eg:1700, cd:1690, gh:1680, qa:1680, tn:1680, za:1660,
-  ml:1660, cr:1640, pa:1635, sa:1635, uz:1620, hn:1585, jo:1565, cv:1560,
-  iq:1555, nz:1505,
+  // top 20 — valores reais (24/06/2026)
+  ar:2144, es:2134, fr:2090, "gb-eng":2028, br:2009, co:2006, pt:1988, nl:1972,
+  de:1954, no:1951, jp:1925, ch:1914, mx:1912, hr:1896, ma:1877, dk:1869,
+  it:1869, be:1869, ec:1864, uy:1851,
+  // 21+ — calibrados na mesma escala
+  at:1850, sn:1845, ir:1822, ua:1820, tr:1815, rs:1815, gr:1810, pl:1810,
+  dz:1808, ci:1802, eg:1800, ca:1800, se:1798, py:1796, ng:1795, cm:1790,
+  kr:1788, hu:1786, cz:1784, "gb-sct":1780, cd:1778, "gb-wls":1772, cl:1762,
+  ve:1758, ml:1758, za:1750, gh:1740, tn:1732, au:1730, cv:1702, uz:1700,
+  pa:1698, qa:1688, sa:1680, jm:1678, pe:1772, jo:1660, cr:1658, hn:1640,
+  iq:1638, nz:1505,
 };
 
 /* Elo ajustado pelos resultados JÁ ENCERRADOS do torneio — mantém o snapshot
