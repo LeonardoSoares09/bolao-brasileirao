@@ -193,12 +193,10 @@ export default function App() {
   const offsetRef = useRef(0);
   const rankingJaAbriu = useRef(false);
   const pagamentoVerificado = useRef(false);
-  const lembreteDismiss = useRef(undefined); // { jogoId: estágioJáFechado } (localStorage)
-  if (lembreteDismiss.current === undefined) {
-    let d = {};
-    try { d = JSON.parse(localStorage.getItem("bolao-lembrete") || "{}"); } catch { /* ignore */ }
-    lembreteDismiss.current = d && typeof d === "object" ? d : {};
-  }
+  /* estágio de lembrete já fechado por jogo — SÓ nesta sessão (em memória).
+     Reabrir/recarregar o app zera, então o popup volta a aparecer. Os limiares
+     de 2h/30min continuam escalando dentro da sessão. */
+  const lembreteDismiss = useRef({});
   const [tick, setTick] = useState(0);
   const [installPrompt, setInstallPrompt] = useState(null);
 
@@ -249,10 +247,7 @@ export default function App() {
     const { pendentes, stage } = analisarLembrete(estado, Date.now() + offsetRef.current);
     if (stage < 0) return;
     const d = lembreteDismiss.current;
-    for (const m of pendentes) d[m.id] = stage; // marca todos os pendentes neste estágio
-    const ids = new Set(estado.jogos.map((j) => j.id));
-    for (const k of Object.keys(d)) if (!ids.has(Number(k))) delete d[k]; // poda jogos antigos
-    try { localStorage.setItem("bolao-lembrete", JSON.stringify(d)); } catch { /* ignore */ }
+    for (const m of pendentes) d[m.id] = stage; // marca neste estágio (só nesta sessão)
   }, [estado]);
 
   const palpitarDoLembrete = useCallback(() => {
