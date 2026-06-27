@@ -1183,8 +1183,10 @@ function formaDoTime(jogos, time, limite = 5) {
    escala. O auto-ajuste pelos resultados da Copa mantém os números frescos.
    Ainda é estimativa de favoritismo, não odds de mercado. */
 const ELO_BASE = {
-  // top 20 — valores reais (24/06/2026)
-  ar:2144, es:2134, fr:2090, "gb-eng":2028, br:2009, co:2006, pt:1988, nl:1972,
+  // top 20 — valores reais (24/06/2026). EXCEÇÃO: Portugal calibrado na mão
+  // (Elo cru ~1988) p/ refletir o favoritismo de mercado — o Elo o subestima
+  // por causa da qualificação europeia mais leve frente à CONMEBOL.
+  ar:2144, es:2134, fr:2090, "gb-eng":2028, pt:2035, br:2009, co:2006, nl:1972,
   de:1954, no:1951, jp:1925, ch:1914, mx:1912, hr:1896, ma:1877, dk:1869,
   it:1869, be:1869, ec:1864, uy:1851,
   // 21+ — calibrados na mesma escala
