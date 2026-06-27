@@ -502,6 +502,7 @@ export default function App() {
             onClickParticipante={setParticipanteModal}
             palpitesMap={palpitesMap}
             jogos={estado.jogos}
+            euId={estado.eu.id}
           />
         )}
         {tab === "jogos" && (
@@ -603,7 +604,7 @@ function SeloParcial({ style }) {
   );
 }
 
-function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickParticipante, palpitesMap, jogos }) {
+function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickParticipante, palpitesMap, jogos, euId }) {
   const temAoVivo = (jogos || []).some((m) => m.live && temPlacar(m));
   useEffect(() => { aoAbrir(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (ranking.length === 0)
@@ -687,15 +688,29 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickPar
           );
         })}
       </div>
-      <GraficoEvolucao ranking={ranking} palpitesMap={palpitesMap} jogos={jogos} />
+      <GraficoEvolucao ranking={ranking} palpitesMap={palpitesMap} jogos={jogos} euId={euId} />
       <EstatisticasInutils ranking={ranking} palpitesMap={palpitesMap} jogos={jogos} />
     </div>
   );
 }
 
 /* ================= GRÁFICO DE EVOLUÇÃO ================= */
-function GraficoEvolucao({ ranking, palpitesMap, jogos }) {
+function GraficoEvolucao({ ranking, palpitesMap, jogos, euId }) {
   const [aberto, setAberto] = useState(false);
+
+  /* âncora fixa em destaque: "você" se for participante, senão o líder. */
+  const idPadrao = (euId != null && ranking.some((p) => p.id === euId))
+    ? euId
+    : (ranking[0]?.id ?? null);
+  const [destacados, setDestacados] = useState(() => new Set(idPadrao != null ? [idPadrao] : []));
+  const toggle = (id) => {
+    if (id === idPadrao) return; // âncora não sai
+    setDestacados((prev) => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
+    });
+  };
 
   /* inclui jogo ao vivo (temPlacar) para o último ponto bater com o ranking — M4 */
   const jogosEncerrados = jogos
@@ -719,19 +734,19 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos }) {
 
   const xOf = (i) => ml + (n === 1 ? pw / 2 : (i * pw) / (n - 1));
 
-  const series = ranking.map((p) => {
+  const CORES = ["#ffc53d","#4ade80","#60a5fa","#f472b6","#a78bfa","#fb923c","#34d399","#e879f9","#facc15","#94a3b8"];
+
+  const series = ranking.map((p, si) => {
     let acum = p.bonus;
     const pts = jogosEncerrados.map((j) => {
       acum += pontosDoPalpite(palpitesMap[j.id]?.[p.id], j);
       return acum;
     });
-    return { ...p, pts };
+    return { ...p, pts, cor: p.avatarCor || CORES[si % CORES.length] };
   });
 
   const maxPts = Math.max(...series.flatMap((s) => s.pts), 1);
   const yOf = (v) => mt + ph - (v / maxPts) * ph;
-
-  const CORES = ["#ffc53d","#4ade80","#60a5fa","#f472b6","#a78bfa","#fb923c","#34d399","#e879f9","#facc15","#94a3b8"];
 
   /* rótulos dos nomes à direita: posição ideal = y do último ponto. Quando dois
      ficam colados (empate ou pontuação próxima), os nomes se sobrepõem — então
@@ -739,9 +754,10 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos }) {
      todo. Cada rótulo nudgeado ganha um fio-guia até a ponta real da linha. */
   const GAP = 12;
   const labels = series
-    .map((s, si) => ({
+    .filter((s) => destacados.has(s.id)) /* só os destacados ganham nome */
+    .map((s) => ({
       nome: s.nome.split(" ")[0].slice(0, 9),
-      cor: s.avatarCor || CORES[si % CORES.length],
+      cor: s.cor,
       yReal: yOf(s.pts[n - 1]),
     }))
     .sort((a, b) => a.yReal - b.yReal);
@@ -757,6 +773,7 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos }) {
         📈 Evolução do ranking {temAoVivo && <SeloParcial />} <span className="grafico-chevron">{aberto ? "▲" : "▼"}</span>
       </button>
       {aberto && (
+        <>
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", marginTop: 8 }}>
           {/* grade */}
           {[0.25, 0.5, 0.75, 1].map((f) => (
@@ -767,20 +784,24 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos }) {
           <line x1={ml} y1={mt} x2={ml} y2={mt + ph} stroke="rgba(255,255,255,0.18)" strokeWidth="1" />
           <line x1={ml} y1={mt + ph} x2={ml + pw} y2={mt + ph} stroke="rgba(255,255,255,0.18)" strokeWidth="1" />
 
-          {/* linhas e pontos */}
-          {series.map((s, si) => {
-            const cor = s.avatarCor || CORES[si % CORES.length];
-            const pontos = s.pts.map((v, i) => `${xOf(i)},${yOf(v)}`).join(" ");
-            return (
-              <g key={s.id}>
-                <polyline points={pontos} fill="none" stroke={cor} strokeWidth="2"
-                  strokeLinejoin="round" strokeLinecap="round" opacity="0.92" />
-                {mostrarPontos
-                  ? s.pts.map((v, i) => <circle key={i} cx={xOf(i)} cy={yOf(v)} r="3" fill={cor} />)
-                  : <circle cx={xOf(n - 1)} cy={yOf(s.pts[n - 1])} r="3.5" fill={cor} />}
-              </g>
-            );
-          })}
+          {/* linhas: pelotão apagado primeiro (fundo), destacados por cima */}
+          {[...series]
+            .sort((a, b) => (destacados.has(a.id) ? 1 : 0) - (destacados.has(b.id) ? 1 : 0))
+            .map((s) => {
+              const on = destacados.has(s.id);
+              const pontos = s.pts.map((v, i) => `${xOf(i)},${yOf(v)}`).join(" ");
+              return (
+                <g key={s.id}>
+                  <polyline points={pontos} fill="none"
+                    stroke={on ? s.cor : "rgba(255,255,255,0.10)"}
+                    strokeWidth={on ? 2.6 : 1}
+                    strokeLinejoin="round" strokeLinecap="round" opacity={on ? 0.95 : 1} />
+                  {on && (mostrarPontos
+                    ? s.pts.map((v, i) => <circle key={i} cx={xOf(i)} cy={yOf(v)} r="3" fill={s.cor} />)
+                    : <circle cx={xOf(n - 1)} cy={yOf(s.pts[n - 1])} r="3.5" fill={s.cor} />)}
+                </g>
+              );
+            })}
 
           {/* nomes à direita, sem sobreposição, com fio-guia até a ponta da linha */}
           {labels.map((L, idx) => (
@@ -814,6 +835,26 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos }) {
             </text>
           ))}
         </svg>
+        <div className="grafico-chips" role="group" aria-label="Comparar participantes">
+          {series.map((s) => {
+            const on = destacados.has(s.id);
+            const eu = euId != null && s.id === euId;
+            return (
+              <button
+                key={s.id}
+                className={"grafico-chip" + (on ? " grafico-chip-on" : "")}
+                onClick={() => toggle(s.id)}
+                aria-pressed={on}
+                style={on ? { borderColor: s.cor, color: s.cor } : undefined}
+              >
+                <span className="grafico-chip-dot" style={{ background: on ? s.cor : "rgba(255,255,255,.25)" }} />
+                {s.nome.split(" ")[0].slice(0, 10)}{eu ? " (você)" : ""}
+              </button>
+            );
+          })}
+        </div>
+        <p className="grafico-dica">Toque num nome pra comparar a evolução com a sua.</p>
+        </>
       )}
     </div>
   );
@@ -4194,6 +4235,24 @@ function Estilo() {
       }
       .grafico-toggle:hover { background: rgba(255,197,61,.08); }
       .grafico-chevron { font-size: 9px; opacity: .7; }
+
+      /* chips de comparação do gráfico de evolução */
+      .grafico-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+      .grafico-chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 4px 10px; border-radius: 999px; cursor: pointer;
+        background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.14);
+        color: rgba(242,246,239,.6);
+        font: 700 11px 'Barlow Condensed', sans-serif; letter-spacing: .04em;
+        transition: border-color var(--t), color var(--t), background-color var(--t);
+      }
+      .grafico-chip:hover { background: rgba(255,255,255,.06); }
+      .grafico-chip-on { background: rgba(255,255,255,.07); }
+      .grafico-chip-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+      .grafico-dica {
+        margin: 8px 0 0; font-size: 11px; letter-spacing: .02em;
+        color: rgba(242,246,239,.4);
+      }
 
       .stats-toggle {
         width: 100%; display: flex; align-items: center; justify-content: space-between;
