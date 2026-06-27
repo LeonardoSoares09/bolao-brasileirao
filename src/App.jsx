@@ -34,6 +34,14 @@ function fmtQuando(m) {
   return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+/* só a hora (HH:MM em SP) — a data já vem no cabeçalho do grupo */
+function fmtHora(m) {
+  if (!m.kickoff) return "";
+  const d = new Date(m.kickoff);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
+}
+
 /* kickoff (ISO do banco) -> valor de input datetime-local */
 function kickoffParaInput(iso) {
   if (!iso) return "";
@@ -1427,11 +1435,17 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
         </button>
         {aberto && grupo.map((m) => {
           const enc = temResultado(m);
-          const trav = comecou(m) || enc;
           const ativo = String(m.id) === String(jogo.id);
-          const cls = "seletor-jogo" +
-            (ativo ? " sj-ativo" : "") +
-            (enc ? " sj-enc" : trav ? " sj-trav" : " sj-aberto");
+          const aoVivo = !!m.live;
+          /* mesma regra da aba Jogos: começou, ainda dentro da janela de 4h e a
+             API não confirmou o placar -> "no ar / aguardando" em vez de futuro. */
+          const aguardando = !enc && !aoVivo && comecou(m) && m.kickoff &&
+            (Date.now() + offsetMs) - new Date(m.kickoff).getTime() <= 4 * 60 * 60 * 1000;
+          const temNum = aoVivo || enc;
+          const casaPerdeu = enc && m.gh < m.ga;
+          const foraPerdeu = enc && m.ga < m.gh;
+          const estadoCls = enc ? " sj-st-fim" : aoVivo ? " sj-st-vivo" : aguardando ? " sj-st-aguard" : " sj-st-prox";
+          const cls = "seletor-jogo sj-sofa" + (ativo ? " sj-ativo" : "") + estadoCls;
           return (
             <button
               key={m.id}
@@ -1440,10 +1454,23 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
               className={cls}
               onClick={() => setJogoSel(String(m.id))}
             >
-              <span className="sj-dot" aria-hidden="true" />
-              <span className="sj-nome">{fl(m.casa)}{m.casa} <span className="vs">×</span> {fl(m.fora)}{m.fora}</span>
-              {fmtQuando(m) && <span className="sj-quando">{fmtQuando(m)}</span>}
-              {enc && <span className="sj-placar">{m.gh}:{m.ga}</span>}
+              <span className="sj-status">
+                <span className="sj-hora">{fmtHora(m)}</span>
+                {(aoVivo || aguardando || enc) && (
+                  <span className="sj-estado">
+                    {(aoVivo || aguardando) && <span className="placar-vivo-dot" aria-hidden="true" />}
+                    {aoVivo ? "Ao vivo" : aguardando ? "No ar" : "Fim"}
+                  </span>
+                )}
+              </span>
+              <span className="sj-times">
+                <span className={"sj-time" + (casaPerdeu ? " sj-perdeu" : "")}>{fl(m.casa)}{m.casa}</span>
+                <span className={"sj-time" + (foraPerdeu ? " sj-perdeu" : "")}>{fl(m.fora)}{m.fora}</span>
+              </span>
+              <span className="sj-gols">
+                <span className={"sj-g" + (casaPerdeu ? " sj-perdeu" : "")}>{temNum ? m.gh : "–"}</span>
+                <span className={"sj-g" + (foraPerdeu ? " sj-perdeu" : "")}>{temNum ? m.ga : "–"}</span>
+              </span>
             </button>
           );
         })}
@@ -3372,6 +3399,49 @@ function Estilo() {
       @media (prefers-reduced-motion: reduce) {
         .refino-arred .cartao:hover { box-shadow: none; }
       }
+
+      /* ===== Linha de jogo estilo SofaScore (aba Palpites) =====
+         3 colunas: status (hora + estado) | times empilhados | placar empilhado.
+         Estados de ao vivo / aguardando / encerrado reusam as MESMAS cores e o
+         pontinho pulsante (--erro / --ambar / pulsa-cd) da aba Jogos. */
+      .sj-sofa {
+        display: grid; grid-template-columns: 52px 1fr auto;
+        align-items: center; gap: 10px; padding: 9px 12px;
+      }
+      .sj-status {
+        display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+        font-family: 'IBM Plex Mono', monospace; line-height: 1.15;
+      }
+      .sj-hora { font-size: 12px; color: rgba(242,246,239,.55); }
+      .sj-estado {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: 9px; letter-spacing: .07em; text-transform: uppercase;
+      }
+      .sj-st-vivo .sj-estado { color: var(--erro); }
+      .sj-st-aguard .sj-estado { color: var(--ambar); opacity: .9; }
+      .sj-st-fim .sj-estado { color: rgba(242,246,239,.4); }
+      .sj-st-aguard .placar-vivo-dot { background: var(--ambar); }
+
+      .sj-times {
+        display: flex; flex-direction: column; gap: 5px; min-width: 0;
+      }
+      .sj-time {
+        font: 700 15px 'Barlow Condensed', sans-serif; letter-spacing: .02em;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .sj-perdeu { opacity: .5; font-weight: 600; }
+
+      .sj-gols {
+        display: flex; flex-direction: column; gap: 5px; align-items: center;
+        min-width: 16px; text-align: center;
+        font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 16px;
+        color: rgba(242,246,239,.28);
+      }
+      .sj-gols .sj-g { line-height: 1; }
+      .sj-st-fim .sj-gols { color: var(--ambar); text-shadow: 0 0 8px rgba(255,197,61,.4); }
+      .sj-st-vivo .sj-gols { color: var(--erro); }
+      .sj-st-aguard .sj-gols { color: var(--ambar); opacity: .85; }
+      .sj-gols .sj-g.sj-perdeu { color: rgba(242,246,239,.45); text-shadow: none; opacity: 1; }
 
       .apagar {
         background: transparent; color: var(--erro);
