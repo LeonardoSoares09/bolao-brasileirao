@@ -1383,6 +1383,7 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
       s.has(chave) ? s.delete(chave) : s.add(chave);
       return s;
     });
+  const [anterioresAberto, setAnterioresAberto] = useState(false);
 
   if (estado.jogos.length === 0) return <Vazio texto="Ainda não há jogos cadastrados." />;
   if (estado.participantes.length === 0) return <Vazio texto="Ainda não há participantes cadastrados." />;
@@ -1392,50 +1393,84 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
   const ehAdmin = estado.eu.isAdmin;
   const revelado = travado; /* palpites dos outros só aparecem depois que começa */
 
+  /* separa em "hoje + futuros" (no topo, abertos como antes) e "passados"
+     (recolhidos num único grupo "Jogos anteriores" no rodapé), para que os
+     dias já jogados não empilhem cabeçalhos acima do jogo de hoje. */
+  const grupos = agruparPorData(estado.jogos);
+  const passados = grupos
+    .filter(([c]) => c !== "__semdata__" && c < hoje)
+    .sort((a, b) => (a[0] < b[0] ? 1 : -1)); /* mais recente primeiro */
+  const futuros = grupos
+    .filter(([c]) => c === "__semdata__" || c >= hoje)
+    .sort((a, b) => {
+      if (a[0] === "__semdata__") return 1;
+      if (b[0] === "__semdata__") return -1;
+      return a[0] < b[0] ? -1 : 1; /* mais próximo primeiro */
+    });
+  const nPassados = passados.reduce((s, [, g]) => s + g.length, 0);
+
+  const renderDia = (chave, grupo) => {
+    const aberto = gruposAbertos.has(chave);
+    const encGrupo = grupo.filter(temResultado).length;
+    return (
+      <div key={chave}>
+        <button
+          className="seletor-data-header"
+          onClick={() => toggleGrupo(chave)}
+          aria-expanded={aberto}
+        >
+          <span>{labelData(chave, offsetMs)}</span>
+          <span className="seletor-data-info">
+            {encGrupo > 0 && <span className="seletor-data-cnt">{encGrupo}/{grupo.length}</span>}
+            <span className="seletor-data-chevron">{aberto ? "▾" : "▸"}</span>
+          </span>
+        </button>
+        {aberto && grupo.map((m) => {
+          const enc = temResultado(m);
+          const trav = comecou(m) || enc;
+          const ativo = String(m.id) === String(jogo.id);
+          const cls = "seletor-jogo" +
+            (ativo ? " sj-ativo" : "") +
+            (enc ? " sj-enc" : trav ? " sj-trav" : " sj-aberto");
+          return (
+            <button
+              key={m.id}
+              role="option"
+              aria-selected={ativo}
+              className={cls}
+              onClick={() => setJogoSel(String(m.id))}
+            >
+              <span className="sj-dot" aria-hidden="true" />
+              <span className="sj-nome">{fl(m.casa)}{m.casa} <span className="vs">×</span> {fl(m.fora)}{m.fora}</span>
+              {fmtQuando(m) && <span className="sj-quando">{fmtQuando(m)}</span>}
+              {enc && <span className="sj-placar">{m.gh}:{m.ga}</span>}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="seletor-jogos" role="listbox" aria-label="Selecionar jogo">
-        {agruparPorData(estado.jogos).map(([chave, grupo]) => {
-          const aberto = gruposAbertos.has(chave);
-          const encGrupo = grupo.filter(temResultado).length;
-          return (
-            <div key={chave}>
-              <button
-                className="seletor-data-header"
-                onClick={() => toggleGrupo(chave)}
-                aria-expanded={aberto}
-              >
-                <span>{labelData(chave, offsetMs)}</span>
-                <span className="seletor-data-info">
-                  {encGrupo > 0 && <span className="seletor-data-cnt">{encGrupo}/{grupo.length}</span>}
-                  <span className="seletor-data-chevron">{aberto ? "▾" : "▸"}</span>
-                </span>
-              </button>
-              {aberto && grupo.map((m) => {
-                const enc = temResultado(m);
-                const trav = comecou(m) || enc;
-                const ativo = String(m.id) === String(jogo.id);
-                const cls = "seletor-jogo" +
-                  (ativo ? " sj-ativo" : "") +
-                  (enc ? " sj-enc" : trav ? " sj-trav" : " sj-aberto");
-                return (
-                  <button
-                    key={m.id}
-                    role="option"
-                    aria-selected={ativo}
-                    className={cls}
-                    onClick={() => setJogoSel(String(m.id))}
-                  >
-                    <span className="sj-dot" aria-hidden="true" />
-                    <span className="sj-nome">{fl(m.casa)}{m.casa} <span className="vs">×</span> {fl(m.fora)}{m.fora}</span>
-                    {fmtQuando(m) && <span className="sj-quando">{fmtQuando(m)}</span>}
-                    {enc && <span className="sj-placar">{m.gh}:{m.ga}</span>}
-                  </button>
-                );
-              })}
-            </div>
-          );
-        })}
+        {futuros.map(([chave, grupo]) => renderDia(chave, grupo))}
+        {passados.length > 0 && (
+          <>
+            <button
+              className="seletor-data-header seletor-data-mae"
+              onClick={() => setAnterioresAberto((v) => !v)}
+              aria-expanded={anterioresAberto}
+            >
+              <span>↩ Jogos anteriores</span>
+              <span className="seletor-data-info">
+                <span className="seletor-data-cnt">{nPassados}</span>
+                <span className="seletor-data-chevron">{anterioresAberto ? "▾" : "▸"}</span>
+              </span>
+            </button>
+            {anterioresAberto && passados.map(([chave, grupo]) => renderDia(chave, grupo))}
+          </>
+        )}
       </div>
 
       {!encerrado && !travado && jogo.kickoff && (
@@ -3485,6 +3520,16 @@ function Estilo() {
         background: rgba(255,197,61,.15); border-radius: 3px; padding: 1px 5px;
       }
       .seletor-data-chevron { font-size: 11px; opacity: .8; }
+      .seletor-data-mae {
+        color: var(--cinza, #9aa0a6);
+        background: rgba(0,0,0,.55);
+        border-top: 1px solid rgba(255,197,61,.12);
+        border-bottom-color: rgba(255,255,255,.06);
+      }
+      .seletor-data-mae:hover { background: rgba(255,255,255,.05); }
+      .seletor-data-mae .seletor-data-cnt {
+        background: rgba(255,255,255,.1); opacity: .8;
+      }
 
       .flag-img { display: inline-block; vertical-align: middle; border-radius: 2px; margin-right: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
 
