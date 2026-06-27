@@ -10,6 +10,22 @@
 import { acaoResultados } from "./futebol.js";
 
 export default async function handler(req, res) {
+  /* DIAGNÓSTICO TEMPORÁRIO — remover depois. Não vaza o valor: só comprimentos
+     e se bate. Ajuda a ver se a env CRON_SECRET chegou neste deploy. */
+  if (req.query?.diag === "1") {
+    const env = process.env.CRON_SECRET || "";
+    const key = String(req.query?.key || "");
+    res.status(200).json({
+      envPresent: !!process.env.CRON_SECRET,
+      envLen: env.length,
+      keyLen: key.length,
+      exactMatch: env === key,
+      trimMatch: env.trim() === key.trim(),
+      hasFootballKey: !!process.env.FOOTBALL_DATA_KEY,
+    });
+    return;
+  }
+
   const auth = req.headers.authorization || "";
   const viaHeader = auth === `Bearer ${process.env.CRON_SECRET}`;
   const viaQuery = req.query?.key === process.env.CRON_SECRET ||
