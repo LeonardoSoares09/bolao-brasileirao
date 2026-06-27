@@ -191,6 +191,7 @@ export default function App() {
   const [participanteModal, setParticipanteModal] = useState(null);
   const [proximoFechado, setProximoFechado] = useState(false);
   const [jogoPreSel, setJogoPreSel] = useState(null);
+  const [statsPreSel, setStatsPreSel] = useState(null);
   const offsetRef = useRef(0);
   const rankingJaAbriu = useRef(false);
   const pagamentoVerificado = useRef(false);
@@ -313,6 +314,12 @@ export default function App() {
   const irParaPalpites = useCallback((jogoId) => {
     setJogoPreSel(jogoId);
     setTab("palpites");
+  }, []);
+
+  /* abre a aba Jogos já com o modal de estatísticas do jogo aberto */
+  const verEstatisticas = useCallback((jogoId) => {
+    setStatsPreSel(jogoId);
+    setTab("jogos");
   }, []);
 
   /* hora do SERVIDOR (relógio do celular do amigo não manda aqui) */
@@ -516,6 +523,8 @@ export default function App() {
             token={token}
             recarregar={carregar}
             offsetMs={offsetRef.current}
+            statsInicial={statsPreSel}
+            onStatsConsumido={() => setStatsPreSel(null)}
           />
         )}
         {tab === "palpites" && (
@@ -527,6 +536,7 @@ export default function App() {
             recarregar={carregar}
             offsetMs={offsetRef.current}
             jogoInicial={jogoPreSel}
+            onVerStats={verEstatisticas}
           />
         )}
         {tab === "campeao" && (
@@ -1334,8 +1344,13 @@ function ModalEstatisticas({ jogo, jogos, onFechar }) {
 }
 
 /* ================= JOGOS ================= */
-function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, recarregar, offsetMs = 0 }) {
-  const [statsJogo, setStatsJogo] = useState(null);
+function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, recarregar, offsetMs = 0, statsInicial = null, onStatsConsumido }) {
+  const [statsJogo, setStatsJogo] = useState(
+    () => (statsInicial ? estado.jogos.find((j) => j.id === statsInicial) || null : null)
+  );
+  /* veio da aba Palpites pedindo as stats deste jogo: já abriu acima; limpa o
+     pré-seleção no App pra não reabrir ao voltar pra esta aba. */
+  useEffect(() => { if (statsInicial && onStatsConsumido) onStatsConsumido(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [casa, setCasa] = useState("");
   const [fora, setFora] = useState("");
   const [kickoff, setKickoff] = useState("");
@@ -1715,7 +1730,7 @@ function ResultadoAdmin({ jogo, salvar, remover, emAndamento = false }) {
 }
 
 /* ================= PALPITES ================= */
-function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 0, jogoInicial = null }) {
+function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 0, jogoInicial = null, onVerStats }) {
   const [jogoSel, setJogoSel] = useState(() => {
     if (jogoInicial) return String(jogoInicial);
     const agora = Date.now() + offsetMs;
@@ -1869,6 +1884,12 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
       </div>
 
       <div ref={palpiteRef} style={{ scrollMarginTop: 12 }} aria-hidden="true" />
+
+      {onVerStats && (
+        <button className="stat-link" onClick={() => onVerStats(jogo.id)}>
+          📊 Em dúvida? Ver estatísticas deste jogo
+        </button>
+      )}
 
       {!encerrado && !travado && jogo.kickoff && (
         <Countdown kickoff={jogo.kickoff} offsetMs={offsetMs} />
@@ -4170,6 +4191,18 @@ function Estilo() {
         transition: border-color var(--t), background-color var(--t), color var(--t);
       }
       .stat-btn:hover { border-color: var(--ambar); color: var(--ambar); background: rgba(255,197,61,.08); }
+
+      /* atalho da aba Palpites -> abre as estatísticas do jogo na aba Jogos */
+      .stat-link {
+        width: 100%; margin: 12px 0 4px;
+        display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+        padding: 9px 14px; border-radius: var(--r); cursor: pointer;
+        background: rgba(255,197,61,.07); border: 1px dashed rgba(255,197,61,.4);
+        color: var(--ambar);
+        font: 700 12px 'Barlow Condensed', sans-serif; letter-spacing: .05em; text-transform: uppercase;
+        transition: border-color var(--t), background-color var(--t);
+      }
+      .stat-link:hover { border-color: var(--ambar); background: rgba(255,197,61,.13); }
 
       /* modal de estatísticas: chances de ganhar */
       .stat-estimativa { font-size: 9px; color: rgba(242,246,239,.4); letter-spacing: .04em; text-transform: none; }
