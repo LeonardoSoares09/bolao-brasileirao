@@ -1235,6 +1235,9 @@ function ModalEstatisticas({ jogo, jogos, onFechar }) {
   const tabela = grupo.length ? tabelaDoGrupo(jogos, grupo) : [];
   const chances = chancesDoJogo(eloAjustado(jogos), jogo.casa, jogo.fora);
   const pct = (x) => Math.round(x * 100);
+  /* Elo e mercado discordam em jogos apertados; não cravamos "Favorito" quando
+     a diferença de chance de vitória é pequena — mostramos "equilibrado". */
+  const equilibrado = chances && Math.abs(chances.casa - chances.fora) < 0.06;
 
   const blocoForma = (time) => {
     const forma = formaDoTime(jogos, time);
@@ -1278,7 +1281,7 @@ function ModalEstatisticas({ jogo, jogos, onFechar }) {
                 <div className="stat-chance-top">
                   <span className="stat-chance-nome">
                     {fl(jogo.casa)}{jogo.casa}
-                    {chances.casa > chances.fora && <span className="stat-fav">Favorito</span>}
+                    {!equilibrado && chances.casa > chances.fora && <span className="stat-fav">Favorito</span>}
                   </span>
                   <span className="stat-chance-pct stat-pct-casa">{pct(chances.casa)}%</span>
                 </div>
@@ -1295,13 +1298,14 @@ function ModalEstatisticas({ jogo, jogos, onFechar }) {
                 <div className="stat-chance-top">
                   <span className="stat-chance-nome">
                     {fl(jogo.fora)}{jogo.fora}
-                    {chances.fora > chances.casa && <span className="stat-fav">Favorito</span>}
+                    {!equilibrado && chances.fora > chances.casa && <span className="stat-fav">Favorito</span>}
                   </span>
                   <span className="stat-chance-pct stat-pct-fora">{pct(chances.fora)}%</span>
                 </div>
                 <div className="stat-barra"><div className="stat-barra-fill stat-fill-fora" style={{ width: pct(chances.fora) + "%" }} /></div>
               </div>
             </div>
+            {equilibrado && <p className="stat-equilibrio">⚖️ Jogo equilibrado — sem favorito claro pelo modelo.</p>}
           </>
         )}
 
@@ -4206,6 +4210,11 @@ function Estilo() {
 
       /* modal de estatísticas: chances de ganhar */
       .stat-estimativa { font-size: 9px; color: rgba(242,246,239,.4); letter-spacing: .04em; text-transform: none; }
+      .stat-equilibrio {
+        margin: 2px 0 6px; padding: 7px 10px; border-radius: var(--r);
+        background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1);
+        color: rgba(242,246,239,.72); font-size: 12px; text-align: center;
+      }
       .stat-chances { display: flex; flex-direction: column; gap: 12px; margin-bottom: 6px; }
       .stat-chance-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
       .stat-chance-nome { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 15px; }
