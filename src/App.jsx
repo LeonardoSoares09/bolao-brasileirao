@@ -615,11 +615,61 @@ function SeloParcial({ style }) {
   );
 }
 
+/* Pódio visual do top 3 — mesma paleta do app (ouro âmbar / prata / bronze),
+   reusa o Avatar. Ordem na tela: 2º à esquerda, 1º no centro (maior), 3º à direita. */
+function Podio({ top3, posAntes, onClick, euId }) {
+  const cols = [
+    { p: top3[1], rank: 1, cls: "podio2", ped: "podio-ped-2" },
+    { p: top3[0], rank: 0, cls: "podio1", ped: "podio-ped-1" },
+    { p: top3[2], rank: 2, cls: "podio3", ped: "podio-ped-3" },
+  ].filter((c) => c.p);
+  return (
+    <div className="podio-wrap" role="list" aria-label="Pódio">
+      {cols.map(({ p, rank, cls, ped }) => {
+        const subiu = posAntes[p.id] !== undefined && posAntes[p.id] > rank;
+        const caiu = posAntes[p.id] !== undefined && posAntes[p.id] < rank;
+        return (
+          <button
+            key={p.id}
+            className={"podio-col " + cls}
+            onClick={() => onClick(p)}
+            role="listitem"
+            title={`Ver palpites de ${p.nome}`}
+          >
+            {rank === 0 && <span className="podio-crown" aria-hidden="true">👑</span>}
+            <span className="podio-av">
+              <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={rank === 0 ? 60 : 48} />
+            </span>
+            <span className="podio-nome">{p.nome}{p.id === euId ? " (você)" : ""}</span>
+            <span className="podio-pts">{p.pontos} pts</span>
+            <span className="podio-exatos">
+              🎯 {p.exatos}{p.bonus > 0 ? ` · +${p.bonus}` : ""}
+              {subiu && <span className="trend-up"> ↑</span>}
+              {caiu && <span className="trend-down"> ↓</span>}
+            </span>
+            <span className={"podio-ped " + ped}>{rank + 1}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickParticipante, palpitesMap, jogos, euId }) {
   const temAoVivo = (jogos || []).some((m) => m.live && temPlacar(m));
   useEffect(() => { aoAbrir(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (ranking.length === 0)
     return <Vazio texto="O organizador ainda não cadastrou os participantes." />;
+
+  /* "você" (se for participante) p/ o painel de status; pódio visual do top 3
+     só quando já há pontos — senão cai na lista plana de sempre. */
+  const eu = euId != null ? ranking.find((p) => p.id === euId) : null;
+  const euPos = eu ? ranking.indexOf(eu) + 1 : null;
+  const podioAtivo = temJogos && ranking.length >= 3 && ranking[0].pontos > 0;
+  const top3 = podioAtivo ? ranking.slice(0, 3) : [];
+  const linhas = podioAtivo
+    ? ranking.slice(3).map((p, k) => ({ p, i: k + 3 }))
+    : ranking.map((p, i) => ({ p, i }));
   return (
     <div>
       {primeiraVez && ranking.some((p) => p.exatosHoje > 0) && <Confete />}
@@ -631,6 +681,23 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickPar
           <SeloParcial /> <span style={{ fontSize: "10px", color: "#9aa" }}>· ranking conta o jogo ao vivo</span>
         </div>
       )}
+      {eu && (
+        <button className="meu-status" onClick={() => onClickParticipante(eu)} title="Ver seus palpites">
+          <span className="meu-status-l">
+            <span className="meu-status-label">SUA POSIÇÃO</span>
+            <span className="meu-status-pos">{euPos}º<small> / {ranking.length}</small></span>
+          </span>
+          <span className="meu-status-r">
+            <span className="meu-status-pts"><b>{eu.pontos}</b> pts</span>
+            <span className="meu-status-sub">🎯 {eu.exatos} exatos · ✓ {eu.resultados} result.</span>
+          </span>
+        </button>
+      )}
+
+      {podioAtivo && (
+        <Podio top3={top3} posAntes={posAntes} onClick={onClickParticipante} euId={euId} />
+      )}
+
       <div className="placar">
         <div className="placar-cab">
           <span className="col-pos">#</span>
@@ -639,7 +706,7 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickPar
           <span className="col-num col-num-hd" title="Resultados certos">✓<br/>RESULT.</span>
           <span className="col-pts">PTS</span>
         </div>
-        {ranking.map((p, i) => {
+        {linhas.map(({ p, i }) => {
           const podio = p.pontos > 0 && i < 3;
           const cls = "placar-linha"
             + (podio && i === 0 ? " podio-ouro" : "")
@@ -4465,6 +4532,57 @@ function Estilo() {
       .podio-prata:hover { background: rgba(200,200,210,.14) !important; }
       .podio-bronze:hover{ background: rgba(180,100,40,.14) !important; }
       .col-pos-medal { font-size: 18px; opacity: 1; }
+
+      /* painel "sua posição" — placar do próprio usuário */
+      .meu-status {
+        width: 100%; display: flex; align-items: center; justify-content: space-between;
+        gap: 10px; margin: 0 0 16px; padding: 12px 14px; cursor: pointer; text-align: left;
+        border: 1px solid var(--linha); border-radius: var(--r);
+        background: linear-gradient(180deg, rgba(255,197,61,.08), rgba(255,197,61,.02));
+        transition: border-color var(--t), background-color var(--t);
+      }
+      .meu-status:hover { border-color: rgba(255,197,61,.5); }
+      .meu-status-l { display: flex; flex-direction: column; gap: 2px; }
+      .meu-status-label {
+        font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: .18em;
+        text-transform: uppercase; color: rgba(255,255,255,.45);
+      }
+      .meu-status-pos { font-weight: 800; font-size: 30px; line-height: 1; color: var(--ambar); }
+      .meu-status-pos small { font-size: 14px; color: var(--giz); font-weight: 700; }
+      .meu-status-r { text-align: right; }
+      .meu-status-pts { font-family: 'IBM Plex Mono', monospace; font-size: 24px; font-weight: 700; color: var(--giz); line-height: 1; }
+      .meu-status-pts b { color: var(--ambar); }
+      .meu-status-sub { display: block; font-size: 11px; color: rgba(255,255,255,.5); margin-top: 4px; }
+
+      /* pódio visual do top 3 */
+      .podio-wrap { display: flex; align-items: flex-end; justify-content: center; gap: 8px; margin: 6px 0 20px; }
+      .podio-col {
+        flex: 1 1 0; max-width: 130px; min-width: 0; cursor: pointer;
+        display: flex; flex-direction: column; align-items: center;
+        background: none; border: none; padding: 0; color: var(--giz);
+        animation: sobe .5s var(--t) both;
+      }
+      .podio2 { animation-delay: .05s; }
+      .podio1 { animation-delay: 0s; }
+      .podio3 { animation-delay: .1s; }
+      .podio-crown { font-size: 22px; line-height: 1; margin-bottom: -6px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); position: relative; z-index: 2; }
+      .podio-av { margin-bottom: 7px; border-radius: 50%; }
+      .podio1 .podio-av { box-shadow: 0 0 0 3px rgba(255,197,61,.4), 0 6px 18px rgba(0,0,0,.4); border-radius: 50%; }
+      .podio-nome {
+        font-weight: 700; font-size: 15px; line-height: 1.1; text-align: center;
+        max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .podio-pts { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 15px; color: var(--ambar); margin-top: 2px; }
+      .podio-exatos { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 1px; white-space: nowrap; }
+      .podio-ped {
+        width: 100%; margin-top: 9px; border-radius: 6px 6px 0 0;
+        display: flex; align-items: center; justify-content: center;
+        font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 28px;
+        color: rgba(0,0,0,.38); border: 1px solid rgba(255,255,255,.08); border-bottom: none;
+      }
+      .podio-ped-1 { height: 74px; background: linear-gradient(180deg, #ffd75e, #cd9636); box-shadow: 0 0 18px rgba(255,197,61,.3); }
+      .podio-ped-2 { height: 54px; background: linear-gradient(180deg, #dfe7ee, #9aa6b0); }
+      .podio-ped-3 { height: 40px; background: linear-gradient(180deg, #e29a5e, #b0703c); }
       .bonus-badge {
         font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
         color: #7ee2a0; border: 1.5px solid #7ee2a0; padding: 1px 5px;
