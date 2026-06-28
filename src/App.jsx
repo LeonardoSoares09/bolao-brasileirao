@@ -1723,7 +1723,7 @@ function ResultadoAdmin({ jogo, salvar, remover, emAndamento = false }) {
   return (
     <div className="jogo-resultado">
       {jogo.fase === "eliminatórias" && (
-        <span className="aviso-90min" title="Lançar apenas o placar dos 90 minutos">⏱ 90min</span>
+        <span className="aviso-90min" title="Lançar o placar após a prorrogação (90min + prorrogação) — sem contar pênaltis">⏱ 90min + prorrog.</span>
       )}
       <input type="number" min="0" inputMode="numeric" value={gh} placeholder="–"
         onChange={(e) => mudar("gh", e.target.value)} aria-label={"Gols " + jogo.casa} />
@@ -3453,14 +3453,13 @@ function ModalRegras({ onFechar }) {
 
           <div className="regras-secao">Mata-mata ⚔</div>
           <p className="regras-p">
-            Nos jogos eliminatórios, o palpite vale pelo <strong>placar dos 90 minutos</strong>.
-            Prorrogação e pênaltis <strong>não contam</strong>.
+            Nos jogos eliminatórios, o palpite vale pelo placar dos <strong>90 minutos + a prorrogação inteira</strong>.
+            Os <strong>pênaltis ficam de fora</strong>.
           </p>
           <p className="regras-p">
-            Exemplo: jogo termina <strong>1×1</strong> nos 90min e vai a pênaltis
-            → quem palpitou 1×1 ganha <strong>3 pts</strong>.
-            Quem palpitou 2×1 ganha <strong>0 pts</strong>,
-            mesmo que o placar da prorrogação seja 2×1.
+            Exemplo: jogo está <strong>1×1</strong> nos 90min, sai um gol na prorrogação e termina <strong>2×1</strong>
+            (sem pênaltis) → vale o <strong>2×1</strong>. Se ficar <strong>1×1</strong> na prorrogação e for decidido
+            nos <strong>pênaltis</strong>, vale o <strong>1×1</strong> — o resultado dos pênaltis não conta.
           </p>
 
           <div className="regras-secao">Desempate (em caso de pontuação igual)</div>

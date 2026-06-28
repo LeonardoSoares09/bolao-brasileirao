@@ -223,8 +223,13 @@ export default async function handler(req, res) {
       res.status(200).json({
         total: partidas.length,
         matches: partidas.map((m) => ({
-          id: m.id, status: m.status, utcDate: m.utcDate,
-          home: m.homeTeam?.name, away: m.awayTeam?.name, score: m.score?.fullTime,
+          id: m.id, status: m.status, utcDate: m.utcDate, stage: m.stage,
+          home: m.homeTeam?.name, away: m.awayTeam?.name,
+          /* score completo p/ conferir a regra do mata-mata: fullTime já inclui
+             prorrogação; duration=PENALTY_SHOOTOUT indica que foi pros pênaltis
+             (e o fullTime deve ser o placar EMPATADO do fim da prorrogação). */
+          fullTime: m.score?.fullTime, halfTime: m.score?.halfTime,
+          duration: m.score?.duration, winner: m.score?.winner,
         })),
       });
       return;
