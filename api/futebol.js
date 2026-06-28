@@ -314,7 +314,9 @@ async function acaoJogosHoje() {
   return { adicionados, atualizados, total: relevantes.length };
 }
 
-/* acaoPlacares: atualiza FINISHED (placar final) e IN_PLAY/PAUSED (placar ao vivo)
+/* acaoPlacares: atualiza FINISHED (placar final) e IN_PLAY/PAUSED/LIVE (placar ao vivo)
+   OBS: a football-data pode mandar o status como "LIVE" (não só "IN_PLAY") com a
+   bola rolando — os dois têm que cair no mesmo ramo, senão o placar fica parado.
    Deduplicação: a football-data.org só é consultada uma vez por minuto,
    independente de quantos clientes chamem simultaneamente. */
 async function acaoPlacares() {
@@ -376,7 +378,7 @@ async function acaoPlacares() {
       if (rows.length > 0) {
         atualizados++;
       }
-    } else if (status === "IN_PLAY" || status === "PAUSED") {
+    } else if (status === "IN_PLAY" || status === "PAUSED" || status === "LIVE") {
       const gh = m.score?.fullTime?.home ?? 0;
       const ga = m.score?.fullTime?.away ?? 0;
       /* Travas pra não estragar o placar ao vivo:
