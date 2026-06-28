@@ -18,21 +18,15 @@ export default function handler(req, res) {
     orientation: "portrait-primary",
     icons: [
       {
-        src: "/icone bolao.png",
-        sizes: "512x512",
+        src: "/logo-192.png",
+        sizes: "192x192",
         type: "image/png",
         purpose: "any"
       },
       {
-        src: "/icone bolao.png",
+        src: "/logo-512.png",
         sizes: "512x512",
         type: "image/png",
-        purpose: "maskable"
-      },
-      {
-        src: "/icon.svg",
-        sizes: "any",
-        type: "image/svg+xml",
         purpose: "any"
       }
     ]

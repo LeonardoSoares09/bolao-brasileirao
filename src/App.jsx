@@ -420,6 +420,7 @@ export default function App() {
             </button>
           )}
         </div>
+        <img className="topo-logo" src="/logo-192.png" alt="Bolão da Copa" width="96" height="96" />
         <div className="topo-eyebrow">COPA DO MUNDO · 2026</div>
         <h1 className="topo-titulo">BOLÃO DOS GURIS</h1>
         <div className="topo-divider" aria-hidden="true" />
@@ -3717,7 +3718,11 @@ function Estilo() {
       }
       .topo-acoes {
         display: flex; justify-content: space-between; align-items: center;
-        margin-bottom: 28px;
+        margin-bottom: 14px;
+      }
+      .topo-logo {
+        display: block; width: 92px; height: 92px; margin: 0 auto 10px;
+        filter: drop-shadow(0 4px 12px rgba(0,0,0,.45));
       }
       .topo-eyebrow {
         font-family: 'IBM Plex Mono', monospace;
