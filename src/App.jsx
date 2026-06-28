@@ -3607,6 +3607,7 @@ function ModalPalpites({ participante, jogos, palpitesMap, euId, onFechar }) {
         {encerrados.map((m, i) => {
           const palpite = palpitesMap[m.id]?.[participante.id];
           const pts = pontosDoPalpite(palpite, m);
+          const peso = pesoDoJogo(m);
           const cls = "modal-jogo"
             + (pts === PTS_EXATO ? " modal-jogo-exato" : "")
             + (pts === PTS_RESULTADO ? " modal-jogo-ok" : "")
@@ -3617,14 +3618,17 @@ function ModalPalpites({ participante, jogos, palpitesMap, euId, onFechar }) {
                 {fl(m.casa)}{m.casa}
                 <span className="modal-placar-final">{m.gh}–{m.ga}</span>
                 {fl(m.fora)}{m.fora}
+                {peso > 1 && (
+                  <span className={"modal-jogo-peso" + (peso >= 4 ? " modal-jogo-peso-final" : "")}>{peso}×</span>
+                )}
               </div>
               <div className="modal-jogo-direita">
                 {palpite
                   ? <span className="modal-palpite">{palpite.h}–{palpite.a}</span>
                   : <span className="modal-sem-palpite">sem palpite</span>
                 }
-                {pts === PTS_EXATO    && <span className="pts pts-3">🎯</span>}
-                {pts === PTS_RESULTADO && <span className="pts pts-1">✓</span>}
+                {pts === PTS_EXATO    && <span className="pts pts-3">🎯{peso > 1 ? ` ${PTS_EXATO * peso}` : ""}</span>}
+                {pts === PTS_RESULTADO && <span className="pts pts-1">✓{peso > 1 ? ` ${PTS_RESULTADO * peso}` : ""}</span>}
                 {pts === 0            && <span className="pts pts-0">✕</span>}
                 {pts === null         && <span className="pts pts-0">—</span>}
               </div>
@@ -4506,6 +4510,12 @@ function Estilo() {
       .modal-jogo-miss  { opacity: .45; }
       .modal-jogo-times { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
       .modal-placar-final { font-family: 'IBM Plex Mono', monospace; font-size: 12px; opacity: .55; margin: 0 4px; }
+      .modal-jogo-peso {
+        font: 700 10px 'Barlow Condensed', sans-serif; letter-spacing: .03em;
+        color: #7ec8e3; border: 1px solid rgba(58,157,224,.4); border-radius: 4px;
+        padding: 0 4px; line-height: 1.5; flex: none;
+      }
+      .modal-jogo-peso-final { color: var(--ambar); border-color: rgba(255,197,61,.5); }
       .modal-jogo-direita { display: flex; align-items: center; gap: 8px; flex: none; }
       .modal-palpite { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 700; color: var(--ambar); }
       .modal-sem-palpite { font-family: 'IBM Plex Mono', monospace; font-size: 11px; opacity: .3; }
