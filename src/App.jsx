@@ -3627,8 +3627,8 @@ function ModalPalpites({ participante, jogos, palpitesMap, euId, onFechar }) {
                   ? <span className="modal-palpite">{palpite.h}–{palpite.a}</span>
                   : <span className="modal-sem-palpite">sem palpite</span>
                 }
-                {pts === PTS_EXATO    && <span className="pts pts-3">🎯{peso > 1 ? ` ${PTS_EXATO * peso}` : ""}</span>}
-                {pts === PTS_RESULTADO && <span className="pts pts-1">✓{peso > 1 ? ` ${PTS_RESULTADO * peso}` : ""}</span>}
+                {pts === PTS_EXATO    && <span className="pts pts-3">🎯</span>}
+                {pts === PTS_RESULTADO && <span className="pts pts-1">✓</span>}
                 {pts === 0            && <span className="pts pts-0">✕</span>}
                 {pts === null         && <span className="pts pts-0">—</span>}
               </div>
