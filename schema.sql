@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS participantes (
 -- Jogos. `external_id` = id da partida na football-data.org (busca automática).
 -- `live` = true enquanto a bola rola (placar parcial); `fase` separa grupos
 -- de mata-mata (no mata-mata vale o placar dos 90min).
+-- `peso` = multiplicador de pontos por fase: grupos 1×, mata-mata 2×, final 4×
+-- (erro no começo pesa menos, acerto no fim vale mais).
 -- ─────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS jogos (
   id          SERIAL PRIMARY KEY,
@@ -38,6 +40,7 @@ CREATE TABLE IF NOT EXISTS jogos (
   ga          INT CHECK (ga >= 0),
   external_id TEXT UNIQUE,
   fase        VARCHAR(20) NOT NULL DEFAULT 'grupos',
+  peso        INT NOT NULL DEFAULT 1,
   live        BOOLEAN NOT NULL DEFAULT FALSE,
   criado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
 );

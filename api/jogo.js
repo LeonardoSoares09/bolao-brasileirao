@@ -21,6 +21,10 @@ export default async function handler(req, res) {
     const fora = String(req.body?.fora || "").trim();
     const kickoff = req.body?.kickoff ? new Date(req.body.kickoff) : null;
     const fase = req.body?.fase === "eliminatórias" ? "eliminatórias" : "grupos";
+    /* peso de pontuação: aceita 1/2/4 explícito; senão deriva da fase
+       (grupos 1×, mata-mata 2×). A final (4×) precisa vir explícita. */
+    const pesoReq = intOuNull(req.body?.peso);
+    const peso = [1, 2, 4].includes(pesoReq) ? pesoReq : (fase === "eliminatórias" ? 2 : 1);
     if (!casa || !fora || casa.length > 60 || fora.length > 60) {
       res.status(400).json({ error: "Times inválidos" });
       return;
@@ -30,8 +34,8 @@ export default async function handler(req, res) {
       return;
     }
     const rows = await sql`
-      INSERT INTO jogos (casa, fora, kickoff, fase)
-      VALUES (${casa}, ${fora}, ${kickoff}, ${fase})
+      INSERT INTO jogos (casa, fora, kickoff, fase, peso)
+      VALUES (${casa}, ${fora}, ${kickoff}, ${fase}, ${peso})
       RETURNING id
     `;
     res.status(200).json({ ok: true, id: rows[0].id });

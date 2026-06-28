@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   PTS_EXATO, PTS_RESULTADO, temPlacar, BONUS_CAMPEAO, BONUS_ARTILHEIRO,
-  pontosDoPalpite, calcularStats, compararRanking, criterioDesempate,
+  pontosDoPalpite, pontosComPeso, pesoDoJogo, calcularStats, compararRanking, criterioDesempate,
 } from "./ranking";
 
 /* ============================================================
@@ -750,7 +750,7 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos, euId }) {
   const series = ranking.map((p, si) => {
     let acum = p.bonus;
     const pts = jogosEncerrados.map((j) => {
-      acum += pontosDoPalpite(palpitesMap[j.id]?.[p.id], j);
+      acum += pontosComPeso(palpitesMap[j.id]?.[p.id], j);
       return acum;
     });
     return { ...p, pts, cor: p.avatarCor || CORES[si % CORES.length] };
@@ -1447,9 +1447,12 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
   const addJogo = async () => {
     if (!casa.trim() || !fora.trim()) return;
     try {
+      /* o seletor combina fase+peso: "final" = mata-mata 4×; "eliminatórias" = 2×; "grupos" = 1× */
+      const faseReal = fase === "grupos" ? "grupos" : "eliminatórias";
+      const peso = fase === "final" ? 4 : fase === "eliminatórias" ? 2 : 1;
       await api("/api/jogo", {
         method: "POST",
-        body: JSON.stringify({ t: token, casa, fora, kickoff: kickoff ? new Date(kickoff).toISOString() : null, fase }),
+        body: JSON.stringify({ t: token, casa, fora, kickoff: kickoff ? new Date(kickoff).toISOString() : null, fase: faseReal, peso }),
       });
       setCasa(""); setFora(""); setKickoff(""); setFase("grupos");
       recarregar();
@@ -1554,8 +1557,9 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
             </div>
             <div className="form-linha">
               <select value={fase} onChange={(e) => setFase(e.target.value)} className="select-fase" aria-label="Fase do jogo">
-                <option value="grupos">Fase de grupos</option>
-                <option value="eliminatórias">Mata-mata</option>
+                <option value="grupos">Fase de grupos (1×)</option>
+                <option value="eliminatórias">Mata-mata (2×)</option>
+                <option value="final">Final (4×)</option>
               </select>
               <input type="datetime-local" value={kickoff} onChange={(e) => setKickoff(e.target.value)} aria-label="Data e hora do jogo" />
               <button className="botao" onClick={addJogo}>Adicionar</button>
@@ -1627,7 +1631,11 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                       <div className="jogo-times">{fl(m.casa)}{m.casa} <span className="vs">×</span> {fl(m.fora)}{m.fora}</div>
                       <div className="jogo-meta">
                         {fmtQuando(m) && <span className="jogo-quando">{fmtQuando(m)}</span>}
-                        {m.fase === "eliminatórias" && <span className="tag tag-elim">⚔ Mata-mata</span>}
+                        {m.fase === "eliminatórias" && (
+                          <span className={"tag tag-elim" + (pesoDoJogo(m) >= 4 ? " tag-final" : "")}>
+                            {pesoDoJogo(m) >= 4 ? "🏆 Final" : "⚔ Mata-mata"} · {pesoDoJogo(m)}× pts
+                          </span>
+                        )}
                         {!encerrado && travado && <span className="tag tag-travado">🔒 em jogo</span>}
                         {noAr && ehAdmin && (
                           <span className="tag tag-aguardando" title="O jogo começou — placar ainda não veio da API. O automático preenche em instantes; se quiser, lance na mão.">
@@ -1851,6 +1859,9 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
                     {aoVivo ? "Ao vivo" : aguardando ? "No ar" : "Fim"}
                   </span>
                 )}
+                {pesoDoJogo(m) > 1 && (
+                  <span className={"sj-peso" + (pesoDoJogo(m) >= 4 ? " sj-peso-final" : "")}>{pesoDoJogo(m)}×</span>
+                )}
               </span>
               <span className="sj-times">
                 <span className={"sj-time" + (casaPerdeu ? " sj-perdeu" : "")}>{fl(m.casa)}{m.casa}</span>
@@ -1890,6 +1901,16 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
       </div>
 
       <div ref={palpiteRef} style={{ scrollMarginTop: 12 }} aria-hidden="true" />
+
+      {pesoDoJogo(jogo) > 1 && (
+        <div className={"peso-banner" + (pesoDoJogo(jogo) >= 4 ? " peso-banner-final" : "")}>
+          <span className="peso-banner-x">{pesoDoJogo(jogo)}×</span>
+          <span>
+            {pesoDoJogo(jogo) >= 4 ? "🏆 FINAL — vale em dobro do mata-mata. " : "⚔ Mata-mata — "}
+            placar exato <strong>{PTS_EXATO * pesoDoJogo(jogo)} pts</strong> · resultado <strong>{PTS_RESULTADO * pesoDoJogo(jogo)} pt{PTS_RESULTADO * pesoDoJogo(jogo) === 1 ? "" : "s"}</strong>
+          </span>
+        </div>
+      )}
 
       {onVerStats && (
         <button className="stat-link" onClick={() => onVerStats(jogo.id)}>
@@ -1965,7 +1986,9 @@ function LinhaPalpite({ jogo, participante, palpite, bloqueado, destaque, token,
     setStatus("");
   }, [jogo.id, participante.id, palpite?.h, palpite?.a]);
 
-  const pts = pontosDoPalpite(palpite, jogo);
+  const pts = pontosDoPalpite(palpite, jogo);     // bruto (classifica exato/result/erro)
+  const ptsPeso = pontosComPeso(palpite, jogo);   // já com peso da fase (o que vale no total)
+  const peso = pesoDoJogo(jogo);
   const encerrado = temResultado(jogo);
 
   const mudar = (campo, valor) => {
@@ -2020,7 +2043,10 @@ function LinhaPalpite({ jogo, participante, palpite, bloqueado, destaque, token,
           aria-label={`Palpite de ${participante.nome} para ${jogo.fora}`} />
         <span className="palpite-time-flag" title={jogo.fora}>{fl(jogo.fora)}</span>
         {encerrado && pts !== null && (
-          <span className={"pts pts-" + pts}>{pts === PTS_EXATO ? "🎯 " : ""}{pts} pt{pts === 1 ? "" : "s"}</span>
+          <span className={"pts pts-" + pts}>
+            {pts === PTS_EXATO ? "🎯 " : ""}{ptsPeso} pt{ptsPeso === 1 ? "" : "s"}
+            {peso > 1 && pts > 0 && <span className="pts-peso-mini"> ({pts}×{peso})</span>}
+          </span>
         )}
         {encerrado && pts === null && <span className="pts pts-0">—</span>}
       </div>
@@ -2747,15 +2773,17 @@ function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, on
   const perfilTemAoVivo = jogosEncerrados.some((m) => m.live);
   const meusPalpites = jogosEncerrados.map((m) => {
     const palpite = palpitesMap?.[m.id]?.[euId];
-    const pts = pontosDoPalpite(palpite, m);
-    return { jogo: m, palpite, pts };
+    const pts = pontosDoPalpite(palpite, m);        // bruto (classifica)
+    const ptsPeso = pontosComPeso(palpite, m);      // já com peso da fase
+    return { jogo: m, palpite, pts, ptsPeso };
   });
   const apostasFeitas   = meusPalpites.filter((x) => x.palpite).length;
   const acertosExatos   = meusPalpites.filter((x) => x.pts === PTS_EXATO).length;
   const acertosResult   = meusPalpites.filter((x) => x.pts === PTS_RESULTADO).length;
   const erros           = meusPalpites.filter((x) => x.palpite && x.pts === 0).length;
-  const totalPtsJogos   = meusPalpites.reduce((s, x) => s + (x.pts || 0), 0);
-  const maxPossivel     = apostasFeitas * PTS_EXATO;
+  /* total e aproveitamento já consideram o peso da fase (igual ao ranking) */
+  const totalPtsJogos   = meusPalpites.reduce((s, x) => s + (x.ptsPeso || 0), 0);
+  const maxPossivel     = meusPalpites.reduce((s, x) => s + (x.palpite ? pesoDoJogo(x.jogo) * PTS_EXATO : 0), 0);
   const aproveitamento  = maxPossivel > 0 ? Math.round((totalPtsJogos / maxPossivel) * 100) : 0;
 
   const euRanking   = ranking?.find((p) => p.id === euId);
@@ -2763,8 +2791,8 @@ function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, on
   const totalPts    = euRanking?.pontos ?? 0;
 
   const comPalpite  = meusPalpites.filter((x) => x.palpite);
-  const melhor      = comPalpite.reduce((b, x) => (!b || x.pts > b.pts) ? x : b, null);
-  const pior        = comPalpite.reduce((w, x) => (!w || x.pts < w.pts) ? x : w, null);
+  const melhor      = comPalpite.reduce((b, x) => (!b || x.ptsPeso > b.ptsPeso) ? x : b, null);
+  const pior        = comPalpite.reduce((w, x) => (!w || x.ptsPeso < w.ptsPeso) ? x : w, null);
 
   const temStats = jogosEncerrados.length > 0;
 
@@ -2821,12 +2849,12 @@ function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, on
             <>
               <div className="secao-titulo" style={{ marginTop: "14px" }}>HISTÓRICO</div>
               <div className="perfil-chart">
-                {comPalpite.map(({ jogo, pts }, i) => (
+                {comPalpite.map(({ jogo, pts, ptsPeso }, i) => (
                   <div
                     key={jogo.id}
                     className={"perfil-bar" + (pts === PTS_EXATO ? " perfil-bar-exato" : pts === PTS_RESULTADO ? " perfil-bar-result" : " perfil-bar-erro")}
                     style={{ "--h": pts === PTS_EXATO ? "100%" : pts === PTS_RESULTADO ? "40%" : "12%", "--i": i }}
-                    title={`${jogo.casa} × ${jogo.fora}: ${pts} pt${pts !== 1 ? "s" : ""}`}
+                    title={`${jogo.casa} × ${jogo.fora}: ${ptsPeso} pt${ptsPeso !== 1 ? "s" : ""}${pesoDoJogo(jogo) > 1 ? ` (${pesoDoJogo(jogo)}×)` : ""}`}
                   />
                 ))}
               </div>
@@ -2839,13 +2867,13 @@ function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, on
               <div className="perfil-destaque">
                 <span className="perfil-destaque-icon">🏆</span>
                 <span className="perfil-destaque-txt">{melhor.jogo.casa} × {melhor.jogo.fora}</span>
-                <span className="perfil-destaque-pts perfil-bd-exato">{melhor.pts} pt{melhor.pts !== 1 ? "s" : ""}</span>
+                <span className="perfil-destaque-pts perfil-bd-exato">{melhor.ptsPeso} pt{melhor.ptsPeso !== 1 ? "s" : ""}</span>
               </div>
               {pior && pior.jogo.id !== melhor.jogo.id && (
                 <div className="perfil-destaque">
                   <span className="perfil-destaque-icon">💔</span>
                   <span className="perfil-destaque-txt">{pior.jogo.casa} × {pior.jogo.fora}</span>
-                  <span className="perfil-destaque-pts perfil-bd-erro">{pior.pts} pt{pior.pts !== 1 ? "s" : ""}</span>
+                  <span className="perfil-destaque-pts perfil-bd-erro">{pior.ptsPeso} pt{pior.ptsPeso !== 1 ? "s" : ""}</span>
                 </div>
               )}
             </div>
@@ -3396,6 +3424,22 @@ function ModalRegras({ onFechar }) {
             <span className="pts pts-0">0 pts</span>
             <span>Resultado errado</span>
           </div>
+
+          <div className="regras-secao">Peso por fase 🔥</div>
+          <p className="regras-p">
+            Os pontos de cada jogo são <strong>multiplicados</strong> pela fase — erros no começo pesam menos,
+            acertos no fim valem mais:
+          </p>
+          <div className="regras-pesos">
+            <div className="regras-peso"><span className="regras-peso-x">1×</span><span>Fase de grupos</span></div>
+            <div className="regras-peso"><span className="regras-peso-x">2×</span><span>Mata-mata (16-avos → semis e 3º lugar)</span></div>
+            <div className="regras-peso regras-peso-final"><span className="regras-peso-x">4×</span><span>Final</span></div>
+          </div>
+          <p className="regras-p">
+            Exemplo: placar exato na <strong>final</strong> vale <strong>{PTS_EXATO * 4} pts</strong> (3 × 4);
+            resultado certo no <strong>mata-mata</strong> vale <strong>{PTS_RESULTADO * 2} pts</strong> (1 × 2).
+            Os bônus de campeã e artilheiro <strong>não</strong> têm peso.
+          </p>
 
           <div className="regras-secao">Bônus especiais</div>
           <div className="regras-item">
@@ -4544,6 +4588,46 @@ function Estilo() {
         background: rgba(58,157,224,.15); color: #7ec8e3;
         border: 1px solid rgba(58,157,224,.35);
       }
+      .tag-elim.tag-final {
+        background: rgba(255,197,61,.16); color: var(--ambar);
+        border-color: rgba(255,197,61,.5);
+      }
+
+      /* peso por fase — selos e banner */
+      .pts-peso-mini { font-size: 9px; opacity: .6; font-weight: 600; }
+      .sj-peso {
+        font: 700 10px 'Barlow Condensed', sans-serif; letter-spacing: .04em;
+        color: #7ec8e3; border: 1px solid rgba(58,157,224,.4); border-radius: 4px;
+        padding: 0 4px; line-height: 1.5;
+      }
+      .sj-peso-final { color: var(--ambar); border-color: rgba(255,197,61,.5); }
+      .peso-banner {
+        display: flex; align-items: center; gap: 10px; margin: 10px 0 6px;
+        padding: 9px 12px; border-radius: var(--r);
+        background: rgba(58,157,224,.1); border: 1px solid rgba(58,157,224,.3);
+        color: var(--giz); font-size: 12.5px; line-height: 1.35;
+      }
+      .peso-banner strong { color: #7ec8e3; }
+      .peso-banner-x {
+        flex-shrink: 0; font: 800 16px 'IBM Plex Mono', monospace; color: #7ec8e3;
+      }
+      .peso-banner-final {
+        background: rgba(255,197,61,.12); border-color: rgba(255,197,61,.4);
+      }
+      .peso-banner-final strong, .peso-banner-final .peso-banner-x { color: var(--ambar); }
+      /* tabela de pesos no modal de regras */
+      .regras-pesos { display: flex; flex-direction: column; gap: 6px; margin: 0 0 10px; }
+      .regras-peso {
+        display: flex; align-items: center; gap: 10px;
+        font-size: 13px; color: var(--giz);
+      }
+      .regras-peso-x {
+        flex-shrink: 0; width: 34px; text-align: center;
+        font: 800 14px 'IBM Plex Mono', monospace; color: #7ec8e3;
+        background: rgba(58,157,224,.12); border: 1px solid rgba(58,157,224,.3);
+        border-radius: 5px; padding: 2px 0;
+      }
+      .regras-peso-final .regras-peso-x { color: var(--ambar); background: rgba(255,197,61,.14); border-color: rgba(255,197,61,.4); }
       .aviso-90min {
         font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
         color: var(--ambar); opacity: .75; white-space: nowrap; flex: none;

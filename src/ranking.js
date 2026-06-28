@@ -14,7 +14,13 @@ export const BONUS_ARTILHEIRO = 6;
    Usado para alinhar os totais ao vivo em todo lugar (item M4 do review). */
 export const temPlacar = (m) => m.gh !== null && m.ga !== null;
 
-/* Pontos de UM palpite contra UM jogo.
+/* Peso (multiplicador de pontos) do jogo por fase: grupos 1×, mata-mata 2×,
+   final 4×. Fonte: coluna `peso` do banco (preenchida pela busca/admin).
+   Fallback 1 mantém compatibilidade se vier um jogo sem o campo. */
+export const pesoDoJogo = (jogo) => Number(jogo?.peso) || 1;
+
+/* Pontos BRUTOS de UM palpite contra UM jogo (sem peso) — usado para CLASSIFICAR
+   (exato/resultado/erro) e contar exatos/resultados no desempate.
    Retorna null se não há palpite ou o jogo ainda não tem placar.
    (Conta jogo ao vivo: basta gh/ga preenchidos — política tratada por quem chama.) */
 export function pontosDoPalpite(palpite, jogo) {
@@ -25,6 +31,13 @@ export function pontosDoPalpite(palpite, jogo) {
   const sinal = (x, y) => (x > y ? 1 : x < y ? -1 : 0);
   if (sinal(ph, pa) === sinal(jogo.gh, jogo.ga)) return PTS_RESULTADO;
   return 0;
+}
+
+/* Pontos JÁ COM PESO da fase — é o que entra no total e aparece pra galera
+   (ex.: placar exato na final = 3 × 4 = 12). Retorna null se sem placar/palpite. */
+export function pontosComPeso(palpite, jogo) {
+  const base = pontosDoPalpite(palpite, jogo);
+  return base === null ? null : base * pesoDoJogo(jogo);
 }
 
 /* Bônus de campeã (+9) e artilheiro (+6) de um participante, mais os flags
@@ -51,14 +64,16 @@ export function calcularStats(p, estado, palpitesMap, opts = {}) {
   let pontos = bonus, exatos = 0, resultados = 0, exatosHoje = 0;
   for (const m of jogos) {
     const pts = pontosDoPalpite(palpitesMap[m.id]?.[p.id], m);
+    /* peso entra SÓ no total de pontos; as contagens de exatos/resultados
+       (usadas no desempate) seguem sem peso: 1 exato = 1 exato. */
     if (pts === PTS_EXATO) {
-      exatos++; pontos += pts;
+      exatos++; pontos += pts * pesoDoJogo(m);
       /* exatosHoje dispara o GOOOL + confete: só vale CRAVADA confirmada, isto é,
          jogo ENCERRADO (não ao vivo). Sem o !m.live, um placar parcial igual ao
          palpite (ex.: 1×1 com a bola rolando) faria todo mundo "gritar gol" sem
          ter acertado de verdade. */
       if (hojeKey && chaveData && !m.live && m.kickoff && chaveData(m.kickoff) === hojeKey) exatosHoje++;
-    } else if (pts === PTS_RESULTADO) { resultados++; pontos += pts; }
+    } else if (pts === PTS_RESULTADO) { resultados++; pontos += pts * pesoDoJogo(m); }
   }
   return { ...p, pontos, exatos, resultados, bonus, exatosHoje, acertouCampeao, acertouArtilheiro };
 }

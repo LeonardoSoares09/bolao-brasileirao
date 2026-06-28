@@ -118,6 +118,12 @@ const traduzir = (nome) => (nome && TRADUCAO[nome]) || nome || "";
 const mapearFase = (stage) =>
   (!stage || stage === "GROUP_STAGE") ? "grupos" : "eliminatórias";
 
+/* peso de pontuação por fase: grupos 1×, final 4×, qualquer outro mata-mata
+   (16-avos/oitavas/quartas/semi/3º lugar) 2×. "Tudo que não é grupo nem final
+   = 2" é robusto a rótulos novos da API (ex.: LAST_32 dos 48 times). */
+const pesoDaStage = (stage) =>
+  stage === "FINAL" ? 4 : (!stage || stage === "GROUP_STAGE") ? 1 : 2;
+
 /* normaliza pra comparação: sem acento, sem caixa, sem borda */
 const norm = (s) =>
   String(s ?? "")
@@ -263,17 +269,18 @@ async function acaoJogosHoje() {
     const fora = traduzir(m.awayTeam?.name);
     const kickoff = m.utcDate;
     const fase = mapearFase(m.stage);
+    const peso = pesoDaStage(m.stage);
     const ehHoje = dataSP(m.utcDate) === hoje;
     if (!casa || !fora) continue;
 
-    /* (a) já carimbado — atualiza kickoff e fase se mudou */
+    /* (a) já carimbado — atualiza kickoff, fase e peso se mudou */
     const achado = porExt.get(externalId);
     if (achado) {
       const rows = await sql`
         UPDATE jogos
-           SET kickoff = ${kickoff}, fase = ${fase}
+           SET kickoff = ${kickoff}, fase = ${fase}, peso = ${peso}
          WHERE id = ${achado.id}
-           AND (kickoff IS DISTINCT FROM ${kickoff} OR fase IS DISTINCT FROM ${fase})
+           AND (kickoff IS DISTINCT FROM ${kickoff} OR fase IS DISTINCT FROM ${fase} OR peso IS DISTINCT FROM ${peso})
         RETURNING id
       `;
       if (rows.length > 0) atualizados++;
@@ -293,7 +300,8 @@ async function acaoJogosHoje() {
         UPDATE jogos
            SET external_id = ${externalId},
                kickoff = COALESCE(kickoff, ${kickoff}),
-               fase = ${fase}
+               fase = ${fase},
+               peso = ${peso}
          WHERE id = ${cand.id}
       `;
       legados.splice(idx, 1);
@@ -304,8 +312,8 @@ async function acaoJogosHoje() {
     /* (c) novo — só pra hoje (não ressuscita jogos antigos não cadastrados) */
     if (ehHoje) {
       await sql`
-        INSERT INTO jogos (casa, fora, kickoff, external_id, fase)
-        VALUES (${casa}, ${fora}, ${kickoff}, ${externalId}, ${fase})
+        INSERT INTO jogos (casa, fora, kickoff, external_id, fase, peso)
+        VALUES (${casa}, ${fora}, ${kickoff}, ${externalId}, ${fase}, ${peso})
       `;
       adicionados++;
     }
