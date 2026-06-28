@@ -4481,7 +4481,7 @@ function Estilo() {
       }
       @keyframes fade-modal { from { opacity: 0; } to { opacity: 1; } }
       .modal-painel {
-        width: 100%; max-width: 680px; max-height: 84vh; overflow-y: auto;
+        width: 100%; max-width: 680px; max-height: 84vh; overflow-y: auto; overflow-x: hidden;
         color: var(--giz); /* cor base do texto (modais via portal ficam fora do .bolao-root) */
         background: var(--grama); border: 2px solid var(--linha); border-bottom: none;
         border-radius: calc(var(--r) + 4px) calc(var(--r) + 4px) 0 0;
@@ -4752,8 +4752,16 @@ function Estilo() {
       .perfil-bd-erro { color: var(--erro); }
       .perfil-bd-miss { color: rgba(255,255,255,.35); }
 
-      .perfil-chart { display: flex; align-items: flex-end; gap: 3px; height: 36px; margin-top: 8px; }
-      .perfil-bar { flex: 1; min-width: 6px; max-width: 18px; height: var(--h); border-radius: 2px 2px 0 0; transition: opacity .2s; }
+      /* rolável e contido na largura do modal: com 70+ jogos a tira de barras
+         passava da tela e arrastava o app inteiro pra direita no mobile. */
+      .perfil-chart {
+        display: flex; align-items: flex-end; gap: 2px; height: 36px; margin-top: 8px;
+        max-width: 100%; overflow-x: auto; overflow-y: hidden; padding-bottom: 4px;
+        scrollbar-width: thin; scrollbar-color: var(--linha) transparent;
+      }
+      .perfil-chart::-webkit-scrollbar { height: 4px; }
+      .perfil-chart::-webkit-scrollbar-thumb { background: var(--linha); border-radius: 2px; }
+      .perfil-bar { flex: 1 0 3px; min-width: 3px; max-width: 18px; height: var(--h); border-radius: 2px 2px 0 0; transition: opacity .2s; }
       .perfil-bar:hover { opacity: .75; }
       .perfil-bar-exato  { background: var(--ambar); }
       .perfil-bar-result { background: rgba(255,255,255,.4); }
