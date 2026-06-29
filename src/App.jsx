@@ -1345,11 +1345,11 @@ function ModalEstatisticas({ jogo, jogos, onFechar }) {
      a diferença de chance de vitória é pequena — mostramos "equilibrado". */
   const equilibrado = chances && Math.abs(chances.casa - chances.fora) < 0.06;
 
-  /* Link puro de busca no Google (sem API): "Time A x Time B escalação". Cai no
-     card do jogo do Google com as escalações e serve também de atalho pra
-     notícias dos times. Sempre visível: a escalação oficial sai ~1h antes, mas
-     antes disso já leva pra provável/notícias. */
-  const urlEscalacao = `https://www.google.com/search?q=${encodeURIComponent(`${jogo.casa} x ${jogo.fora} escalação`)}`;
+  /* Link puro de busca no Google (sem API): só "Time A x Time B", SEM a palavra
+     "escalação" — com ela o Google abre o AI Overview (resposta em texto) em vez
+     do card do jogo. Só os dois times caem no card esportivo, que traz placar,
+     info e a aba de escalações, além de notícias dos times. */
+  const urlEscalacao = `https://www.google.com/search?q=${encodeURIComponent(`${jogo.casa} x ${jogo.fora}`)}`;
 
   const blocoForma = (time) => {
     const forma = formaDoTime(jogos, time);
