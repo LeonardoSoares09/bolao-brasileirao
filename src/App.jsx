@@ -626,15 +626,18 @@ function Podio({ top3, ranking, posAntes, onClick, euId }) {
     { p: top3[1], rank: 1, cls: "podio2", ped: "podio-ped-2" },
     { p: top3[0], rank: 0, cls: "podio1", ped: "podio-ped-1" },
     { p: top3[2], rank: 2, cls: "podio3", ped: "podio-ped-3" },
-  ].filter((c) => c.p);
+  ]
+    .filter((c) => c.p)
+    /* desempate: só quando empata em pontos com o próximo colocado */
+    .map((c) => ({ ...c, crit: ranking[c.rank + 1] ? criterioDesempate(c.p, ranking[c.rank + 1]) : null }));
+  /* se ALGUÉM no pódio tem desempate, reserva o espaço do selo em TODAS as colunas
+     — senão a coluna com selo cresce e ultrapassa as outras (3º acima do 1º). */
+  const temDesempate = cols.some((c) => c.crit);
   return (
     <div className="podio-wrap" role="list" aria-label="Pódio">
-      {cols.map(({ p, rank, cls, ped }) => {
+      {cols.map(({ p, rank, cls, ped, crit }) => {
         const subiu = posAntes[p.id] !== undefined && posAntes[p.id] > rank;
         const caiu = posAntes[p.id] !== undefined && posAntes[p.id] < rank;
-        /* desempate: só aparece quando empata em pontos com o próximo colocado */
-        const prox = ranking[rank + 1];
-        const crit = prox ? criterioDesempate(p, prox) : null;
         return (
           <button
             key={p.id}
@@ -654,10 +657,14 @@ function Podio({ top3, ranking, posAntes, onClick, euId }) {
               {subiu && <span className="trend-up"> ↑</span>}
               {caiu && <span className="trend-down"> ↓</span>}
             </span>
-            {crit && (
-              <span className="podio-desempate-box" title={`À frente por: ${crit.label}`}>
-                <span className="podio-desempate-eyebrow">DESEMPATE</span>
-                <span className="podio-desempate">{crit.icon} {CRIT_CURTO[crit.icon] || "desempate"}</span>
+            {temDesempate && (
+              <span className="podio-desempate-slot">
+                {crit && (
+                  <span className="podio-desempate-box" title={`À frente por: ${crit.label}`}>
+                    <span className="podio-desempate-eyebrow">DESEMPATE</span>
+                    <span className="podio-desempate">{crit.icon} {CRIT_CURTO[crit.icon] || "desempate"}</span>
+                  </span>
+                )}
               </span>
             )}
             <span className={"podio-ped " + ped}>{rank + 1}</span>
@@ -4587,8 +4594,12 @@ function Estilo() {
       }
       .podio-pts { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 15px; color: var(--ambar); margin-top: 2px; }
       .podio-exatos { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 1px; text-align: center; line-height: 1.3; }
+      .podio-desempate-slot {
+        margin-top: 8px; width: 100%; min-height: 34px;
+        display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      }
       .podio-desempate-box {
-        margin-top: 8px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+        display: flex; flex-direction: column; align-items: center; gap: 2px;
       }
       .podio-desempate-eyebrow {
         font-family: 'IBM Plex Mono', monospace; font-size: 7.5px; letter-spacing: .16em;
