@@ -650,7 +650,7 @@ function Podio({ top3, ranking, posAntes, onClick, euId }) {
             <span className="podio-nome">{p.nome}{p.id === euId ? " (você)" : ""}</span>
             <span className="podio-pts">{p.pontos} pts</span>
             <span className="podio-exatos">
-              🎯 {p.exatos}{p.bonus > 0 ? ` · +${p.bonus}` : ""}
+              🎯 {p.exatos} · ✓ {p.resultados}{p.bonus > 0 ? ` · +${p.bonus}` : ""}
               {subiu && <span className="trend-up"> ↑</span>}
               {caiu && <span className="trend-down"> ↓</span>}
             </span>
@@ -4585,7 +4585,7 @@ function Estilo() {
         max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
       .podio-pts { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 15px; color: var(--ambar); margin-top: 2px; }
-      .podio-exatos { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 1px; white-space: nowrap; }
+      .podio-exatos { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 1px; text-align: center; line-height: 1.3; }
       .podio-desempate {
         margin-top: 5px; font-family: 'IBM Plex Mono', monospace; font-size: 9px;
         letter-spacing: .03em; color: rgba(255,197,61,.85);
