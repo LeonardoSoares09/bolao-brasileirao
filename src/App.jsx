@@ -1345,6 +1345,12 @@ function ModalEstatisticas({ jogo, jogos, onFechar }) {
      a diferença de chance de vitória é pequena — mostramos "equilibrado". */
   const equilibrado = chances && Math.abs(chances.casa - chances.fora) < 0.06;
 
+  /* Link puro de busca no Google (sem API): "Time A x Time B escalação". Cai no
+     card do jogo do Google com as escalações e serve também de atalho pra
+     notícias dos times. Sempre visível: a escalação oficial sai ~1h antes, mas
+     antes disso já leva pra provável/notícias. */
+  const urlEscalacao = `https://www.google.com/search?q=${encodeURIComponent(`${jogo.casa} x ${jogo.fora} escalação`)}`;
+
   const blocoForma = (time) => {
     const forma = formaDoTime(jogos, time);
     return (
@@ -1378,6 +1384,10 @@ function ModalEstatisticas({ jogo, jogos, onFechar }) {
         </div>
 
         {jogo.kickoff && <p className="stat-data">{fmtQuando(jogo)}</p>}
+
+        <a className="stat-btn stat-btn-link" href={urlEscalacao} target="_blank" rel="noopener noreferrer">
+          📋 Ver escalações dos times ↗
+        </a>
 
         {chances && (
           <>
@@ -4364,6 +4374,10 @@ function Estilo() {
         transition: border-color var(--t), background-color var(--t);
       }
       .stat-link:hover { border-color: var(--ambar); background: rgba(255,197,61,.13); }
+
+      /* link externo de escalação no modal: mesmo visual do .stat-btn, só some o
+         sublinhado do <a> e desencosta da data acima */
+      .stat-btn-link { text-decoration: none; margin: 2px 0 14px; }
 
       /* modal de estatísticas: chances de ganhar */
       .stat-estimativa { font-size: 9px; color: rgba(242,246,239,.4); letter-spacing: .04em; text-transform: none; }
