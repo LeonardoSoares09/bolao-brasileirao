@@ -525,6 +525,7 @@ export default function App() {
             offsetMs={offsetRef.current}
             statsInicial={statsPreSel}
             onStatsConsumido={() => setStatsPreSel(null)}
+            onIrParaPalpites={irParaPalpites}
           />
         )}
         {tab === "palpites" && (
@@ -1464,7 +1465,7 @@ function ModalEstatisticas({ jogo, jogos, onFechar }) {
 }
 
 /* ================= JOGOS ================= */
-function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, recarregar, offsetMs = 0, statsInicial = null, onStatsConsumido }) {
+function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, recarregar, offsetMs = 0, statsInicial = null, onStatsConsumido, onIrParaPalpites }) {
   const [statsJogo, setStatsJogo] = useState(
     () => (statsInicial ? estado.jogos.find((j) => j.id === statsInicial) || null : null)
   );
@@ -1767,7 +1768,12 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                       {!encerrado && !travado && faltam > 0 && m.kickoff && (
                         <Countdown kickoff={m.kickoff} offsetMs={offsetMs} />
                       )}
-                      <button className="stat-btn" onClick={() => setStatsJogo(m)}>📊 Estatísticas</button>
+                      <div className="jogo-acoes">
+                        {!encerrado && !travado && onIrParaPalpites && (
+                          <button className="stat-btn stat-btn-palpitar" onClick={() => onIrParaPalpites(m.id)}>✏️ Palpitar</button>
+                        )}
+                        <button className="stat-btn" onClick={() => setStatsJogo(m)}>📊 Estatísticas</button>
+                      </div>
                     </div>
                     {ehAdmin ? (
                       <ResultadoAdmin jogo={m} salvar={salvarResultado} remover={() => delJogo(m.id)} emAndamento={travado && !encerrado} />
@@ -4362,6 +4368,12 @@ function Estilo() {
         transition: border-color var(--t), background-color var(--t), color var(--t);
       }
       .stat-btn:hover { border-color: var(--ambar); color: var(--ambar); background: rgba(255,197,61,.08); }
+
+      /* linha de ações do card de jogo (Palpitar + Estatísticas lado a lado) */
+      .jogo-acoes { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      /* "Palpitar" é a ação principal → destaque âmbar preenchido */
+      .stat-btn-palpitar { border-color: rgba(255,197,61,.5); color: var(--ambar); background: rgba(255,197,61,.12); }
+      .stat-btn-palpitar:hover { border-color: var(--ambar); background: rgba(255,197,61,.2); }
 
       /* atalho da aba Palpites -> abre as estatísticas do jogo na aba Jogos */
       .stat-link {
