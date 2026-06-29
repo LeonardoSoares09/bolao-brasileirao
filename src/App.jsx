@@ -1769,10 +1769,10 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                         <Countdown kickoff={m.kickoff} offsetMs={offsetMs} />
                       )}
                       <div className="jogo-acoes">
+                        <button className="stat-btn" onClick={() => setStatsJogo(m)}>📊 Estatísticas</button>
                         {!encerrado && !travado && onIrParaPalpites && (
                           <button className="stat-btn stat-btn-palpitar" onClick={() => onIrParaPalpites(m.id)}>✏️ Palpitar</button>
                         )}
-                        <button className="stat-btn" onClick={() => setStatsJogo(m)}>📊 Estatísticas</button>
                       </div>
                     </div>
                     {ehAdmin ? (
