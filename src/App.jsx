@@ -615,9 +615,16 @@ function SeloParcial({ style }) {
   );
 }
 
-/* rótulo curto do critério de desempate p/ caber no pódio (chave = ícone fixo
-   devolvido por criterioDesempate). */
-const CRIT_CURTO = { "🎯": "+ exatos", "🏆": "campeã", "⚽": "artilheiro", "✅": "+ result.", "⏱": "+ cedo" };
+/* frase do critério que desempatou (chave = ícone fixo de criterioDesempate),
+   usada na legenda abaixo do pódio. */
+const CRIT_FRASE = {
+  "🎯": "ter mais placares exatos",
+  "🏆": "ter acertado a campeã",
+  "⚽": "ter acertado o artilheiro",
+  "✅": "ter mais resultados certos",
+  "⏱": "palpitar mais cedo",
+};
+const ORDINAL = ["1º", "2º", "3º"];
 
 /* Pódio visual do top 3 — mesma paleta do app (ouro âmbar / prata / bronze),
    reusa o Avatar. Ordem na tela: 2º à esquerda, 1º no centro (maior), 3º à direita. */
@@ -630,40 +637,51 @@ function Podio({ top3, ranking, posAntes, onClick, euId }) {
     .filter((c) => c.p)
     /* desempate: só quando empata em pontos com o próximo colocado */
     .map((c) => ({ ...c, crit: ranking[c.rank + 1] ? criterioDesempate(c.p, ranking[c.rank + 1]) : null }));
+  /* empates entre colocados do pódio viram uma legenda abaixo — assim o pódio
+     em si fica sempre limpo (sem selo encavalando o número do pedestal). */
+  const desempates = cols.filter((c) => c.crit);
   return (
-    <div className="podio-wrap" role="list" aria-label="Pódio">
-      {cols.map(({ p, rank, cls, ped, crit }) => {
-        const subiu = posAntes[p.id] !== undefined && posAntes[p.id] > rank;
-        const caiu = posAntes[p.id] !== undefined && posAntes[p.id] < rank;
-        return (
-          <button
-            key={p.id}
-            className={"podio-col " + cls}
-            onClick={() => onClick(p)}
-            role="listitem"
-            title={`Ver palpites de ${p.nome}`}
-          >
-            {rank === 0 && <span className="podio-crown" aria-hidden="true">👑</span>}
-            <span className="podio-av">
-              <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={rank === 0 ? 60 : 48} />
-            </span>
-            <span className="podio-nome">{p.nome}{p.id === euId ? " (você)" : ""}</span>
-            <span className="podio-pts">{p.pontos} pts</span>
-            <span className="podio-exatos">
-              🎯 {p.exatos} · ✓ {p.resultados}{p.bonus > 0 ? ` · +${p.bonus}` : ""}
-              {subiu && <span className="trend-up"> ↑</span>}
-              {caiu && <span className="trend-down"> ↓</span>}
-            </span>
-            {crit && (
-              <span className="podio-desempate" title={`À frente por: ${crit.label}`}>
-                {crit.icon} {CRIT_CURTO[crit.icon] || "desempate"}
+    <>
+      <div className="podio-wrap" role="list" aria-label="Pódio">
+        {cols.map(({ p, rank, cls, ped }) => {
+          const subiu = posAntes[p.id] !== undefined && posAntes[p.id] > rank;
+          const caiu = posAntes[p.id] !== undefined && posAntes[p.id] < rank;
+          return (
+            <button
+              key={p.id}
+              className={"podio-col " + cls}
+              onClick={() => onClick(p)}
+              role="listitem"
+              title={`Ver palpites de ${p.nome}`}
+            >
+              {rank === 0 && <span className="podio-crown" aria-hidden="true">👑</span>}
+              <span className="podio-av">
+                <Avatar nome={p.nome} emoji={p.avatarEmoji} cor={p.avatarCor} size={rank === 0 ? 60 : 48} />
               </span>
-            )}
-            <span className={"podio-ped " + ped}>{rank + 1}</span>
-          </button>
-        );
-      })}
-    </div>
+              <span className="podio-nome">{p.nome}{p.id === euId ? " (você)" : ""}</span>
+              <span className="podio-pts">{p.pontos} pts</span>
+              <span className="podio-exatos">
+                🎯 {p.exatos} · ✓ {p.resultados}{p.bonus > 0 ? ` · +${p.bonus}` : ""}
+                {subiu && <span className="trend-up"> ↑</span>}
+                {caiu && <span className="trend-down"> ↓</span>}
+              </span>
+              <span className={"podio-ped " + ped}>{rank + 1}</span>
+            </button>
+          );
+        })}
+      </div>
+      {desempates.length > 0 && (
+        <div className="podio-legenda">
+          <span className="podio-legenda-tit">Desempate</span>
+          {desempates.map(({ p, rank, crit }) => (
+            <span key={p.id} className="podio-legenda-item">
+              <span className="podio-legenda-ico" aria-hidden="true">{crit.icon}</span>
+              <b>{p.nome}{p.id === euId ? " (você)" : ""}</b> fica em {ORDINAL[rank]} por {CRIT_FRASE[crit.icon] || "critério de desempate"}
+            </span>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -4569,7 +4587,6 @@ function Estilo() {
       /* pódio visual do top 3 */
       .podio-wrap { display: flex; align-items: flex-end; justify-content: center; gap: 8px; margin: 6px 0 20px; }
       .podio-col {
-        position: relative;
         flex: 1 1 0; max-width: 130px; min-width: 0; cursor: pointer;
         display: flex; flex-direction: column; align-items: center;
         background: none; border: none; padding: 0; color: var(--giz);
@@ -4586,27 +4603,29 @@ function Estilo() {
         max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
       .podio-pts { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 15px; color: var(--ambar); margin-top: 2px; }
-      .podio-exatos { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 1px; margin-bottom: 8px; text-align: center; line-height: 1.3; }
-      .podio-desempate {
-        position: absolute; left: 50%; transform: translateX(-50%); z-index: 3;
-        font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 11px;
-        letter-spacing: .04em; text-transform: uppercase;
-        color: var(--grama); background: var(--ambar);
-        border-radius: 999px; padding: 2px 9px; white-space: nowrap; line-height: 1.2;
-        box-shadow: 0 2px 9px rgba(0,0,0,.45), 0 0 0 2px var(--grama);
-      }
-      .podio1 .podio-desempate { bottom: 66px; }
-      .podio2 .podio-desempate { bottom: 46px; }
-      .podio3 .podio-desempate { bottom: 32px; }
+      .podio-exatos { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 1px; text-align: center; line-height: 1.3; }
       .podio-ped {
-        width: 100%; margin-top: 0; border-radius: 6px 6px 0 0;
-        display: flex; align-items: flex-end; justify-content: center; padding-bottom: 7px;
-        font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 26px;
+        width: 100%; margin-top: 9px; border-radius: 6px 6px 0 0;
+        display: flex; align-items: center; justify-content: center;
+        font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 28px;
         color: rgba(0,0,0,.38); border: 1px solid rgba(255,255,255,.08); border-bottom: none;
       }
       .podio-ped-1 { height: 74px; background: linear-gradient(180deg, #ffd75e, #cd9636); box-shadow: 0 0 18px rgba(255,197,61,.3); }
       .podio-ped-2 { height: 54px; background: linear-gradient(180deg, #dfe7ee, #9aa6b0); }
       .podio-ped-3 { height: 40px; background: linear-gradient(180deg, #e29a5e, #b0703c); }
+      /* legenda de desempate, abaixo do pódio (substitui o selo no pedestal) */
+      .podio-legenda {
+        margin: -8px 0 18px; padding: 9px 12px; border: 1px solid var(--linha);
+        border-radius: var(--r); background: rgba(255,197,61,.05);
+        display: flex; flex-direction: column; gap: 5px;
+      }
+      .podio-legenda-tit {
+        font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: .18em;
+        text-transform: uppercase; color: rgba(255,197,61,.75);
+      }
+      .podio-legenda-item { font-size: 13px; line-height: 1.35; color: rgba(255,255,255,.78); }
+      .podio-legenda-item b { color: var(--giz); font-weight: 700; }
+      .podio-legenda-ico { margin-right: 5px; }
       .bonus-badge {
         font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
         color: #7ee2a0; border: 1.5px solid #7ee2a0; padding: 1px 5px;
