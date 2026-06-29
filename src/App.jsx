@@ -1900,6 +1900,10 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
   const encerrado = temResultado(jogo);
   const travado = comecou(jogo) || encerrado;
   const ehAdmin = estado.eu.isAdmin;
+  /* já palpitei neste jogo? o countdown de urgência ("FECHA EM SEGUNDOS…") é um
+     empurrão pra palpitar — não faz sentido (e incomoda) depois do palpite dado. */
+  const meuPalpite = palpitesMap[jogo.id]?.[estado.eu.id];
+  const jaPalpitei = meuPalpite != null && meuPalpite.h != null && meuPalpite.a != null;
   const revelado = travado; /* palpites dos outros só aparecem depois que começa */
 
   /* separa em "hoje + futuros" (no topo, abertos como antes) e "passados"
@@ -2022,7 +2026,7 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
         </button>
       )}
 
-      {!encerrado && !travado && jogo.kickoff && (
+      {!encerrado && !travado && !jaPalpitei && jogo.kickoff && (
         <Countdown kickoff={jogo.kickoff} offsetMs={offsetMs} />
       )}
 
