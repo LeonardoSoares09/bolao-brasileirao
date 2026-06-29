@@ -630,9 +630,6 @@ function Podio({ top3, ranking, posAntes, onClick, euId }) {
     .filter((c) => c.p)
     /* desempate: só quando empata em pontos com o próximo colocado */
     .map((c) => ({ ...c, crit: ranking[c.rank + 1] ? criterioDesempate(c.p, ranking[c.rank + 1]) : null }));
-  /* se ALGUÉM no pódio tem desempate, reserva o espaço do selo em TODAS as colunas
-     — senão a coluna com selo cresce e ultrapassa as outras (3º acima do 1º). */
-  const temDesempate = cols.some((c) => c.crit);
   return (
     <div className="podio-wrap" role="list" aria-label="Pódio">
       {cols.map(({ p, rank, cls, ped, crit }) => {
@@ -657,13 +654,9 @@ function Podio({ top3, ranking, posAntes, onClick, euId }) {
               {subiu && <span className="trend-up"> ↑</span>}
               {caiu && <span className="trend-down"> ↓</span>}
             </span>
-            {temDesempate && (
-              <span className="podio-desempate-slot">
-                {crit && (
-                  <span className="podio-desempate" title={`À frente por: ${crit.label}`}>
-                    {crit.icon} {CRIT_CURTO[crit.icon] || "desempate"}
-                  </span>
-                )}
+            {crit && (
+              <span className="podio-desempate" title={`À frente por: ${crit.label}`}>
+                {crit.icon} {CRIT_CURTO[crit.icon] || "desempate"}
               </span>
             )}
             <span className={"podio-ped " + ped}>{rank + 1}</span>
@@ -4576,6 +4569,7 @@ function Estilo() {
       /* pódio visual do top 3 */
       .podio-wrap { display: flex; align-items: flex-end; justify-content: center; gap: 8px; margin: 6px 0 20px; }
       .podio-col {
+        position: relative;
         flex: 1 1 0; max-width: 130px; min-width: 0; cursor: pointer;
         display: flex; flex-direction: column; align-items: center;
         background: none; border: none; padding: 0; color: var(--giz);
@@ -4592,22 +4586,22 @@ function Estilo() {
         max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
       .podio-pts { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 15px; color: var(--ambar); margin-top: 2px; }
-      .podio-exatos { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 1px; margin-bottom: 9px; text-align: center; line-height: 1.3; }
-      .podio-desempate-slot {
-        width: 100%; min-height: 22px;
-        display: flex; align-items: center; justify-content: center;
-      }
+      .podio-exatos { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 1px; margin-bottom: 8px; text-align: center; line-height: 1.3; }
       .podio-desempate {
+        position: absolute; left: 50%; transform: translateX(-50%); z-index: 3;
         font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 11px;
         letter-spacing: .04em; text-transform: uppercase;
         color: var(--grama); background: var(--ambar);
-        border-radius: 999px; padding: 2px 9px; white-space: nowrap; line-height: 1.25;
-        box-shadow: 0 2px 9px rgba(255,197,61,.4);
+        border-radius: 999px; padding: 2px 9px; white-space: nowrap; line-height: 1.2;
+        box-shadow: 0 2px 9px rgba(0,0,0,.45), 0 0 0 2px var(--grama);
       }
+      .podio1 .podio-desempate { bottom: 66px; }
+      .podio2 .podio-desempate { bottom: 46px; }
+      .podio3 .podio-desempate { bottom: 32px; }
       .podio-ped {
         width: 100%; margin-top: 0; border-radius: 6px 6px 0 0;
-        display: flex; align-items: center; justify-content: center;
-        font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 28px;
+        display: flex; align-items: flex-end; justify-content: center; padding-bottom: 7px;
+        font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 26px;
         color: rgba(0,0,0,.38); border: 1px solid rgba(255,255,255,.08); border-bottom: none;
       }
       .podio-ped-1 { height: 74px; background: linear-gradient(180deg, #ffd75e, #cd9636); box-shadow: 0 0 18px rgba(255,197,61,.3); }
