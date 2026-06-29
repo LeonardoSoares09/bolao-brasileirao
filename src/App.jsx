@@ -812,7 +812,6 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos, euId }) {
     : (ranking[0]?.id ?? null);
   const [destacados, setDestacados] = useState(() => new Set(idPadrao != null ? [idPadrao] : []));
   const toggle = (id) => {
-    if (id === idPadrao) return; // âncora não sai
     setDestacados((prev) => {
       const s = new Set(prev);
       s.has(id) ? s.delete(id) : s.add(id);
@@ -842,15 +841,23 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos, euId }) {
 
   const xOf = (i) => ml + (n === 1 ? pw / 2 : (i * pw) / (n - 1));
 
-  const CORES = ["#ffc53d","#4ade80","#60a5fa","#f472b6","#a78bfa","#fb923c","#34d399","#e879f9","#facc15","#94a3b8"];
+  /* Cor ÚNICA e estável por participante: matizes espalhados por HSL, ordenados
+     por id (não pela posição no ranking) — assim a cor de cada um não muda quando
+     sobe/desce no ranking, e nunca se repete, pra qualquer número de participantes.
+     Não usa avatarCor de propósito: dois participantes podem ter o mesmo avatarCor,
+     o que geraria cor repetida no gráfico (os avatares na lista seguem normais). */
+  const ordemEstavel = [...ranking].sort((a, b) => (a.id > b.id ? 1 : a.id < b.id ? -1 : 0));
+  const corPorId = new Map(
+    ordemEstavel.map((p, i) => [p.id, `hsl(${Math.round((i * 360) / ordemEstavel.length)}, 68%, 60%)`])
+  );
 
-  const series = ranking.map((p, si) => {
+  const series = ranking.map((p) => {
     let acum = p.bonus;
     const pts = jogosEncerrados.map((j) => {
       acum += pontosComPeso(palpitesMap[j.id]?.[p.id], j);
       return acum;
     });
-    return { ...p, pts, cor: p.avatarCor || CORES[si % CORES.length] };
+    return { ...p, pts, cor: corPorId.get(p.id) };
   });
 
   const maxPts = Math.max(...series.flatMap((s) => s.pts), 1);
@@ -961,7 +968,7 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos, euId }) {
             );
           })}
         </div>
-        <p className="grafico-dica">Toque num nome pra comparar a evolução com a sua.</p>
+        <p className="grafico-dica">Toque nos nomes pra comparar a evolução.</p>
         </>
       )}
     </div>
