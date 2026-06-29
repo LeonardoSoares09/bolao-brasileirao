@@ -245,7 +245,7 @@ export default async function handler(req, res) {
   }
 }
 
-async function acaoJogosHoje() {
+export async function acaoJogosHoje() {
   const hoje = hojeEmSP();
   /* janela ampla pra trás (adoção retroativa) + 1 dia pra frente (borda de fuso) */
   const partidas = await buscarPartidas(
