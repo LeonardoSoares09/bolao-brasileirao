@@ -660,9 +660,8 @@ function Podio({ top3, ranking, posAntes, onClick, euId }) {
             {temDesempate && (
               <span className="podio-desempate-slot">
                 {crit && (
-                  <span className="podio-desempate-box" title={`À frente por: ${crit.label}`}>
-                    <span className="podio-desempate-eyebrow">DESEMPATE</span>
-                    <span className="podio-desempate">{crit.icon} {CRIT_CURTO[crit.icon] || "desempate"}</span>
+                  <span className="podio-desempate" title={`À frente por: ${crit.label}`}>
+                    {crit.icon} {CRIT_CURTO[crit.icon] || "desempate"}
                   </span>
                 )}
               </span>
@@ -4593,27 +4592,20 @@ function Estilo() {
         max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
       .podio-pts { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 15px; color: var(--ambar); margin-top: 2px; }
-      .podio-exatos { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 1px; text-align: center; line-height: 1.3; }
+      .podio-exatos { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 1px; margin-bottom: 9px; text-align: center; line-height: 1.3; }
       .podio-desempate-slot {
-        margin-top: 8px; width: 100%; min-height: 34px;
-        display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-      }
-      .podio-desempate-box {
-        display: flex; flex-direction: column; align-items: center; gap: 2px;
-      }
-      .podio-desempate-eyebrow {
-        font-family: 'IBM Plex Mono', monospace; font-size: 7.5px; letter-spacing: .16em;
-        color: rgba(255,197,61,.7);
+        width: 100%; min-height: 22px;
+        display: flex; align-items: center; justify-content: center;
       }
       .podio-desempate {
-        font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 12px;
+        font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 11px;
         letter-spacing: .04em; text-transform: uppercase;
         color: var(--grama); background: var(--ambar);
-        border-radius: 999px; padding: 2px 10px; white-space: nowrap;
+        border-radius: 999px; padding: 2px 9px; white-space: nowrap; line-height: 1.25;
         box-shadow: 0 2px 9px rgba(255,197,61,.4);
       }
       .podio-ped {
-        width: 100%; margin-top: 9px; border-radius: 6px 6px 0 0;
+        width: 100%; margin-top: 0; border-radius: 6px 6px 0 0;
         display: flex; align-items: center; justify-content: center;
         font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 28px;
         color: rgba(0,0,0,.38); border: 1px solid rgba(255,255,255,.08); border-bottom: none;
