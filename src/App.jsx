@@ -615,9 +615,13 @@ function SeloParcial({ style }) {
   );
 }
 
+/* rótulo curto do critério de desempate p/ caber no pódio (chave = ícone fixo
+   devolvido por criterioDesempate). */
+const CRIT_CURTO = { "🎯": "+ exatos", "🏆": "campeã", "⚽": "artilheiro", "✅": "+ result.", "⏱": "+ cedo" };
+
 /* Pódio visual do top 3 — mesma paleta do app (ouro âmbar / prata / bronze),
    reusa o Avatar. Ordem na tela: 2º à esquerda, 1º no centro (maior), 3º à direita. */
-function Podio({ top3, posAntes, onClick, euId }) {
+function Podio({ top3, ranking, posAntes, onClick, euId }) {
   const cols = [
     { p: top3[1], rank: 1, cls: "podio2", ped: "podio-ped-2" },
     { p: top3[0], rank: 0, cls: "podio1", ped: "podio-ped-1" },
@@ -628,6 +632,9 @@ function Podio({ top3, posAntes, onClick, euId }) {
       {cols.map(({ p, rank, cls, ped }) => {
         const subiu = posAntes[p.id] !== undefined && posAntes[p.id] > rank;
         const caiu = posAntes[p.id] !== undefined && posAntes[p.id] < rank;
+        /* desempate: só aparece quando empata em pontos com o próximo colocado */
+        const prox = ranking[rank + 1];
+        const crit = prox ? criterioDesempate(p, prox) : null;
         return (
           <button
             key={p.id}
@@ -647,6 +654,11 @@ function Podio({ top3, posAntes, onClick, euId }) {
               {subiu && <span className="trend-up"> ↑</span>}
               {caiu && <span className="trend-down"> ↓</span>}
             </span>
+            {crit && (
+              <span className="podio-desempate" title={`À frente por: ${crit.label}`}>
+                {crit.icon} {CRIT_CURTO[crit.icon] || "desempate"}
+              </span>
+            )}
             <span className={"podio-ped " + ped}>{rank + 1}</span>
           </button>
         );
@@ -695,7 +707,7 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickPar
       )}
 
       {podioAtivo && (
-        <Podio top3={top3} posAntes={posAntes} onClick={onClickParticipante} euId={euId} />
+        <Podio top3={top3} ranking={ranking} posAntes={posAntes} onClick={onClickParticipante} euId={euId} />
       )}
 
       <div className="placar">
@@ -4574,6 +4586,12 @@ function Estilo() {
       }
       .podio-pts { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 15px; color: var(--ambar); margin-top: 2px; }
       .podio-exatos { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 1px; white-space: nowrap; }
+      .podio-desempate {
+        margin-top: 5px; font-family: 'IBM Plex Mono', monospace; font-size: 9px;
+        letter-spacing: .03em; color: rgba(255,197,61,.85);
+        border: 1px solid rgba(255,197,61,.35); border-radius: 999px; padding: 1px 6px;
+        white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+      }
       .podio-ped {
         width: 100%; margin-top: 9px; border-radius: 6px 6px 0 0;
         display: flex; align-items: center; justify-content: center;
