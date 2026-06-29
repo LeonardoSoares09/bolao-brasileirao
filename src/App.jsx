@@ -655,8 +655,9 @@ function Podio({ top3, ranking, posAntes, onClick, euId }) {
               {caiu && <span className="trend-down"> ↓</span>}
             </span>
             {crit && (
-              <span className="podio-desempate" title={`À frente por: ${crit.label}`}>
-                {crit.icon} {CRIT_CURTO[crit.icon] || "desempate"}
+              <span className="podio-desempate-box" title={`À frente por: ${crit.label}`}>
+                <span className="podio-desempate-eyebrow">DESEMPATE</span>
+                <span className="podio-desempate">{crit.icon} {CRIT_CURTO[crit.icon] || "desempate"}</span>
               </span>
             )}
             <span className={"podio-ped " + ped}>{rank + 1}</span>
@@ -4586,11 +4587,19 @@ function Estilo() {
       }
       .podio-pts { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 15px; color: var(--ambar); margin-top: 2px; }
       .podio-exatos { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 1px; text-align: center; line-height: 1.3; }
+      .podio-desempate-box {
+        margin-top: 8px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+      }
+      .podio-desempate-eyebrow {
+        font-family: 'IBM Plex Mono', monospace; font-size: 7.5px; letter-spacing: .16em;
+        color: rgba(255,197,61,.7);
+      }
       .podio-desempate {
-        margin-top: 5px; font-family: 'IBM Plex Mono', monospace; font-size: 9px;
-        letter-spacing: .03em; color: rgba(255,197,61,.85);
-        border: 1px solid rgba(255,197,61,.35); border-radius: 999px; padding: 1px 6px;
-        white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+        font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 12px;
+        letter-spacing: .04em; text-transform: uppercase;
+        color: var(--grama); background: var(--ambar);
+        border-radius: 999px; padding: 2px 10px; white-space: nowrap;
+        box-shadow: 0 2px 9px rgba(255,197,61,.4);
       }
       .podio-ped {
         width: 100%; margin-top: 9px; border-radius: 6px 6px 0 0;
