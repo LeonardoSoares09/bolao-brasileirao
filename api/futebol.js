@@ -126,20 +126,27 @@ const pesoDaStage = (stage) =>
 
 /* Placar que o bolão pontua: 90min + prorrogação, PÊNALTIS FORA.
    ATENÇÃO (corrigido 29/06/2026): na football-data v4 o score.fullTime INCLUI
-   os pênaltis. Ex.: regularTime 1-1 + extraTime 0-0 + penalties 6-5 → fullTime
-   7-6. Gravar fullTime direto fazia o mata-mata decidido nos pênaltis salvar o
-   placar do shootout (ex.: Alemanha 1×1 Paraguai virou 4×5). O fim da
-   prorrogação = fullTime − penalties (= regularTime + extraTime). Sem pênaltis,
-   penalties é nulo e o fullTime já é o placar certo (90min ou prorrogação).
+   os pênaltis num jogo decidido no shootout — gravar fullTime direto fazia o
+   Alemanha 1×1 Paraguai virar 4×5. Tentei fullTime − penalties, mas o dado real
+   da API vem INCONSISTENTE (Germany: fullTime 4-5, penalties 4-4, winner null —
+   os pênaltis não fecham). A fonte CONFIÁVEL do fim da prorrogação é
+   `regularTime + extraTime` (1-1 + 0-0 = 1-1), que não depende do campo de
+   pênaltis bagunçado. Quando a partida não foi à prorrogação, a API não manda
+   regularTime → cai no fullTime, que aí já é o placar certo (90min).
    Ref: https://docs.football-data.org/general/v4/overtime.html */
 function placarBolao(score) {
   const ft = score?.fullTime || {};
-  const pen = score?.penalties;
-  const temPen = pen && (pen.home != null || pen.away != null);
-  return {
-    home: ft.home == null ? null : ft.home - (temPen ? (pen.home ?? 0) : 0),
-    away: ft.away == null ? null : ft.away - (temPen ? (pen.away ?? 0) : 0),
-  };
+  const rt = score?.regularTime;
+  const et = score?.extraTime;
+  /* teve prorrogação/pênaltis → soma 90min + prorrogação, ignora pênaltis */
+  if (rt && rt.home != null && rt.away != null) {
+    return {
+      home: rt.home + (et?.home ?? 0),
+      away: rt.away + (et?.away ?? 0),
+    };
+  }
+  /* partida normal: fullTime é o placar certo */
+  return { home: ft.home ?? null, away: ft.away ?? null };
 }
 
 /* normaliza pra comparação: sem acento, sem caixa, sem borda */
