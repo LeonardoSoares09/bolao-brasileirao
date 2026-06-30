@@ -124,6 +124,24 @@ const mapearFase = (stage) =>
 const pesoDaStage = (stage) =>
   stage === "FINAL" ? 4 : (!stage || stage === "GROUP_STAGE") ? 1 : 2;
 
+/* Placar que o bolão pontua: 90min + prorrogação, PÊNALTIS FORA.
+   ATENÇÃO (corrigido 29/06/2026): na football-data v4 o score.fullTime INCLUI
+   os pênaltis. Ex.: regularTime 1-1 + extraTime 0-0 + penalties 6-5 → fullTime
+   7-6. Gravar fullTime direto fazia o mata-mata decidido nos pênaltis salvar o
+   placar do shootout (ex.: Alemanha 1×1 Paraguai virou 4×5). O fim da
+   prorrogação = fullTime − penalties (= regularTime + extraTime). Sem pênaltis,
+   penalties é nulo e o fullTime já é o placar certo (90min ou prorrogação).
+   Ref: https://docs.football-data.org/general/v4/overtime.html */
+function placarBolao(score) {
+  const ft = score?.fullTime || {};
+  const pen = score?.penalties;
+  const temPen = pen && (pen.home != null || pen.away != null);
+  return {
+    home: ft.home == null ? null : ft.home - (temPen ? (pen.home ?? 0) : 0),
+    away: ft.away == null ? null : ft.away - (temPen ? (pen.away ?? 0) : 0),
+  };
+}
+
 /* normaliza pra comparação: sem acento, sem caixa, sem borda */
 const norm = (s) =>
   String(s ?? "")
@@ -229,7 +247,10 @@ export default async function handler(req, res) {
              prorrogação; duration=PENALTY_SHOOTOUT indica que foi pros pênaltis
              (e o fullTime deve ser o placar EMPATADO do fim da prorrogação). */
           fullTime: m.score?.fullTime, halfTime: m.score?.halfTime,
+          regularTime: m.score?.regularTime, extraTime: m.score?.extraTime,
+          penalties: m.score?.penalties,
           duration: m.score?.duration, winner: m.score?.winner,
+          placarBolao: placarBolao(m.score), /* o que o bolão grava (pênaltis fora) */
         })),
       });
       return;
@@ -378,8 +399,7 @@ async function acaoPlacares() {
     const status = m.status;
 
     if (status === "FINISHED") {
-      const gh = m.score?.fullTime?.home;
-      const ga = m.score?.fullTime?.away;
+      const { home: gh, away: ga } = placarBolao(m.score);
       if (gh == null || ga == null) continue;
       const rows = await sql`
         UPDATE jogos
@@ -392,8 +412,12 @@ async function acaoPlacares() {
         atualizados++;
       }
     } else if (status === "IN_PLAY" || status === "PAUSED" || status === "LIVE") {
-      const gh = m.score?.fullTime?.home ?? 0;
-      const ga = m.score?.fullTime?.away ?? 0;
+      /* mesmo critério do final: pênaltis fora. Durante o jogo penalties é nulo
+         (fica = fullTime); só no shootout o desconto entra, evitando que o ao
+         vivo conte os pênaltis enquanto a partida ainda está "a confirmar". */
+      const pb = placarBolao(m.score);
+      const gh = pb.home ?? 0;
+      const ga = pb.away ?? 0;
       /* Travas pra não estragar o placar ao vivo:
          (1) jogo JÁ FINALIZADO (live=false com placar — pela rama FINISHED ou
              pelo botão Encerrar) não volta a ao vivo.
