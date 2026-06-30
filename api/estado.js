@@ -24,13 +24,17 @@ export default async function handler(req, res) {
     sql`SELECT tipo, valor, confirmado FROM resultado_especial`,
     sql`SELECT participante_id FROM artilheiro_premiado`,
     /* Desempate (5º critério): ANTECEDÊNCIA MÉDIA — quão antes do kickoff a
-       pessoa costuma palpitar, em segundos (kickoff - criado_em), média sobre
-       todos os jogos que ela palpitou e que têm horário. Maior = mais rápida.
+       pessoa costuma palpitar, em segundos (kickoff - atualizado_em), média
+       sobre todos os jogos que ela palpitou e que têm horário. Maior = mais
+       rápida. Usa atualizado_em (NÃO criado_em) de propósito: se a pessoa edita
+       o palpite mais perto do jogo (já com escalação/notícias), o horário que
+       vale é o da EDIÇÃO — senão dava pra cravar cedo só pra marcar tempo e
+       depois trocar com mais info, levando vantagem indevida no desempate.
        Premia consistência (não a data de entrada), então não penaliza quem
        entrou depois do 1º jogo. Só jogos com kickoff definido entram. */
     sql`
       SELECT p.participante_id,
-             AVG(EXTRACT(EPOCH FROM (j.kickoff - p.criado_em))) AS antecedencia_seg
+             AVG(EXTRACT(EPOCH FROM (j.kickoff - p.atualizado_em))) AS antecedencia_seg
       FROM palpites p
       JOIN jogos j ON j.id = p.jogo_id
       WHERE j.kickoff IS NOT NULL
@@ -43,9 +47,9 @@ export default async function handler(req, res) {
   for (const r of resultadoEspecialRows) reMap[r.tipo] = { valor: r.valor, confirmado: r.confirmado };
 
   const palpites = eu.isAdmin
-    ? await sql`SELECT jogo_id, participante_id, h, a, criado_em FROM palpites`
+    ? await sql`SELECT jogo_id, participante_id, h, a, atualizado_em FROM palpites`
     : await sql`
-        SELECT p.jogo_id, p.participante_id, p.h, p.a, p.criado_em
+        SELECT p.jogo_id, p.participante_id, p.h, p.a, p.atualizado_em
         FROM palpites p
         JOIN jogos j ON j.id = p.jogo_id
         WHERE p.participante_id = ${eu.id ?? -1}

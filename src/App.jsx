@@ -356,7 +356,7 @@ export default function App() {
   /* mapa de palpites: jogoId -> participanteId -> {h, a} */
   const palpitesMap = {};
   for (const p of estado.palpites) {
-    (palpitesMap[p.jogo_id] ||= {})[p.participante_id] = { h: p.h, a: p.a, criado_em: p.criado_em };
+    (palpitesMap[p.jogo_id] ||= {})[p.participante_id] = { h: p.h, a: p.a, atualizado_em: p.atualizado_em };
   }
   const contagensMap = {};
   for (const c of estado.contagens) contagensMap[c.jogo_id] = c.total;
@@ -2174,11 +2174,11 @@ function LinhaPalpite({ jogo, participante, palpite, bloqueado, destaque, token,
         )}
         {encerrado && pts === null && <span className="pts pts-0">—</span>}
       </div>
-      {palpite?.criado_em && (() => {
-        const txt = [fmtAntecedencia(jogo.kickoff, palpite.criado_em), fmtMomento(palpite.criado_em)]
+      {palpite?.atualizado_em && (() => {
+        const txt = [fmtAntecedencia(jogo.kickoff, palpite.atualizado_em), fmtMomento(palpite.atualizado_em)]
           .filter(Boolean).join(" · ");
         return txt
-          ? <div className="palpite-quando" title="Quando o palpite foi registrado (1º envio) — comprovação do desempate por antecedência">⏱ {txt}</div>
+          ? <div className="palpite-quando" title="Quando o palpite foi registrado (vale o último envio — editar reinicia o horário do desempate por antecedência)">⏱ {txt}</div>
           : null;
       })()}
     </div>
