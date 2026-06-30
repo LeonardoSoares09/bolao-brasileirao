@@ -33,9 +33,9 @@ function rankingAntigo(estado, palpitesMap, hojeKey, chaveData, antecedenciaMap)
     const re = estado.resultadoEspecial;
     const acertouCampeao = !!(re?.campeao?.confirmado && (estado.palpitesCampeao || []).some(
       (pc) => pc.participante_id === p.id && pc.selecao === re.campeao.valor));
-    if (acertouCampeao) bonus += 9;
+    if (acertouCampeao) bonus += 12;
     const acertouArtilheiro = !!(re?.artilheiro?.confirmado && (estado.premiadosArtilheiro || []).includes(p.id));
-    if (acertouArtilheiro) bonus += 6;
+    if (acertouArtilheiro) bonus += 18;
     let pontos = bonus, exatos = 0, resultados = 0, exatosHoje = 0;
     for (const m of estado.jogos) {
       const pts = pontosAntigo(palpitesMap[m.id]?.[p.id], m);
@@ -77,10 +77,10 @@ const estado = {
     artilheiro: { confirmado: true },
   },
   palpitesCampeao: [
-    { participante_id: 1, selecao: "BRA" }, // Ana acerta campeã (+9)
+    { participante_id: 1, selecao: "BRA" }, // Ana acerta campeã (+12)
     { participante_id: 3, selecao: "ARG" },
   ],
-  premiadosArtilheiro: [2], // Bruno acerta artilheiro (+6)
+  premiadosArtilheiro: [2], // Bruno acerta artilheiro (+18)
 };
 const palpitesMap = {
   10: { 1: { h: 2, a: 1 }, 2: { h: 1, a: 0 }, 3: { h: 2, a: 1 }, 4: { h: 0, a: 0 }, 5: { h: 2, a: 1 } },

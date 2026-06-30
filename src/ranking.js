@@ -6,8 +6,8 @@
 
 export const PTS_EXATO = 3;
 export const PTS_RESULTADO = 1;
-export const BONUS_CAMPEAO = 9;
-export const BONUS_ARTILHEIRO = 6;
+export const BONUS_CAMPEAO = 12;
+export const BONUS_ARTILHEIRO = 18;
 
 /* "Tem placar que conta pontos" — INCLUI jogo ao vivo (gh/ga preenchidos).
    Diferente de `temResultado` (no App.jsx), que exige jogo encerrado (!live).

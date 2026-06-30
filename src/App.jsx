@@ -2628,7 +2628,7 @@ function BonusAdmin({ token, estado, recarregar }) {
 
       {/* Campeão */}
       <div className="cartao form-jogo" style={{ marginBottom: "10px" }}>
-        <div className="secao-titulo" style={{ margin: "0 0 8px" }}>SELEÇÃO CAMPEÃ · +9 pts para quem acertou</div>
+        <div className="secao-titulo" style={{ margin: "0 0 8px" }}>SELEÇÃO CAMPEÃ · +{BONUS_CAMPEAO} pts para quem acertou</div>
         {resultado.campeao?.confirmado ? (
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
             <span style={{ fontSize: "20px", fontWeight: 800 }}>{fl(resultado.campeao.valor)}{resultado.campeao.valor}</span>
@@ -2662,7 +2662,7 @@ function BonusAdmin({ token, estado, recarregar }) {
                 onClick={() => setPedindoConfirm("campeao")}
                 disabled={salvando || !!confirmando}
               >
-                🔒 Confirmar campeã e distribuir +9 pts
+                🔒 Confirmar campeã e distribuir +{BONUS_CAMPEAO} pts
               </button>
             )}
             {pedindoConfirm === "campeao" && (
@@ -2682,7 +2682,7 @@ function BonusAdmin({ token, estado, recarregar }) {
         )}
         {vencedoresCampeao.length > 0 && (
           <div style={{ marginTop: "10px" }}>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "10px", opacity: .7, marginBottom: "6px" }}>GANHARAM +9 PTS:</div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "10px", opacity: .7, marginBottom: "6px" }}>GANHARAM +{BONUS_CAMPEAO} PTS:</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
               {vencedoresCampeao.map((v) => (
                 <span key={v.participante_id} className="pts pts-3">{nomeParticipante(v.participante_id)}</span>
@@ -2697,7 +2697,7 @@ function BonusAdmin({ token, estado, recarregar }) {
 
       {/* Artilheiro */}
       <div className="cartao form-jogo">
-        <div className="secao-titulo" style={{ margin: "0 0 8px" }}>ARTILHEIRO · +6 pts para quem acertou</div>
+        <div className="secao-titulo" style={{ margin: "0 0 8px" }}>ARTILHEIRO · +{BONUS_ARTILHEIRO} pts para quem acertou</div>
         {resultado.artilheiro?.confirmado ? (
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
             {resultado.artilheiro.valor && <span style={{ fontSize: "20px", fontWeight: 800 }}>{resultado.artilheiro.valor}</span>}
@@ -2740,7 +2740,7 @@ function BonusAdmin({ token, estado, recarregar }) {
                       {isPremiado ? "✓ Acertou" : "Marcar"}
                     </button>
                   ) : (
-                    isPremiado && <span className="pts pts-3">+6</span>
+                    isPremiado && <span className="pts pts-3">+{BONUS_ARTILHEIRO}</span>
                   )}
                 </div>
               );
@@ -2758,7 +2758,7 @@ function BonusAdmin({ token, estado, recarregar }) {
             onClick={() => setPedindoConfirm("artilheiro")}
             disabled={salvando || !!confirmando}
           >
-            🔒 Confirmar e distribuir +6 pts
+            🔒 Confirmar e distribuir +{BONUS_ARTILHEIRO} pts
           </button>
         )}
         {pedindoConfirm === "artilheiro" && (
@@ -3567,11 +3567,11 @@ function ModalRegras({ onFechar }) {
 
           <div className="regras-secao">Bônus especiais</div>
           <div className="regras-item">
-            <span className="pts pts-3">+9 pts</span>
+            <span className="pts pts-3">+{BONUS_CAMPEAO} pts</span>
             <span>Acertar a seleção campeã (palpite travado antes da Copa)</span>
           </div>
           <div className="regras-item">
-            <span className="pts pts-1">+6 pts</span>
+            <span className="pts pts-1">+{BONUS_ARTILHEIRO} pts</span>
             <span>Acertar o artilheiro da Copa (palpite travado antes da Copa)</span>
           </div>
 
