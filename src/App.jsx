@@ -1269,13 +1269,23 @@ function tabelaDoGrupo(jogos, times) {
 }
 
 /* últimos jogos do time NO TORNEIO (só nossos dados), mais recentes primeiro. */
+/* Mesma seleção? Casa pelo código de bandeira (FLAG_CODES) quando existir — assim
+   grafias variantes do MESMO time contam como iguais nas estatísticas (ex.:
+   "Bosnia-Herzegovina" cadastrado na mão vs "Bósnia e Herzegovina" traduzido
+   pelo robô, ambos → "ba"). Sem código nos dois, cai no nome exato. */
+const mesmaSelecao = (a, b) => {
+  if (a === b) return true;
+  const ca = FLAG_CODES[a], cb = FLAG_CODES[b];
+  return !!ca && ca === cb;
+};
+
 function formaDoTime(jogos, time, limite = 5) {
   return jogos
-    .filter((j) => (j.casa === time || j.fora === time) && temPlacar(j) && j.kickoff)
+    .filter((j) => (mesmaSelecao(j.casa, time) || mesmaSelecao(j.fora, time)) && temPlacar(j) && j.kickoff)
     .sort((a, b) => new Date(b.kickoff) - new Date(a.kickoff))
     .slice(0, limite)
     .map((j) => {
-      const emCasa = j.casa === time;
+      const emCasa = mesmaSelecao(j.casa, time);
       const gf = emCasa ? j.gh : j.ga;
       const gc = emCasa ? j.ga : j.gh;
       return { id: j.id, adversario: emCasa ? j.fora : j.casa, gf, gc, res: gf > gc ? "V" : gf < gc ? "D" : "E" };
