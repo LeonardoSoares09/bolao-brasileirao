@@ -1301,6 +1301,9 @@ const ELO_BASE = {
   ve:1758, ml:1758, za:1750, gh:1740, tn:1732, au:1730, cv:1702, uz:1700,
   pa:1698, qa:1688, sa:1680, jm:1678, pe:1772, jo:1660, cr:1658, hn:1640,
   iq:1638, nz:1505,
+  // adicionados 01/07/2026: participantes que faltavam na base (sem eles, as
+  // "chances de ganhar" no modal de stats não apareciam — chancesDoJogo=null).
+  us:1790, ba:1718,
 };
 
 /* Elo ajustado pelos resultados JÁ ENCERRADOS do torneio — mantém o snapshot
