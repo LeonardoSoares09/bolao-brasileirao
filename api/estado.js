@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const [participantes, jogos, contagens, palpitesCampeao, palpitesArtilheiro, resultadoEspecialRows, premiadosArtilheiro, antecedenciaRows, reacoesRows] = await Promise.all([
+  const [participantes, jogos, contagens, palpitesCampeao, palpitesArtilheiro, resultadoEspecialRows, premiadosArtilheiro, antecedenciaRows, reacoesRows, configRows] = await Promise.all([
     sql`SELECT id, nome, is_admin, avatar_emoji, avatar_cor, pagou FROM participantes ORDER BY nome`,
     sql`SELECT id, casa, fora, kickoff, gh, ga, fase, peso, live FROM jogos ORDER BY kickoff NULLS LAST, id`,
     sql`SELECT jogo_id, COUNT(*)::int AS total FROM palpites GROUP BY jogo_id`,
@@ -41,7 +41,15 @@ export default async function handler(req, res) {
       GROUP BY p.participante_id
     `,
     sql`SELECT jogo_id, participante_id, emoji FROM reacoes`,
+    /* dados "ao vivo" administrados pelo admin (ver api/live-admin.js): gols
+       atuais dos artilheiros escolhidos e seleções marcadas como eliminadas. */
+    sql`SELECT chave, valor FROM config WHERE chave IN ('artilheiro_gols', 'selecoes_eliminadas')`,
   ]);
+
+  const cfg = {};
+  for (const r of configRows) {
+    try { cfg[r.chave] = r.valor ? JSON.parse(r.valor) : null; } catch { cfg[r.chave] = null; }
+  }
 
   const reMap = {};
   for (const r of resultadoEspecialRows) reMap[r.tipo] = { valor: r.valor, confirmado: r.confirmado };
@@ -72,6 +80,8 @@ export default async function handler(req, res) {
     premiadosArtilheiro: premiadosArtilheiro.map((r) => r.participante_id),
     antecedenciaMedia: antecedenciaRows.map((r) => ({ participante_id: r.participante_id, segundos: Number(r.antecedencia_seg) })),
     resultadoEspecial: { campeao: reMap.campeao || null, artilheiro: reMap.artilheiro || null },
+    artilheiroGols: cfg.artilheiro_gols && typeof cfg.artilheiro_gols === "object" ? cfg.artilheiro_gols : {},
+    selecoesEliminadas: Array.isArray(cfg.selecoes_eliminadas) ? cfg.selecoes_eliminadas : [],
     agora: new Date().toISOString(),
   });
 }

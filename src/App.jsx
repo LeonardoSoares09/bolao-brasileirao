@@ -541,7 +541,12 @@ export default function App() {
           />
         )}
         {tab === "campeao" && (
-          <Campeao token={token} euId={estado.eu.id} />
+          <Campeao
+            token={token}
+            euId={estado.eu.id}
+            artilheiroGols={estado.artilheiroGols || {}}
+            selecoesEliminadas={estado.selecoesEliminadas || []}
+          />
         )}
         {tab === "galera" && (
           <Galera estado={estado} ehAdmin={ehAdmin} token={token} recarregar={carregar} installPrompt={installPrompt} onInstalled={() => setInstallPrompt(null)} />
@@ -1269,6 +1274,11 @@ function tabelaDoGrupo(jogos, times) {
 }
 
 /* últimos jogos do time NO TORNEIO (só nossos dados), mais recentes primeiro. */
+/* normaliza texto pra comparar/agrupar nomes: sem acento, sem caixa, sem borda.
+   Usado pra casar o pick de artilheiro (texto livre) com o mapa de gols. */
+const normTexto = (s) =>
+  String(s ?? "").normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().toLowerCase();
+
 /* Mesma seleção? Casa pelo código de bandeira (FLAG_CODES) quando existir — assim
    grafias variantes do MESMO time contam como iguais nas estatísticas (ex.:
    "Bosnia-Herzegovina" cadastrado na mão vs "Bósnia e Herzegovina" traduzido
@@ -2569,6 +2579,10 @@ function BonusAdmin({ token, estado, recarregar }) {
   const [pedindoConfirm, setPedindoConfirm] = useState(null);
   const [aviso, setAviso] = useState("");
   const [toggling, setToggling] = useState(false);
+  const [golsEdit, setGolsEdit] = useState(() => ({ ...(estado.artilheiroGols || {}) }));
+  const [salvandoGols, setSalvandoGols] = useState(false);
+  const [pedindoElim, setPedindoElim] = useState(null);
+  const [salvandoElim, setSalvandoElim] = useState(false);
 
   const carregar = useCallback(async () => {
     try {
@@ -2623,6 +2637,30 @@ function BonusAdmin({ token, estado, recarregar }) {
     setToggling(false);
   };
 
+  const salvarGols = async (jogadores) => {
+    setSalvandoGols(true);
+    try {
+      const gols = {};
+      for (const [n] of jogadores) {
+        const v = parseInt(golsEdit[n], 10);
+        if (Number.isFinite(v) && v >= 0) gols[n] = v;
+      }
+      await api("/api/live-admin", { method: "POST", body: JSON.stringify({ t: token, tipo: "artilheiro-gols", gols }) });
+      await recarregar();
+      setAviso("Gols salvos ⚽");
+    } catch (e) { setAviso(e.message); }
+    setSalvandoGols(false);
+  };
+
+  const salvarEliminadas = async (codigos) => {
+    setSalvandoElim(true);
+    try {
+      await api("/api/live-admin", { method: "POST", body: JSON.stringify({ t: token, tipo: "selecoes-eliminadas", codigos }) });
+      await recarregar();
+    } catch (e) { setAviso(e.message); }
+    setSalvandoElim(false);
+  };
+
   if (!resultado) return null;
 
   const nomeParticipante = (id) => estado.participantes.find((p) => p.id === id)?.nome || "?";
@@ -2630,6 +2668,20 @@ function BonusAdmin({ token, estado, recarregar }) {
   const vencedoresCampeao = resultado.campeao?.confirmado
     ? (estado.palpitesCampeao || []).filter((pc) => pc.selecao === resultado.campeao.valor)
     : [];
+
+  /* jogadores distintos escolhidos (agrupados por nome normalizado) p/ editar gols */
+  const jogadoresArt = (() => {
+    const m = new Map();
+    for (const pk of estado.palpitesArtilheiro || []) {
+      const n = normTexto(pk.jogador);
+      if (n && !m.has(n)) m.set(n, pk.jogador);
+    }
+    return [...m.entries()];
+  })();
+  /* seleções distintas escolhidas como campeã, p/ marcar eliminadas (só confirmadas) */
+  const selsCampeao = [...new Set((estado.palpitesCampeao || []).map((pc) => pc.selecao))]
+    .sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const eliminadaSel = (sel) => (estado.selecoesEliminadas || []).includes(FLAG_CODES[sel]);
 
   const filtradas = campeaoFiltro
     ? SELECOES.filter((s) => normBusca(s).includes(normBusca(campeaoFiltro)))
@@ -2707,6 +2759,45 @@ function BonusAdmin({ token, estado, recarregar }) {
           <p className="dica" style={{ marginTop: "8px", opacity: .6 }}>Ninguém acertou o campeão.</p>
         )}
       </div>
+
+      {/* Seleções eliminadas (manual, visual na aba Campeão) */}
+      {selsCampeao.length > 0 && (
+        <div className="cartao form-jogo" style={{ marginBottom: "10px" }}>
+          <div className="secao-titulo" style={{ margin: "0 0 4px" }}>SELEÇÕES ELIMINADAS</div>
+          <p className="dica" style={{ marginTop: 0, marginBottom: "8px", opacity: .7 }}>
+            Marca a seleção eliminada → o card de quem a escolheu fica acinzentado na aba Campeão. Reversível.
+          </p>
+          {selsCampeao.map((sel) => {
+            const elim = eliminadaSel(sel);
+            const code = FLAG_CODES[sel];
+            return (
+              <div key={sel} className={"cartao palpite-linha" + (elim ? " card-eliminado" : "")} style={{ marginBottom: "6px" }}>
+                <span className="palpite-nome">
+                  {fl(sel)}{sel}
+                  {elim && <span className="tag-eliminada" style={{ marginLeft: 8 }}>✗ eliminada</span>}
+                </span>
+                {elim ? (
+                  <button className="botao-fantasma" style={{ padding: "4px 10px", fontSize: "13px" }}
+                    onClick={() => salvarEliminadas((estado.selecoesEliminadas || []).filter((c) => c !== code))}
+                    disabled={salvandoElim}>↩ desmarcar</button>
+                ) : pedindoElim === sel ? (
+                  <span style={{ display: "inline-flex", gap: "6px", flex: "none" }}>
+                    <button className="botao" style={{ padding: "4px 10px", fontSize: "13px" }}
+                      onClick={async () => { await salvarEliminadas([...new Set([...(estado.selecoesEliminadas || []), code])]); setPedindoElim(null); }}
+                      disabled={salvandoElim || !code}>Sim, eliminar</button>
+                    <button className="botao-fantasma" style={{ padding: "4px 10px", fontSize: "13px" }}
+                      onClick={() => setPedindoElim(null)}>Não</button>
+                  </span>
+                ) : (
+                  <button className="botao-fantasma" style={{ padding: "4px 10px", fontSize: "13px" }}
+                    onClick={() => setPedindoElim(sel)} disabled={!code}
+                    title={code ? "" : "Sem código de bandeira — não dá pra marcar"}>marcar eliminada</button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Artilheiro */}
       <div className="cartao form-jogo">
@@ -2792,6 +2883,29 @@ function BonusAdmin({ token, estado, recarregar }) {
           <p className="dica" style={{ marginTop: "8px", opacity: .6 }}>Ninguém acertou o artilheiro.</p>
         )}
       </div>
+
+      {/* Gols atuais → ranking do artilheiro na aba Artilheiro */}
+      {jogadoresArt.length > 0 && (
+        <div className="cartao form-jogo">
+          <div className="secao-titulo" style={{ margin: "0 0 4px" }}>GOLS ATUAIS — RANKING DO ARTILHEIRO</div>
+          <p className="dica" style={{ marginTop: 0, marginBottom: "8px", opacity: .7 }}>
+            Nº de gols de cada jogador que a galera escolheu. A aba Artilheiro mostra o ranking por isso.
+          </p>
+          {jogadoresArt.map(([n, display]) => (
+            <div key={n} className="cartao palpite-linha" style={{ marginBottom: "6px" }}>
+              <span className="palpite-nome">{display}</span>
+              <input type="number" min="0" max="99" inputMode="numeric" placeholder="0"
+                value={golsEdit[n] ?? ""}
+                onChange={(e) => setGolsEdit((g) => ({ ...g, [n]: e.target.value }))}
+                style={{ width: "70px", textAlign: "center", flex: "none" }} />
+            </div>
+          ))}
+          <button className="botao botao-largo" style={{ marginTop: "8px" }}
+            onClick={() => salvarGols(jogadoresArt)} disabled={salvandoGols}>
+            {salvandoGols ? "Salvando…" : "💾 Salvar gols"}
+          </button>
+        </div>
+      )}
 
       {aviso && <p className="dica toast" role="status">{aviso}</p>}
     </div>
@@ -3062,7 +3176,7 @@ function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, on
   );
 }
 
-function Campeao({ token, euId }) {
+function Campeao({ token, euId, artilheiroGols = {}, selecoesEliminadas = [] }) {
   // — campeão —
   const [meu, setMeu] = useState(null);
   const [confirmados, setConfirmados] = useState([]);
@@ -3291,18 +3405,22 @@ function Campeao({ token, euId }) {
           {confirmados.length === 0 ? (
             <Vazio texto="Nenhum palpite confirmado ainda — seja o primeiro!" />
           ) : (
-            confirmados.map((c, i) => (
-              <div
-                key={c.participante_id}
-                className={"cartao palpite-linha entra-cartao" + (c.participante_id === euId ? " meu-palpite" : "")}
-                style={{ "--i": Math.min(i, 8) }}
-              >
-                <span className="palpite-nome">
-                  {c.nome}{c.participante_id === euId ? " (você)" : ""}
-                </span>
-                <span className="pts pts-1">{fl(c.selecao)}{c.selecao}</span>
-              </div>
-            ))
+            confirmados.map((c, i) => {
+              const eliminada = selecoesEliminadas.includes(FLAG_CODES[c.selecao]);
+              return (
+                <div
+                  key={c.participante_id}
+                  className={"cartao palpite-linha entra-cartao" + (c.participante_id === euId ? " meu-palpite" : "") + (eliminada ? " card-eliminado" : "")}
+                  style={{ "--i": Math.min(i, 8) }}
+                >
+                  <span className="palpite-nome">
+                    {c.nome}{c.participante_id === euId ? " (você)" : ""}
+                  </span>
+                  {eliminada && <span className="tag-eliminada">✗ eliminada</span>}
+                  <span className="pts pts-1">{fl(c.selecao)}{c.selecao}</span>
+                </div>
+              );
+            })
           )}
         </>
       )}
@@ -3380,9 +3498,34 @@ function Campeao({ token, euId }) {
             </>
           )}
 
-          <div className="secao-titulo">QUEM JÁ CONFIRMOU</div>
+          {(() => { const temGols = Object.keys(artilheiroGols).length > 0; return (<>
+          <div className="secao-titulo">{temGols ? "RANKING DO ARTILHEIRO ⚽" : "QUEM JÁ CONFIRMOU"}</div>
           {confirmadosArt.length === 0 ? (
             <Vazio texto="Nenhum palpite confirmado ainda — seja o primeiro!" />
+          ) : temGols ? (
+            (() => {
+              /* ranking por gols do jogador escolhido; posição de competição
+                 padrão: mesmo nº de gols = mesma posição, próximo pula (1,1,1,4). */
+              const rank = confirmadosArt
+                .map((c) => ({ ...c, gols: Number(artilheiroGols[normTexto(c.jogador)]) || 0 }))
+                .sort((a, b) => b.gols - a.gols || a.nome.localeCompare(b.nome));
+              let pos = 0, prev = null;
+              rank.forEach((c, idx) => { if (c.gols !== prev) { pos = idx + 1; prev = c.gols; } c.pos = pos; });
+              return rank.map((c, i) => (
+                <div
+                  key={c.participante_id}
+                  className={"cartao palpite-linha entra-cartao" + (c.participante_id === euId ? " meu-palpite" : "")}
+                  style={{ "--i": Math.min(i, 8) }}
+                >
+                  <span className={"rank-pos" + (c.pos <= 3 ? " rank-pos-top" : "")}>{c.pos}º</span>
+                  <span className="palpite-nome" style={{ flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                    <span>{c.nome}{c.participante_id === euId ? " (você)" : ""}</span>
+                    <span className="rank-jogador">{c.jogador}</span>
+                  </span>
+                  <span className="pts pts-1">⚽ {c.gols}</span>
+                </div>
+              ));
+            })()
           ) : (
             confirmadosArt.map((c, i) => (
               <div
@@ -3397,6 +3540,7 @@ function Campeao({ token, euId }) {
               </div>
             ))
           )}
+          </>); })()}
         </>
       )}
 
@@ -4555,6 +4699,12 @@ function Estilo() {
         letter-spacing: .04em; color: rgba(242,246,239,.42);
       }
       .palpite-nome { flex: 1; font-size: 18px; font-weight: 600; letter-spacing: .03em; display: flex; align-items: center; gap: 8px; overflow: hidden; min-width: 0; }
+      /* ranking do artilheiro + seleção eliminada */
+      .rank-pos { flex: none; min-width: 30px; text-align: center; font-family: 'IBM Plex Mono', monospace; font-weight: 800; font-size: 15px; color: rgba(242,246,239,.55); }
+      .rank-pos-top { color: var(--ambar); }
+      .rank-jogador { font-size: 12px; font-weight: 500; opacity: .6; font-family: 'IBM Plex Mono', monospace; }
+      .card-eliminado { filter: grayscale(1); opacity: .5; }
+      .tag-eliminada { flex: none; font: 700 10px 'Barlow Condensed', sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--erro); border: 1px solid var(--erro); border-radius: 999px; padding: 2px 7px; white-space: nowrap; }
       .palpite-inputs { display: flex; align-items: center; gap: 6px; }
       .palpite-time-flag { display: flex; align-items: center; opacity: .75; line-height: 1; }
       .palpite-status {
