@@ -2822,8 +2822,17 @@ function BonusAdmin({ token, estado, recarregar }) {
         {(estado.palpitesArtilheiro?.length > 0) && (
           <div style={{ marginTop: "10px" }}>
             <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "10px", opacity: .7, marginBottom: "6px", letterSpacing: ".1em" }}>
-              {resultado.artilheiro?.confirmado ? "PICKS SUBMETIDOS:" : "MARQUE QUEM ACERTOU:"}
+              {resultado.artilheiro?.confirmado
+                ? "PICKS SUBMETIDOS:"
+                : resultado.artilheiro?.valor
+                ? "MARQUE QUEM ACERTOU:"
+                : "PICKS DA GALERA:"}
             </div>
+            {!resultado.artilheiro?.confirmado && !resultado.artilheiro?.valor && (
+              <p className="dica" style={{ marginTop: 0, marginBottom: "6px", opacity: .6, fontSize: "11px" }}>
+                Digite o artilheiro real acima pra liberar os botões de "marcar quem acertou" (evita clique errado enquanto você atualiza os gols).
+              </p>
+            )}
             {estado.palpitesArtilheiro.map((pick) => {
               const isPremiado = (estado.premiadosArtilheiro || []).includes(pick.participante_id);
               return (
@@ -2834,7 +2843,9 @@ function BonusAdmin({ token, estado, recarregar }) {
                 >
                   <span className="palpite-nome">{nomeParticipante(pick.participante_id)}</span>
                   <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "13px", opacity: .85, flex: "none" }}>{pick.jogador}</span>
-                  {!resultado.artilheiro?.confirmado ? (
+                  {resultado.artilheiro?.confirmado ? (
+                    isPremiado && <span className="pts pts-3">+{BONUS_ARTILHEIRO}</span>
+                  ) : resultado.artilheiro?.valor ? (
                     <button
                       className={isPremiado ? "botao" : "botao-fantasma"}
                       style={{ padding: "4px 10px", fontSize: "13px" }}
@@ -2844,7 +2855,9 @@ function BonusAdmin({ token, estado, recarregar }) {
                       {isPremiado ? "✓ Acertou" : "Marcar"}
                     </button>
                   ) : (
-                    isPremiado && <span className="pts pts-3">+{BONUS_ARTILHEIRO}</span>
+                    /* sem artilheiro real digitado: não mostra botão (evita clique
+                       acidental); só sinaliza marcações que já existirem. */
+                    isPremiado && <span className="tag tag-travado" style={{ fontSize: "10px", flex: "none" }}>já marcado</span>
                   )}
                 </div>
               );
