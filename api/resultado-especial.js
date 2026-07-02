@@ -5,6 +5,19 @@
 
 import { sql, autenticar, intOuNull } from "../lib/db.js";
 
+/* dados "ao vivo" administrados na mão, guardados na tabela config (JSON):
+   'artilheiro_gols' (ranking do artilheiro) e 'selecoes_eliminadas' (visual na
+   aba Campeão). Ficam AQUI (e não num endpoint novo) porque o plano Hobby limita
+   a 12 Serverless Functions — uma a mais estoura e vira 404. */
+async function salvarConfig(chave, valorObj) {
+  const json = JSON.stringify(valorObj);
+  await sql`
+    INSERT INTO config (chave, valor, atualizado_em)
+    VALUES (${chave}, ${json}, now())
+    ON CONFLICT (chave) DO UPDATE SET valor = ${json}, atualizado_em = now()
+  `;
+}
+
 export default async function handler(req, res) {
   const token = req.method === "GET" ? req.query.t : req.body?.t;
   const eu = await autenticar(token);
@@ -20,6 +33,40 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
+    const tipoRaw = String(req.body?.tipo || "");
+
+    if (tipoRaw === "artilheiro-gols") {
+      const gols = req.body?.gols;
+      if (gols == null || typeof gols !== "object" || Array.isArray(gols)) {
+        res.status(400).json({ error: "gols inválido" });
+        return;
+      }
+      const limpo = {};
+      for (const [k, v] of Object.entries(gols)) {
+        const n = Math.floor(Number(v));
+        if (typeof k === "string" && k && Number.isFinite(n) && n >= 0 && n <= 99) {
+          limpo[k.slice(0, 100)] = n;
+        }
+      }
+      await salvarConfig("artilheiro_gols", limpo);
+      res.status(200).json({ ok: true });
+      return;
+    }
+
+    if (tipoRaw === "selecoes-eliminadas") {
+      const codigos = req.body?.codigos;
+      if (!Array.isArray(codigos)) {
+        res.status(400).json({ error: "codigos inválido" });
+        return;
+      }
+      const limpo = [...new Set(
+        codigos.filter((c) => typeof c === "string" && c).map((c) => c.slice(0, 10))
+      )];
+      await salvarConfig("selecoes_eliminadas", limpo);
+      res.status(200).json({ ok: true });
+      return;
+    }
+
     const tipo = req.body?.tipo === "artilheiro" ? "artilheiro" : "campeao";
     const valor = String(req.body?.valor || "").trim();
     if (!valor || valor.length > 100) {

@@ -2645,7 +2645,7 @@ function BonusAdmin({ token, estado, recarregar }) {
         const v = parseInt(golsEdit[n], 10);
         if (Number.isFinite(v) && v >= 0) gols[n] = v;
       }
-      await api("/api/live-admin", { method: "POST", body: JSON.stringify({ t: token, tipo: "artilheiro-gols", gols }) });
+      await api("/api/resultado-especial", { method: "POST", body: JSON.stringify({ t: token, tipo: "artilheiro-gols", gols }) });
       await recarregar();
       setAviso("Gols salvos ⚽");
     } catch (e) { setAviso(e.message); }
@@ -2655,7 +2655,7 @@ function BonusAdmin({ token, estado, recarregar }) {
   const salvarEliminadas = async (codigos) => {
     setSalvandoElim(true);
     try {
-      await api("/api/live-admin", { method: "POST", body: JSON.stringify({ t: token, tipo: "selecoes-eliminadas", codigos }) });
+      await api("/api/resultado-especial", { method: "POST", body: JSON.stringify({ t: token, tipo: "selecoes-eliminadas", codigos }) });
       await recarregar();
     } catch (e) { setAviso(e.message); }
     setSalvandoElim(false);
