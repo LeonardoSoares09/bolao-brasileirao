@@ -3517,13 +3517,14 @@ function Campeao({ token, euId, artilheiroGols = {}, selecoesEliminadas = [] }) 
             <Vazio texto="Nenhum palpite confirmado ainda — seja o primeiro!" />
           ) : temGols ? (
             (() => {
-              /* ranking por gols do jogador escolhido; posição de competição
-                 padrão: mesmo nº de gols = mesma posição, próximo pula (1,1,1,4). */
+              /* ranking por gols do jogador escolhido; posição DENSA: mesmo nº de
+                 gols = mesma posição, e o próximo grupo é a posição seguinte, sem
+                 pular (1,1,1,1,2,3…) — ex.: 4 no Mbappé (6 gols) em 1º, Kane (5) em 2º. */
               const rank = confirmadosArt
                 .map((c) => ({ ...c, gols: Number(artilheiroGols[normTexto(c.jogador)]) || 0 }))
                 .sort((a, b) => b.gols - a.gols || a.nome.localeCompare(b.nome));
               let pos = 0, prev = null;
-              rank.forEach((c, idx) => { if (c.gols !== prev) { pos = idx + 1; prev = c.gols; } c.pos = pos; });
+              rank.forEach((c) => { if (c.gols !== prev) { pos += 1; prev = c.gols; } c.pos = pos; });
               return rank.map((c, i) => (
                 <div
                   key={c.participante_id}
