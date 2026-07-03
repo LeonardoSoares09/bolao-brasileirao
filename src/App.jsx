@@ -1848,8 +1848,9 @@ function ResultadoAdmin({ jogo, salvar, remover, emAndamento = false }) {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       /* Editar o placar de um jogo JÁ ENCERRADO = corrigir o final (continua
-         encerrado). De um jogo EM ANDAMENTO = correção AO VIVO: mantém ao vivo e
-         o automático retoma sozinho quando a API alcança (trava "nunca regride"). */
+         encerrado). De um jogo EM ANDAMENTO = correção AO VIVO: mantém ao vivo. O
+         automático só volta a mexer quando a API MUDA o placar que reporta, então
+         a correção (ex.: gol anulado por VAR) não volta atrás sozinha. */
       const encerrar = temResultado(jogo);
       salvar(jogo, nh === "" ? null : nh, na === "" ? null : na, encerrar);
     }, 800);

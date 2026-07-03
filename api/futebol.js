@@ -425,26 +425,28 @@ async function acaoPlacares() {
       const pb = placarBolao(m.score);
       const gh = pb.home ?? 0;
       const ga = pb.away ?? 0;
-      /* Travas pra não estragar o placar ao vivo:
+      /* Regra do ao vivo (reescrita 02/07/2026 — bug do gol anulado): o cron só
+         mexe no placar quando a PRÓPRIA API muda o que reporta. api_gh/api_ga
+         guardam o último placar que a API mandou. Uma correção manual do admin
+         (jogo.js) NÃO toca api_*, então enquanto a API repetir o mesmo placar
+         atrasado o cron não desfaz a correção — é isso que faz um GOL ANULADO por
+         VAR (admin baixa 2-1 → 1-1) PARAR de voltar sozinho. Quando a API enfim
+         muda (reflete o VAR, ou sai um gol novo) o cron aplica o novo placar dela;
+         o FINISHED corrige o final de qualquer jeito. Isso substitui a antiga
+         trava ">= nunca regride", que protegia correção pra cima mas regravava a
+         correção pra baixo (a causa do bug).
+         Travas mantidas:
          (1) jogo JÁ FINALIZADO (live=false com placar — pela rama FINISHED ou
              pelo botão Encerrar) não volta a ao vivo.
          (2) jogo com kickoff > 4h atrás (mesma janela do JANELA_VIVO no front):
-             nenhuma partida real segue em jogo tão tarde — é status fantasma.
-         (3) NUNCA REGRIDE o placar: gols não voltam atrás, então a API só
-             atualiza se não diminuir nenhum dos lados. É isso que faz a correção
-             manual do admin (ex.: 1-0 enquanto a API atrasada ainda diz 0-0)
-             SOBREVIVER ao atraso — e o automático retomar sozinho assim que a
-             API alcança (reporta >= o placar atual). Tradeoff: um gol anulado por
-             VAR só reflete ao vivo quando a API confirma; o FINISHED corrige no fim. */
+             nenhuma partida real segue em jogo tão tarde — é status fantasma. */
       await sql`
         UPDATE jogos
-           SET gh = ${gh}, ga = ${ga}, live = true
+           SET gh = ${gh}, ga = ${ga}, live = true, api_gh = ${gh}, api_ga = ${ga}
          WHERE external_id = ${externalId}
            AND NOT (live = false AND gh IS NOT NULL AND ga IS NOT NULL)
            AND kickoff > NOW() - INTERVAL '4 hours'
-           AND (gh IS NULL OR ${gh} >= gh)
-           AND (ga IS NULL OR ${ga} >= ga)
-           AND (live IS DISTINCT FROM true OR gh IS DISTINCT FROM ${gh} OR ga IS DISTINCT FROM ${ga})
+           AND (api_gh IS DISTINCT FROM ${gh} OR api_ga IS DISTINCT FROM ${ga})
       `;
       vivos++;
     }

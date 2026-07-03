@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS participantes (
 -- de mata-mata (no mata-mata vale o placar dos 90min).
 -- `peso` = multiplicador de pontos por fase: grupos 1×, mata-mata 2×, final 4×
 -- (erro no começo pesa menos, acerto no fim vale mais).
+-- `api_gh`/`api_ga` = último placar que a football-data reportou ao vivo. O cron
+-- só regrava o placar quando esse valor muda, pra não desfazer correção manual do
+-- admin (ex.: gol anulado por VAR) enquanto a API atrasada repete o placar antigo.
 -- ─────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS jogos (
   id          SERIAL PRIMARY KEY,
@@ -42,6 +45,8 @@ CREATE TABLE IF NOT EXISTS jogos (
   fase        VARCHAR(20) NOT NULL DEFAULT 'grupos',
   peso        INT NOT NULL DEFAULT 1,
   live        BOOLEAN NOT NULL DEFAULT FALSE,
+  api_gh      INT,
+  api_ga      INT,
   criado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

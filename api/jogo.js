@@ -50,8 +50,10 @@ export default async function handler(req, res) {
     }
     const gh = intOuNull(req.body?.gh);
     const ga = intOuNull(req.body?.ga);
-    /* encerrar=false → correção AO VIVO: mantém live=true e deixa o automático
-       retomar sozinho (a trava "nunca regride" no futebol.js protege o valor).
+    /* encerrar=false → correção AO VIVO: mantém live=true. O cron (futebol.js) só
+       volta a mexer no placar quando a football-data MUDAR o que reporta — a
+       correção manual não toca api_gh/api_ga, então sobrevive ao atraso da API
+       (é o que faz um gol anulado por VAR parar de voltar sozinho).
        encerrar=true (ou ausente) → finaliza o jogo (live=false). Default seguro
        é finalizar, pra clientes antigos / chamadas sem o campo. */
     const live = req.body?.encerrar === false;
