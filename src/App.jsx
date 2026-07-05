@@ -1279,6 +1279,20 @@ function tabelaDoGrupo(jogos, times) {
 const normTexto = (s) =>
   String(s ?? "").normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().toLowerCase();
 
+/* Casa o nome do artilheiro real (digitado pelo admin) com o pick de um
+   participante — tolerante a caixa, acento e sobrenome vs nome completo
+   (ex.: "Mbappé" bate com "MBAPPE", "mbappe" e "Kylian Mbappe"). NÃO cobre
+   erro de digitação (ex.: "Mbapé") — esses o admin marca na mão. É só DESTAQUE:
+   a marcação de quem ganha os pontos continua manual (clique em "Marcar"). */
+function bateArtilheiro(real, pick) {
+  const a = normTexto(real), b = normTexto(pick);
+  if (!a || !b) return false;
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  const palavras = (s) => s.split(/\s+/).filter((w) => w.length >= 3);
+  const setB = new Set(palavras(b));
+  return palavras(a).some((w) => setB.has(w)); /* sobrenome/primeiro nome em comum */
+}
+
 /* Mesma seleção? Casa pelo código de bandeira (FLAG_CODES) quando existir — assim
    grafias variantes do MESMO time contam como iguais nas estatísticas (ex.:
    "Bosnia-Herzegovina" cadastrado na mão vs "Bósnia e Herzegovina" traduzido
@@ -2834,16 +2848,29 @@ function BonusAdmin({ token, estado, recarregar }) {
                 Digite o artilheiro real acima pra liberar os botões de "marcar quem acertou" (evita clique errado enquanto você atualiza os gols).
               </p>
             )}
-            {estado.palpitesArtilheiro.map((pick) => {
+            {(() => {
+              /* quando há artilheiro real digitado (fase de marcar, não confirmado),
+                 destaca os picks que batem e joga eles pro topo — pra você não caçar
+                 grafias variantes (Mbappé/MBAPPE/Kylian Mbappe) no meio da lista. */
+              const realArt = !resultado.artilheiro?.confirmado ? resultado.artilheiro?.valor : null;
+              const bate = (pick) => !!realArt && bateArtilheiro(realArt, pick.jogador);
+              const lista = realArt
+                ? [...estado.palpitesArtilheiro].sort((x, y) => (bate(y) ? 1 : 0) - (bate(x) ? 1 : 0))
+                : estado.palpitesArtilheiro;
+              return lista.map((pick) => {
               const isPremiado = (estado.premiadosArtilheiro || []).includes(pick.participante_id);
+              const casaNome = bate(pick);
               return (
                 <div
                   key={pick.participante_id}
                   className={"cartao palpite-linha" + (isPremiado ? " meu-palpite" : "")}
-                  style={{ marginBottom: "6px" }}
+                  style={{ marginBottom: "6px", ...(casaNome && !isPremiado ? { borderColor: "var(--acerto, #2e7d32)" } : {}) }}
                 >
                   <span className="palpite-nome">{nomeParticipante(pick.participante_id)}</span>
-                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "13px", opacity: .85, flex: "none" }}>{pick.jogador}</span>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "13px", opacity: .85, flex: "none" }}>
+                    {casaNome && <span title="Bate com o artilheiro real (confira e marque)" style={{ color: "var(--acerto, #2e7d32)", marginRight: 6 }}>●&nbsp;bate</span>}
+                    {pick.jogador}
+                  </span>
                   {resultado.artilheiro?.confirmado ? (
                     isPremiado && <span className="pts pts-3">+{BONUS_ARTILHEIRO}</span>
                   ) : resultado.artilheiro?.valor ? (
@@ -2873,7 +2900,8 @@ function BonusAdmin({ token, estado, recarregar }) {
                   )}
                 </div>
               );
-            })}
+              });
+            })()}
           </div>
         )}
         {(!estado.palpitesArtilheiro || estado.palpitesArtilheiro.length === 0) && (
