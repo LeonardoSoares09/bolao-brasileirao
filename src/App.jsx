@@ -2856,9 +2856,20 @@ function BonusAdmin({ token, estado, recarregar }) {
                       {isPremiado ? "✓ Acertou" : "Marcar"}
                     </button>
                   ) : (
-                    /* sem artilheiro real digitado: não mostra botão (evita clique
-                       acidental); só sinaliza marcações que já existirem. */
-                    isPremiado && <span className="tag tag-travado" style={{ fontSize: "10px", flex: "none" }}>já marcado</span>
+                    /* sem artilheiro real digitado: não mostra botão de MARCAR
+                       (evita clique acidental enquanto atualiza os gols), mas quem
+                       JÁ está marcado sempre pode ser DESmarcado — senão marcações
+                       antigas/de teste ficam presas sem como remover. */
+                    isPremiado && (
+                      <button
+                        className="botao-fantasma"
+                        style={{ padding: "4px 10px", fontSize: "13px" }}
+                        onClick={() => togglePremiado(pick.participante_id)}
+                        disabled={toggling}
+                      >
+                        ✓ desmarcar
+                      </button>
+                    )
                   )}
                 </div>
               );
