@@ -118,11 +118,26 @@ const traduzir = (nome) => (nome && TRADUCAO[nome]) || nome || "";
 const mapearFase = (stage) =>
   (!stage || stage === "GROUP_STAGE") ? "grupos" : "eliminatórias";
 
-/* peso de pontuação por fase: grupos 1×, final 4×, qualquer outro mata-mata
-   (16-avos/oitavas/quartas/semi/3º lugar) 2×. "Tudo que não é grupo nem final
-   = 2" é robusto a rótulos novos da API (ex.: LAST_32 dos 48 times). */
-const pesoDaStage = (stage) =>
-  stage === "FINAL" ? 4 : (!stage || stage === "GROUP_STAGE") ? 1 : 2;
+/* peso de pontuação por fase: erro no começo pesa menos, acerto no fim vale mais.
+   Escala a partir das quartas de 2026: 16-avos/oitavas 2×, quartas 3×, semi e
+   3º lugar 4×, final 5×.
+   Os aliases cobrem variações de rótulo da football-data entre competições
+   (LAST_8 x QUARTER_FINALS etc.) sem depender de um único nome exato.
+   Rótulo de mata-mata desconhecido cai no fallback 2× — nunca infla pontuação
+   por causa de um nome que a API passe a mandar. */
+const PESO_POR_STAGE = {
+  GROUP_STAGE: 1,
+  LAST_32: 2, ROUND_OF_32: 2,
+  LAST_16: 2, ROUND_OF_16: 2,
+  QUARTER_FINALS: 3, QUARTER_FINAL: 3, LAST_8: 3,
+  SEMI_FINALS: 4, SEMI_FINAL: 4, LAST_4: 4,
+  THIRD_PLACE: 4, THIRD_PLACE_PLAYOFF: 4,
+  FINAL: 5,
+};
+export const pesoDaStage = (stage) => {
+  if (!stage) return 1;
+  return PESO_POR_STAGE[stage] ?? 2;
+};
 
 /* Placar que o bolão pontua: 90min + prorrogação, PÊNALTIS FORA.
    ATENÇÃO (corrigido 29/06/2026): na football-data v4 o score.fullTime INCLUI

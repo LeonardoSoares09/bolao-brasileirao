@@ -3,7 +3,7 @@
    principal. Roda com: node src/ranking.test.mjs
    Não é parte do bundle — é uma rede de segurança do refactor. */
 
-import { pontosDoPalpite, calcularStats, compararRanking, criterioDesempate, temPlacar } from "./ranking.js";
+import { pontosDoPalpite, pontosComPeso, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate, temPlacar } from "./ranking.js";
 
 let falhas = 0;
 const check = (cond, msg) => { if (!cond) { falhas++; console.error("  ✗ " + msg); } };
@@ -171,5 +171,50 @@ for (const p of novo) {
 check(viuAoVivo, "cenario deveria ter ao menos um ponto vindo do jogo ao vivo");
 check(viuBonus, "cenario deveria ter ao menos um participante com bonus (campea/artilheiro)");
 
-if (falhas === 0) console.log("✓ ranking.test.mjs — todos os cenários passaram (novo == antigo + alinhamento M4)");
+/* ---- escala de peso por fase (quartas 3× em diante) ---- */
+{
+  const jogo = (peso) => ({ gh: 2, ga: 1, peso });
+  const exato = { h: 2, a: 1 }, resultado = { h: 3, a: 1 }, erro = { h: 0, a: 2 };
+
+  /* placar exato (3 brutos) escalado por cada fase */
+  check(pontosComPeso(exato, jogo(1)) === 3, "grupos: exato = 3");
+  check(pontosComPeso(exato, jogo(2)) === 6, "oitavas: exato = 6");
+  check(pontosComPeso(exato, jogo(3)) === 9, "quartas: exato = 9");
+  check(pontosComPeso(exato, jogo(4)) === 12, "semi/3º: exato = 12");
+  check(pontosComPeso(exato, jogo(5)) === 15, "final: exato = 15");
+
+  /* acerto de resultado (1 bruto) e erro (0) seguem a mesma escala */
+  check(pontosComPeso(resultado, jogo(3)) === 3, "quartas: resultado = 3");
+  check(pontosComPeso(erro, jogo(5)) === 0, "final: erro continua 0");
+  check(pontosComPeso(null, jogo(3)) === null, "sem palpite = null (não 0)");
+
+  /* rótulo: 4× NÃO pode virar "Final" (regressão da UI antiga, que usava >= 4) */
+  check(rotuloDoPeso(5).texto.includes("Final"), "5× rotula Final");
+  check(rotuloDoPeso(5).destaque === true, "5× tem destaque");
+  check(!rotuloDoPeso(4).texto.includes("🏆"), "4× não pode ser rotulado como Final");
+  check(rotuloDoPeso(4).destaque === true, "4× tem destaque");
+  check(rotuloDoPeso(3).texto.includes("Quartas"), "3× rotula Quartas");
+  check(rotuloDoPeso(2).texto.includes("Mata-mata"), "2× rotula Mata-mata");
+  check(rotuloDoPeso(1) === null, "grupos não tem rótulo de mata-mata");
+}
+
+/* ---- mapa stage(football-data) → peso, a fonte que o cron grava no banco ---- */
+{
+  process.env.DATABASE_URL ||= "postgres://teste:teste@localhost/teste";
+  const { pesoDaStage } = await import("../api/futebol.js");
+
+  check(pesoDaStage("GROUP_STAGE") === 1, "GROUP_STAGE = 1×");
+  check(pesoDaStage(null) === 1, "stage ausente = 1× (jogo cadastrado na mão)");
+  check(pesoDaStage("LAST_32") === 2, "LAST_32 (16-avos) = 2×");
+  check(pesoDaStage("LAST_16") === 2, "LAST_16 (oitavas) = 2×");
+  check(pesoDaStage("QUARTER_FINALS") === 3, "QUARTER_FINALS = 3×");
+  check(pesoDaStage("SEMI_FINALS") === 4, "SEMI_FINALS = 4×");
+  check(pesoDaStage("THIRD_PLACE") === 4, "THIRD_PLACE = 4×");
+  check(pesoDaStage("FINAL") === 5, "FINAL = 5×");
+
+  /* rótulo de mata-mata que a API invente cai em 2×, nunca em algo inflado */
+  check(pesoDaStage("PLAYOFF_ROUND_INEXISTENTE") === 2, "stage desconhecido = 2× (fallback seguro)");
+}
+
+if (falhas === 0) console.log("✓ ranking.test.mjs — todos os cenários passaram (novo == antigo + alinhamento M4 + escala de peso)");
 else { console.error(`\n✗ ${falhas} verificação(ões) falharam`); process.exit(1); }

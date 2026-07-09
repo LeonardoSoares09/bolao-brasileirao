@@ -21,10 +21,11 @@ export default async function handler(req, res) {
     const fora = String(req.body?.fora || "").trim();
     const kickoff = req.body?.kickoff ? new Date(req.body.kickoff) : null;
     const fase = req.body?.fase === "eliminatórias" ? "eliminatórias" : "grupos";
-    /* peso de pontuação: aceita 1/2/4 explícito; senão deriva da fase
-       (grupos 1×, mata-mata 2×). A final (4×) precisa vir explícita. */
+    /* peso de pontuação: aceita 1..5 explícito; senão deriva da fase
+       (grupos 1×, mata-mata 2×). Quartas (3×), semi/3º (4×) e final (5×)
+       precisam vir explícitas. */
     const pesoReq = intOuNull(req.body?.peso);
-    const peso = [1, 2, 4].includes(pesoReq) ? pesoReq : (fase === "eliminatórias" ? 2 : 1);
+    const peso = [1, 2, 3, 4, 5].includes(pesoReq) ? pesoReq : (fase === "eliminatórias" ? 2 : 1);
     if (!casa || !fora || casa.length > 60 || fora.length > 60) {
       res.status(400).json({ error: "Times inválidos" });
       return;

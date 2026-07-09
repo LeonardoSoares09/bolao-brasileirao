@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   PTS_EXATO, PTS_RESULTADO, temPlacar, BONUS_CAMPEAO, BONUS_ARTILHEIRO,
-  pontosDoPalpite, pontosComPeso, pesoDoJogo, calcularStats, compararRanking, criterioDesempate,
+  pontosDoPalpite, pontosComPeso, pesoDoJogo, rotuloDaFase, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate,
 } from "./ranking";
 
 /* ============================================================
@@ -1599,9 +1599,11 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
   const addJogo = async () => {
     if (!casa.trim() || !fora.trim()) return;
     try {
-      /* o seletor combina fase+peso: "final" = mata-mata 4×; "eliminatórias" = 2×; "grupos" = 1× */
+      /* o seletor combina fase+peso: no banco `fase` é só grupos|eliminatórias,
+         e o peso é que diz a rodada (2× mata-mata, 3× quartas, 4× semi/3º, 5× final) */
       const faseReal = fase === "grupos" ? "grupos" : "eliminatórias";
-      const peso = fase === "final" ? 4 : fase === "eliminatórias" ? 2 : 1;
+      const PESO_DO_SELETOR = { grupos: 1, "eliminatórias": 2, quartas: 3, semi: 4, final: 5 };
+      const peso = PESO_DO_SELETOR[fase] ?? 1;
       await api("/api/jogo", {
         method: "POST",
         body: JSON.stringify({ t: token, casa, fora, kickoff: kickoff ? new Date(kickoff).toISOString() : null, fase: faseReal, peso }),
@@ -1710,8 +1712,10 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
             <div className="form-linha">
               <select value={fase} onChange={(e) => setFase(e.target.value)} className="select-fase" aria-label="Fase do jogo">
                 <option value="grupos">Fase de grupos (1×)</option>
-                <option value="eliminatórias">Mata-mata (2×)</option>
-                <option value="final">Final (4×)</option>
+                <option value="eliminatórias">Mata-mata — 16-avos/oitavas (2×)</option>
+                <option value="quartas">Quartas de final (3×)</option>
+                <option value="semi">Semifinal / 3º lugar (4×)</option>
+                <option value="final">Final (5×)</option>
               </select>
               <input type="datetime-local" value={kickoff} onChange={(e) => setKickoff(e.target.value)} aria-label="Data e hora do jogo" />
               <button className="botao" onClick={addJogo}>Adicionar</button>
@@ -1783,9 +1787,9 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                       <div className="jogo-times">{fl(m.casa)}{m.casa} <span className="vs">×</span> {fl(m.fora)}{m.fora}</div>
                       <div className="jogo-meta">
                         {fmtQuando(m) && <span className="jogo-quando">{fmtQuando(m)}</span>}
-                        {m.fase === "eliminatórias" && (
-                          <span className={"tag tag-elim" + (pesoDoJogo(m) >= 4 ? " tag-final" : "")}>
-                            {pesoDoJogo(m) >= 4 ? "🏆 Final" : "⚔ Mata-mata"} · {pesoDoJogo(m)}× pts
+                        {m.fase === "eliminatórias" && rotuloDaFase(m) && (
+                          <span className={"tag tag-elim" + (rotuloDaFase(m).destaque ? " tag-final" : "")}>
+                            {rotuloDaFase(m).texto} · {pesoDoJogo(m)}× pts
                           </span>
                         )}
                         {!encerrado && travado && <span className="tag tag-travado">🔒 em jogo</span>}
@@ -2022,7 +2026,7 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
                   </span>
                 )}
                 {pesoDoJogo(m) > 1 && (
-                  <span className={"sj-peso" + (pesoDoJogo(m) >= 4 ? " sj-peso-final" : "")}>{pesoDoJogo(m)}×</span>
+                  <span className={"sj-peso" + (rotuloDaFase(m)?.destaque ? " sj-peso-final" : "")}>{pesoDoJogo(m)}×</span>
                 )}
               </span>
               <span className="sj-times">
@@ -2064,11 +2068,11 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
 
       <div ref={palpiteRef} style={{ scrollMarginTop: 12 }} aria-hidden="true" />
 
-      {pesoDoJogo(jogo) > 1 && (
-        <div className={"peso-banner" + (pesoDoJogo(jogo) >= 4 ? " peso-banner-final" : "")}>
+      {pesoDoJogo(jogo) > 1 && rotuloDaFase(jogo) && (
+        <div className={"peso-banner" + (rotuloDaFase(jogo).destaque ? " peso-banner-final" : "")}>
           <span className="peso-banner-x">{pesoDoJogo(jogo)}×</span>
           <span>
-            {pesoDoJogo(jogo) >= 4 ? "🏆 FINAL — vale em dobro do mata-mata. " : "⚔ Mata-mata — "}
+            {rotuloDaFase(jogo).texto} —{" "}
             placar exato <strong>{PTS_EXATO * pesoDoJogo(jogo)} pts</strong> · resultado <strong>{PTS_RESULTADO * pesoDoJogo(jogo)} pt{PTS_RESULTADO * pesoDoJogo(jogo) === 1 ? "" : "s"}</strong>
           </span>
         </div>
@@ -3767,12 +3771,15 @@ function ModalRegras({ onFechar }) {
           </p>
           <div className="regras-pesos">
             <div className="regras-peso"><span className="regras-peso-x">1×</span><span>Fase de grupos</span></div>
-            <div className="regras-peso"><span className="regras-peso-x">2×</span><span>Mata-mata (16-avos → semis e 3º lugar)</span></div>
-            <div className="regras-peso regras-peso-final"><span className="regras-peso-x">4×</span><span>Final</span></div>
+            <div className="regras-peso"><span className="regras-peso-x">2×</span><span>16-avos e oitavas</span></div>
+            <div className="regras-peso"><span className="regras-peso-x">3×</span><span>Quartas de final</span></div>
+            <div className="regras-peso regras-peso-final"><span className="regras-peso-x">4×</span><span>Semifinal e 3º lugar</span></div>
+            <div className="regras-peso regras-peso-final"><span className="regras-peso-x">5×</span><span>Final</span></div>
           </div>
           <p className="regras-p">
-            Exemplo: placar exato na <strong>final</strong> vale <strong>{PTS_EXATO * 4} pts</strong> (3 × 4);
-            resultado certo no <strong>mata-mata</strong> vale <strong>{PTS_RESULTADO * 2} pts</strong> (1 × 2).
+            Exemplo: placar exato na <strong>final</strong> vale <strong>{PTS_EXATO * 5} pts</strong> (3 × 5);
+            nas <strong>quartas</strong> vale <strong>{PTS_EXATO * 3} pts</strong> (3 × 3);
+            resultado certo nas <strong>oitavas</strong> vale <strong>{PTS_RESULTADO * 2} pts</strong> (1 × 2).
             Os bônus de campeã e artilheiro <strong>não</strong> têm peso.
           </p>
 
@@ -3954,7 +3961,7 @@ function ModalPalpites({ participante, jogos, palpitesMap, euId, onFechar }) {
                 <span className="modal-placar-final">{m.gh}–{m.ga}</span>
                 {fl(m.fora)}{m.fora}
                 {peso > 1 && (
-                  <span className={"modal-jogo-peso" + (peso >= 4 ? " modal-jogo-peso-final" : "")}>{peso}×</span>
+                  <span className={"modal-jogo-peso" + (rotuloDoPeso(peso)?.destaque ? " modal-jogo-peso-final" : "")}>{peso}×</span>
                 )}
               </div>
               <div className="modal-jogo-direita">

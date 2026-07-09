@@ -14,10 +14,27 @@ export const BONUS_ARTILHEIRO = 18;
    Usado para alinhar os totais ao vivo em todo lugar (item M4 do review). */
 export const temPlacar = (m) => m.gh !== null && m.ga !== null;
 
-/* Peso (multiplicador de pontos) do jogo por fase: grupos 1×, mata-mata 2×,
-   final 4×. Fonte: coluna `peso` do banco (preenchida pela busca/admin).
+/* Peso (multiplicador de pontos) do jogo por fase: grupos 1×, 16-avos/oitavas 2×,
+   quartas 3×, semi e 3º lugar 4×, final 5×. Fonte: coluna `peso` do banco
+   (preenchida pela busca/admin).
    Fallback 1 mantém compatibilidade se vier um jogo sem o campo. */
 export const pesoDoJogo = (jogo) => Number(jogo?.peso) || 1;
+
+/* Rótulo da rodada a partir do peso. O banco só guarda `fase` como
+   grupos|eliminatórias, então o peso é a única pista de QUAL rodada é.
+   3× identifica as quartas sem ambiguidade; 4× é semi OU disputa de 3º lugar
+   (indistinguíveis com o que temos) — daí o rótulo duplo, em vez de chutar.
+   `destaque` liga o realce âmbar das fases decisivas. Null = grupos (sem tag). */
+export function rotuloDoPeso(peso) {
+  switch (Number(peso)) {
+    case 5: return { texto: "🏆 Final", destaque: true };
+    case 4: return { texto: "⚔ Semi / 3º lugar", destaque: true };
+    case 3: return { texto: "⚔ Quartas de final", destaque: false };
+    case 2: return { texto: "⚔ Mata-mata", destaque: false };
+    default: return null;
+  }
+}
+export const rotuloDaFase = (jogo) => rotuloDoPeso(pesoDoJogo(jogo));
 
 /* Pontos BRUTOS de UM palpite contra UM jogo (sem peso) — usado para CLASSIFICAR
    (exato/resultado/erro) e contar exatos/resultados no desempate.

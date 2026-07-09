@@ -28,8 +28,10 @@ CREATE TABLE IF NOT EXISTS participantes (
 -- Jogos. `external_id` = id da partida na football-data.org (busca automática).
 -- `live` = true enquanto a bola rola (placar parcial); `fase` separa grupos
 -- de mata-mata (no mata-mata vale o placar dos 90min).
--- `peso` = multiplicador de pontos por fase: grupos 1×, mata-mata 2×, final 4×
--- (erro no começo pesa menos, acerto no fim vale mais).
+-- `peso` = multiplicador de pontos por fase: grupos 1×, 16-avos/oitavas 2×,
+-- quartas 3×, semi e disputa de 3º 4×, final 5× (erro no começo pesa menos,
+-- acerto no fim vale mais). É também a única pista de QUAL rodada é o jogo —
+-- `fase` só distingue grupos de mata-mata.
 -- `api_gh`/`api_ga` = último placar que a football-data reportou ao vivo. O cron
 -- só regrava o placar quando esse valor muda, pra não desfazer correção manual do
 -- admin (ex.: gol anulado por VAR) enquanto a API atrasada repete o placar antigo.
