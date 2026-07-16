@@ -127,11 +127,22 @@ check(porNome("Caio").exatosHoje === 0, `Caio.exatosHoje deveria ser 0 (só bate
       pontos), o comparador NÃO pode dizer que são iguais (0). */
 for (let i = 0; i < novo.length; i++) for (let j = 0; j < novo.length; j++) {
   if (i === j) continue;
-  const c = criterioDesempate(novo[i], novo[j]);
+  const c = criterioDesempate(novo[i], novo[j], antecedenciaMap);
   if (c) {
     const cmp = compararRanking(novo[i], novo[j], antecedenciaMap);
     check(cmp !== 0, `criterioDesempate diz "${c.label}" mas comparador empatou (${novo[i].nome} vs ${novo[j].nome})`);
   }
+}
+
+/* 3b) regressão: dois participantes zerados que NUNCA palpitaram nada (sem
+   entrada nenhuma em antecedenciaMap) são um EMPATE REAL — criterioDesempate
+   não pode inventar "palpita com mais antecedência" só porque essa é a
+   última checagem da função. */
+{
+  const zeroA = { id: 901, pontos: 0, exatos: 0, resultados: 0, acertouCampeao: false, acertouArtilheiro: false };
+  const zeroB = { id: 902, pontos: 0, exatos: 0, resultados: 0, acertouCampeao: false, acertouArtilheiro: false };
+  check(criterioDesempate(zeroA, zeroB, {}) === null, "dois zerados sem nenhum palpite = empate real, sem rótulo de desempate");
+  check(compararRanking(zeroA, zeroB, {}) === 0, "compararRanking também deve dar empate (0) no mesmo cenário");
 }
 
 /* 4) M4 — alinhamento ao vivo. O perfil/modal somam pontosDoPalpite sobre os

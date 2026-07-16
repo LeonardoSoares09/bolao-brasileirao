@@ -163,12 +163,21 @@ export function compararRanking(a, b, antecedenciaMap = {}) {
 }
 
 /* Rótulo de QUAL critério separou dois participantes empatados em pontos.
-   Espelha a ordem do compararRanking. */
-export function criterioDesempate(a, b) {
+   Espelha a ordem do compararRanking. antecedenciaMap é opcional (call sites
+   antigos que não passarem o mapa continuam funcionando, só sem esse último
+   critério) — { [participante_id]: segundos }.
+   IMPORTANTE: só retorna "antecedência" se ela REALMENTE diferenciar os dois
+   (mesma checagem de compararAntecedencia). Sem isso, dois participantes que
+   nunca palpitaram nada (nem têm antecedência calculada) caíam aqui pra
+   sempre — empate real virava "desempatado por antecedência", legenda falsa. */
+export function criterioDesempate(a, b, antecedenciaMap = {}) {
   if (a.pontos !== b.pontos) return null;
   if (a.exatos !== b.exatos) return { icon: "🎯", label: "mais exatos" };
   if (!!a.acertouCampeao !== !!b.acertouCampeao) return { icon: "🏆", label: "acertou o campeão" };
   if (!!a.acertouArtilheiro !== !!b.acertouArtilheiro) return { icon: "⚽", label: "acertou o artilheiro" };
   if (a.resultados !== b.resultados) return { icon: "✅", label: "mais resultados" };
-  return { icon: "⏱", label: "palpita com mais antecedência" };
+  if (compararAntecedencia(antecedenciaMap[a.id], antecedenciaMap[b.id]) !== 0) {
+    return { icon: "⏱", label: "palpita com mais antecedência" };
+  }
+  return null;
 }

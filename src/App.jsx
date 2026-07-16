@@ -563,6 +563,7 @@ export default function App() {
         {tab === "ranking" && (
           <Ranking
             ranking={ranking}
+            antecedenciaMap={antecedenciaMap}
             temJogos={comPlacar > 0}
             primeiraVez={!rankingJaAbriu.current}
             aoAbrir={() => { rankingJaAbriu.current = true; }}
@@ -699,7 +700,7 @@ const ORDINAL = ["1º", "2º", "3º"];
 
 /* Pódio visual do top 3 — mesma paleta do app (ouro âmbar / prata / bronze),
    reusa o Avatar. Ordem na tela: 2º à esquerda, 1º no centro (maior), 3º à direita. */
-function Podio({ top3, ranking, posAntes, onClick, euId }) {
+function Podio({ top3, ranking, antecedenciaMap = {}, posAntes, onClick, euId }) {
   const cols = [
     { p: top3[1], rank: 1, cls: "podio2", ped: "podio-ped-2" },
     { p: top3[0], rank: 0, cls: "podio1", ped: "podio-ped-1" },
@@ -707,7 +708,7 @@ function Podio({ top3, ranking, posAntes, onClick, euId }) {
   ]
     .filter((c) => c.p)
     /* desempate: só quando empata em pontos com o próximo colocado */
-    .map((c) => ({ ...c, crit: ranking[c.rank + 1] ? criterioDesempate(c.p, ranking[c.rank + 1]) : null }));
+    .map((c) => ({ ...c, crit: ranking[c.rank + 1] ? criterioDesempate(c.p, ranking[c.rank + 1], antecedenciaMap) : null }));
   /* empates entre colocados do pódio viram uma legenda abaixo — assim o pódio
      em si fica sempre limpo (sem selo encavalando o número do pedestal). */
   const desempates = cols.filter((c) => c.crit);
@@ -756,7 +757,7 @@ function Podio({ top3, ranking, posAntes, onClick, euId }) {
   );
 }
 
-function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickParticipante, palpitesMap, jogos, euId, campeoes, onAbrirCampeao }) {
+function Ranking({ ranking, antecedenciaMap = {}, temJogos, primeiraVez, aoAbrir, posAntes, onClickParticipante, palpitesMap, jogos, euId, campeoes, onAbrirCampeao }) {
   const temAoVivo = (jogos || []).some((m) => m.live && temPlacar(m));
   useEffect(() => { aoAbrir(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (ranking.length === 0)
@@ -797,7 +798,7 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickPar
       )}
 
       {podioAtivo && (
-        <Podio top3={top3} ranking={ranking} posAntes={posAntes} onClick={onClickParticipante} euId={euId} />
+        <Podio top3={top3} ranking={ranking} antecedenciaMap={antecedenciaMap} posAntes={posAntes} onClick={onClickParticipante} euId={euId} />
       )}
 
       <div className="placar">
@@ -850,7 +851,7 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickPar
                 {(() => {
                   const prox = ranking[i + 1];
                   if (!prox) return null;
-                  const c = criterioDesempate(p, prox);
+                  const c = criterioDesempate(p, prox, antecedenciaMap);
                   if (!c) return null;
                   return (
                     <span className="desempate-badge" title={`Desempatado por: ${c.label}`}>
