@@ -1320,15 +1320,10 @@ function bateArtilheiro(real, pick) {
   return palavras(a).some((w) => setB.has(w)); /* sobrenome/primeiro nome em comum */
 }
 
-/* Mesma seleção? Casa pelo código de bandeira (FLAG_CODES) quando existir — assim
-   grafias variantes do MESMO time contam como iguais nas estatísticas (ex.:
-   "Bosnia-Herzegovina" cadastrado na mão vs "Bósnia e Herzegovina" traduzido
-   pelo robô, ambos → "ba"). Sem código nos dois, cai no nome exato. */
-const mesmaSelecao = (a, b) => {
-  if (a === b) return true;
-  const ca = FLAG_CODES[a], cb = FLAG_CODES[b];
-  return !!ca && ca === cb;
-};
+/* Mesmo clube? Comparação direta por nome — diferente de seleção (que tinha
+   grafias variantes EN/PT do mesmo time), clube não precisa de código de
+   bandeira pra casar nomes. */
+const mesmaSelecao = (a, b) => a === b;
 
 function formaDoTime(jogos, time, limite = 5) {
   return jogos
@@ -1343,72 +1338,11 @@ function formaDoTime(jogos, time, limite = 5) {
     });
 }
 
-/* Snapshot de Elo (World Football Elo) por código de país — mesma chave do
-   FLAG_CODES, então casa com o nome do jogo em PT ou EN. TOP 20 com valores
-   REAIS de 24/06/2026 (eloratings.net/Wikipedia); demais calibrados na mesma
-   escala. O auto-ajuste pelos resultados da Copa mantém os números frescos.
-   Ainda é estimativa de favoritismo, não odds de mercado. */
-const ELO_BASE = {
-  // top 20 — valores reais (24/06/2026). EXCEÇÃO: Portugal calibrado na mão
-  // (Elo cru ~1988) p/ refletir o favoritismo de mercado — o Elo o subestima
-  // por causa da qualificação europeia mais leve frente à CONMEBOL.
-  ar:2144, es:2134, fr:2090, "gb-eng":2028, pt:2035, br:2009, co:2006, nl:1972,
-  de:1954, no:1951, jp:1925, ch:1914, mx:1912, hr:1896, ma:1877, dk:1869,
-  it:1869, be:1869, ec:1864, uy:1851,
-  // 21+ — calibrados na mesma escala
-  at:1850, sn:1845, ir:1822, ua:1820, tr:1815, rs:1815, gr:1810, pl:1810,
-  dz:1808, ci:1802, eg:1800, ca:1800, se:1798, py:1796, ng:1795, cm:1790,
-  kr:1788, hu:1786, cz:1784, "gb-sct":1780, cd:1778, "gb-wls":1772, cl:1762,
-  ve:1758, ml:1758, za:1750, gh:1740, tn:1732, au:1730, cv:1702, uz:1700,
-  pa:1698, qa:1688, sa:1680, jm:1678, pe:1772, jo:1660, cr:1658, hn:1640,
-  iq:1638, nz:1505,
-  // adicionados 01/07/2026: participantes que faltavam na base (sem eles, as
-  // "chances de ganhar" no modal de stats não apareciam — chancesDoJogo=null).
-  us:1790, ba:1718,
-};
-
-/* Elo ajustado pelos resultados JÁ ENCERRADOS do torneio — mantém o snapshot
-   fresco conforme a Copa anda. Fórmula padrão (K=40 + multiplicador de saldo). */
-function eloAjustado(jogos) {
-  const elo = { ...ELO_BASE };
-  const finais = jogos
-    .filter((j) => temResultado(j) && j.kickoff)
-    .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
-  for (const j of finais) {
-    const ca = FLAG_CODES[j.casa], cb = FLAG_CODES[j.fora];
-    if (elo[ca] == null || elo[cb] == null) continue;
-    const exp = 1 / (1 + Math.pow(10, -(elo[ca] - elo[cb]) / 400));
-    const real = j.gh > j.ga ? 1 : j.gh < j.ga ? 0 : 0.5;
-    const gd = Math.abs(j.gh - j.ga);
-    const mult = gd <= 1 ? 1 : gd === 2 ? 1.5 : 1.75 + (gd - 3) / 8;
-    const delta = 40 * mult * (real - exp);
-    elo[ca] += delta; elo[cb] -= delta;
-  }
-  return elo;
-}
-
-/* probabilidades vitória/empate/derrota a partir do Elo (estimativa). */
-function chancesDoJogo(elo, casa, fora) {
-  const ea = elo[FLAG_CODES[casa]], eb = elo[FLAG_CODES[fora]];
-  if (ea == null || eb == null) return null;
-  const we = 1 / (1 + Math.pow(10, -(ea - eb) / 400)); // score esperado da casa (0..1)
-  const empate = 0.30 * (1 - Math.abs(2 * we - 1));
-  const casaP = Math.max(0, we - empate / 2);
-  const foraP = Math.max(0, 1 - we - empate / 2);
-  const s = casaP + empate + foraP || 1;
-  return { casa: casaP / s, empate: empate / s, fora: foraP / s };
-}
-
 const STAT_RES_LABEL = { V: "Vitória", E: "Empate", D: "Derrota" };
 
 function ModalEstatisticas({ jogo, jogos, onFechar }) {
   const grupo = grupoDoJogo(jogos, jogo);
   const tabela = grupo.length ? tabelaDoGrupo(jogos, grupo) : [];
-  const chances = chancesDoJogo(eloAjustado(jogos), jogo.casa, jogo.fora);
-  const pct = (x) => Math.round(x * 100);
-  /* Elo e mercado discordam em jogos apertados; não cravamos "Favorito" quando
-     a diferença de chance de vitória é pequena — mostramos "equilibrado". */
-  const equilibrado = chances && Math.abs(chances.casa - chances.fora) < 0.06;
 
   /* Link puro de busca no Google (sem API): só "Time A x Time B", SEM a palavra
      "escalação" — com ela o Google abre o AI Overview (resposta em texto) em vez
@@ -1453,42 +1387,6 @@ function ModalEstatisticas({ jogo, jogos, onFechar }) {
         <a className="stat-btn stat-btn-link" href={urlEscalacao} target="_blank" rel="noopener noreferrer">
           📋 Ver escalações dos times ↗
         </a>
-
-        {chances && (
-          <>
-            <div className="secao-titulo">CHANCES DE GANHAR <span className="stat-estimativa">· estimativa</span></div>
-            <div className="stat-chances">
-              <div className="stat-chance">
-                <div className="stat-chance-top">
-                  <span className="stat-chance-nome">
-                    {fl(jogo.casa)}{jogo.casa}
-                    {!equilibrado && chances.casa > chances.fora && <span className="stat-fav">Favorito</span>}
-                  </span>
-                  <span className="stat-chance-pct stat-pct-casa">{pct(chances.casa)}%</span>
-                </div>
-                <div className="stat-barra"><div className="stat-barra-fill stat-fill-casa" style={{ width: pct(chances.casa) + "%" }} /></div>
-              </div>
-              <div className="stat-chance">
-                <div className="stat-chance-top">
-                  <span className="stat-chance-nome">Empate</span>
-                  <span className="stat-chance-pct stat-pct-empate">{pct(chances.empate)}%</span>
-                </div>
-                <div className="stat-barra"><div className="stat-barra-fill stat-fill-empate" style={{ width: pct(chances.empate) + "%" }} /></div>
-              </div>
-              <div className="stat-chance">
-                <div className="stat-chance-top">
-                  <span className="stat-chance-nome">
-                    {fl(jogo.fora)}{jogo.fora}
-                    {!equilibrado && chances.fora > chances.casa && <span className="stat-fav">Favorito</span>}
-                  </span>
-                  <span className="stat-chance-pct stat-pct-fora">{pct(chances.fora)}%</span>
-                </div>
-                <div className="stat-barra"><div className="stat-barra-fill stat-fill-fora" style={{ width: pct(chances.fora) + "%" }} /></div>
-              </div>
-            </div>
-            {equilibrado && <p className="stat-equilibrio">⚖️ Jogo equilibrado — sem favorito claro pelo modelo.</p>}
-          </>
-        )}
 
         {tabela.length > 0 && (
           <>
