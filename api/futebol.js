@@ -15,6 +15,7 @@ const norm = (s) =>
     .toLowerCase();
 
 const FOOTBALL_API = "https://api.football-data.org/v4/competitions/BSA/matches";
+const FOOTBALL_API_COMPETICAO = "https://api.football-data.org/v4/competitions/BSA";
 
 /* data "hoje" em America/Sao_Paulo, formato YYYY-MM-DD */
 function hojeEmSP() {
@@ -67,6 +68,23 @@ async function buscarPartidas(query) {
   return Array.isArray(data.matches) ? data.matches : [];
 }
 
+/* rodada (matchday) que a football-data considera "atual" na temporada —
+   fonte da verdade de qual rodada buscar, em vez de inferir por data. */
+async function matchdayAtual() {
+  const r = await fetch(FOOTBALL_API_COMPETICAO, {
+    headers: { "X-Auth-Token": process.env.FOOTBALL_DATA_KEY },
+  });
+  if (!r.ok) {
+    const detalhe = await r.text().catch(() => "");
+    console.error("football-data", r.status, detalhe);
+    const err = new Error("football-data " + r.status);
+    err.externo = true;
+    throw err;
+  }
+  const data = await r.json();
+  return data?.currentSeason?.currentMatchday ?? null;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "GET") {
     res.status(405).json({ error: "Use GET" });
@@ -117,13 +135,13 @@ export default async function handler(req, res) {
 }
 
 export async function acaoJogosHoje() {
-  const hoje = hojeEmSP();
-  /* janela ampla pra trás (adoção retroativa) + 1 dia pra frente (borda de fuso) */
-  const partidas = await buscarPartidas(
-    `dateFrom=${addDias(hoje, -14)}&dateTo=${addDias(hoje, +1)}`
-  );
-  /* só processa até hoje em SP — não pré-carrega futuro */
-  const relevantes = partidas.filter((m) => dataSP(m.utcDate) <= hoje);
+  /* rodada atual da temporada (ex.: 19) — busca TODOS os jogos dela de uma
+     vez, não só os "de hoje". Isso deixa a rodada inteira disponível pra
+     palpitar com antecedência, em vez de ir liberando jogo por jogo
+     conforme cada dia chega. */
+  const rodadaAtual = await matchdayAtual();
+  if (rodadaAtual == null) return { adicionados: 0, atualizados: 0, total: 0 };
+  const relevantes = await buscarPartidas(`matchday=${rodadaAtual}`);
 
   /* puxa todos os jogos uma vez só pra evitar N SELECTs no loop */
   const todos = await sql`
@@ -146,7 +164,6 @@ export async function acaoJogosHoje() {
     const kickoff = m.utcDate;
     const rodada = m.matchday ?? null;
     const peso = pesoDoJogo(rodada, casa, fora);
-    const ehHoje = dataSP(m.utcDate) === hoje;
     if (!casa || !fora) continue;
 
     /* (a) já carimbado — atualiza kickoff, rodada e peso se mudou */
@@ -163,7 +180,7 @@ export async function acaoJogosHoje() {
       continue;
     }
 
-    /* (b) adoção de legado — qualquer dia da janela */
+    /* (b) adoção de legado — cadastro manual prévio do mesmo confronto */
     const idx = legados.findIndex(
       (j) =>
         norm(j.casa) === norm(casa) &&
@@ -185,14 +202,13 @@ export async function acaoJogosHoje() {
       continue;
     }
 
-    /* (c) novo — só pra hoje (não ressuscita jogos antigos não cadastrados) */
-    if (ehHoje) {
-      await sql`
-        INSERT INTO jogos (casa, fora, kickoff, external_id, rodada, peso)
-        VALUES (${casa}, ${fora}, ${kickoff}, ${externalId}, ${rodada}, ${peso})
-      `;
-      adicionados++;
-    }
+    /* (c) novo — a rodada inteira é o escopo da busca, não precisa mais
+       restringir a "hoje": qualquer jogo dela que ainda não existe é novo. */
+    await sql`
+      INSERT INTO jogos (casa, fora, kickoff, external_id, rodada, peso)
+      VALUES (${casa}, ${fora}, ${kickoff}, ${externalId}, ${rodada}, ${peso})
+    `;
+    adicionados++;
   }
 
   return { adicionados, atualizados, total: relevantes.length };
