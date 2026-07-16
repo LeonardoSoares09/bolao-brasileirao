@@ -44,9 +44,9 @@ function addDias(yyyymmdd, dias) {
   return d.toISOString().slice(0, 10);
 }
 
-/* Placar que o bolão pontua: sempre os 90 minutos (fullTime). Diferente da
-   Copa do Mundo, jogo de pontos corridos não tem prorrogação nem pênaltis —
-   fullTime já é o placar final em qualquer status. */
+/* Placar que o bolão pontua: sempre os 90 minutos (fullTime). Jogo de pontos
+   corridos não tem prorrogação nem pênaltis — fullTime já é o placar final
+   em qualquer status. */
 function placarBolao(score) {
   const ft = score?.fullTime || {};
   return { home: ft.home ?? null, away: ft.away ?? null };
