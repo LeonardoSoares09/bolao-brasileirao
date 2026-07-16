@@ -1,4 +1,4 @@
--- Bolão da Copa 2026 — schema do banco (Neon Postgres)
+-- Bolão do Brasileirão 2026/2 — schema do banco (Neon Postgres)
 -- ============================================================================
 -- Este arquivo é a PLANTA COMPLETA do banco: rode ele inteiro num Postgres
 -- vazio (SQL Editor do Neon, ou `psql -f schema.sql`) e ele recria toda a
@@ -26,12 +26,14 @@ CREATE TABLE IF NOT EXISTS participantes (
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- Jogos. `external_id` = id da partida na football-data.org (busca automática).
--- `live` = true enquanto a bola rola (placar parcial); `fase` separa grupos
--- de mata-mata (no mata-mata vale o placar dos 90min).
--- `peso` = multiplicador de pontos por fase: grupos 1×, 16-avos/oitavas 2×,
--- quartas 3×, semi e disputa de 3º 4×, final 5× (erro no começo pesa menos,
--- acerto no fim vale mais). É também a única pista de QUAL rodada é o jogo —
--- `fase` só distingue grupos de mata-mata.
+-- `live` = true enquanto a bola rola (placar parcial).
+-- `rodada` = número da rodada da Série A (19 a 38, 2º turno 2026) — vem do
+-- campo `matchday` da football-data.org, ou digitado à mão no cadastro manual.
+-- `peso` = multiplicador de pontos do jogo: 1× (rodadas 19-30), 2× (rodadas
+-- 31-35 OU clássico regional), 3× (rodadas 36-38) — o maior dos dois quando
+-- os dois critérios se aplicam (ver lib/clubes.js:pesoDoJogo). Calculado na
+-- ingestão/cadastro, mas fica gravado na coluna pra não depender de
+-- recalcular toda vez.
 -- `api_gh`/`api_ga` = último placar que a football-data reportou ao vivo. O cron
 -- só regrava o placar quando esse valor muda, pra não desfazer correção manual do
 -- admin (ex.: gol anulado por VAR) enquanto a API atrasada repete o placar antigo.
@@ -44,7 +46,7 @@ CREATE TABLE IF NOT EXISTS jogos (
   gh          INT CHECK (gh >= 0),
   ga          INT CHECK (ga >= 0),
   external_id TEXT UNIQUE,
-  fase        VARCHAR(20) NOT NULL DEFAULT 'grupos',
+  rodada      INT,
   peso        INT NOT NULL DEFAULT 1,
   live        BOOLEAN NOT NULL DEFAULT FALSE,
   api_gh      INT,
