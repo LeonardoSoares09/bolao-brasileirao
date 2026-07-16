@@ -4088,13 +4088,51 @@ function GraficoTrajetoria({ evolucao }) {
 /* Modal de celebração — abre pelo banner do Ranking. Um cartão por campeão
    (normalmente 1; empate real no topo vira uma lista, sem tratamento
    especial: cada um ganha seu próprio cartão com stats e gráfico). */
+/* Confete PRÓPRIO do cartão do campeão — diferente do <Confete/> (que cai na
+   tela inteira, feito pro Ranking). Esse fica CONTIDO no cartão (top/left em
+   %, não em vh) e usa uma paleta dourada/creme — combina com a "placa de
+   troféu", em vez do arco-íris genérico da comemoração de gol. */
+function ConfeteCampeao() {
+  const [pecas] = useState(() =>
+    Array.from({ length: 26 }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      delay: Math.random() * 1.1,
+      dur: 2.4 + Math.random() * 1.6,
+      cor: ["#ffc53d", "#fff3cf", "#ffe08a", "#4ade80", "#ffffff"][i % 5],
+      w: 5 + Math.floor(Math.random() * 6),
+    }))
+  );
+  return (
+    <div className="campeao-bolao-confete" aria-hidden="true">
+      {pecas.map((p) => (
+        <div
+          key={p.id}
+          className="campeao-bolao-confete-peca"
+          style={{
+            left: `${p.left}%`,
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.dur}s`,
+            background: p.cor,
+            width: `${p.w}px`,
+            height: `${Math.round(p.w * 0.45)}px`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* Um cartão por campeão — "placa de troféu": holofote + coroa + avatar em
+   destaque no topo (cerimônia, centralizado), e uma placa única com os dados
+   embaixo (fatos, alinhado à esquerda, linhas com divisória — nada de
+   cartões soltos espalhados). */
 function ModalCampeaoBolao({ campeoes, estado, palpitesMap, euId, onFechar }) {
   return (
     <div className="modal-overlay" onClick={onFechar}>
       <div className="modal-painel modal-campeao-bolao" onClick={(e) => e.stopPropagation()}>
-        <Confete />
         <div className="modal-header">
-          <div className="modal-nome">🏆 Campeão do Bolão</div>
+          <div className="modal-nome">Campeão do Bolão</div>
           <button className="apagar" onClick={onFechar} aria-label="Fechar">✕</button>
         </div>
 
@@ -4102,39 +4140,53 @@ function ModalCampeaoBolao({ campeoes, estado, palpitesMap, euId, onFechar }) {
           const d = calcularDetalhamento(c.id, estado, palpitesMap);
           const evolucao = calcularEvolucao(c.id, estado, palpitesMap);
           return (
-            <div key={c.id} className="cartao campeao-bolao-cartao">
+            <div key={c.id} className="campeao-bolao-cartao">
+              <ConfeteCampeao />
               <div className="campeao-bolao-topo">
                 <span className="campeao-bolao-coroa" aria-hidden="true">👑</span>
-                <Avatar nome={c.nome} emoji={c.avatarEmoji} cor={c.avatarCor} size={64} />
+                <span className="campeao-bolao-anel">
+                  <Avatar nome={c.nome} emoji={c.avatarEmoji} cor={c.avatarCor} size={72} />
+                </span>
+                <span className="campeao-bolao-eyebrow">CAMPEÃO DO BOLÃO</span>
                 <div className="campeao-bolao-nome">{c.nome}{c.id === euId ? " (você)" : ""}</div>
                 <div className="campeao-bolao-pts">1º lugar · {c.pontos} pts</div>
               </div>
 
-              <BonusEspeciais participante={c} style={{ marginTop: "14px" }} />
-
-              <div className="perfil-breakdown" style={{ marginTop: "12px", justifyContent: "center" }}>
-                <span className="perfil-bd-item perfil-bd-exato">🎯 {d.acertosExatos} exato{d.acertosExatos !== 1 ? "s" : ""}</span>
-                <span className="perfil-bd-item perfil-bd-result">✓ {d.acertosResult} certo{d.acertosResult !== 1 ? "s" : ""}</span>
-                <span className="perfil-bd-item perfil-bd-erro">✗ {d.erros} erro{d.erros !== 1 ? "s" : ""}</span>
-                <span className="perfil-bd-item perfil-bd-miss">{d.aproveitamento}% aproveito</span>
-              </div>
-
-              {evolucao.length > 1 && (
-                <>
-                  <div className="secao-titulo" style={{ marginTop: "16px", textAlign: "center" }}>EVOLUÇÃO NA COPA</div>
-                  <GraficoTrajetoria evolucao={evolucao} />
-                </>
-              )}
-
-              {d.melhor && (
-                <div className="perfil-destaques" style={{ marginTop: "12px" }}>
-                  <div className="perfil-destaque">
-                    <span className="perfil-destaque-icon">🎯</span>
-                    <span className="perfil-destaque-txt">Melhor jogo: {d.melhor.jogo.casa} × {d.melhor.jogo.fora}</span>
-                    <span className="perfil-destaque-pts perfil-bd-exato">{d.melhor.ptsPeso} pt{d.melhor.ptsPeso !== 1 ? "s" : ""}</span>
+              <div className="campeao-bolao-placa">
+                {c.acertouCampeao && (
+                  <div className="campeao-bolao-linha">
+                    <span>🏆 Acertou a campeã</span>
+                    <span className="campeao-bolao-linha-pts">+{BONUS_CAMPEAO} pts</span>
                   </div>
+                )}
+                {c.acertouArtilheiro && (
+                  <div className="campeao-bolao-linha">
+                    <span>⚽ Acertou o artilheiro</span>
+                    <span className="campeao-bolao-linha-pts">+{BONUS_ARTILHEIRO} pts</span>
+                  </div>
+                )}
+
+                <div className="campeao-bolao-linha campeao-bolao-linha-breakdown">
+                  <span className="perfil-bd-item perfil-bd-exato">🎯 {d.acertosExatos} exato{d.acertosExatos !== 1 ? "s" : ""}</span>
+                  <span className="perfil-bd-item perfil-bd-result">✓ {d.acertosResult} certo{d.acertosResult !== 1 ? "s" : ""}</span>
+                  <span className="perfil-bd-item perfil-bd-erro">✗ {d.erros} erro{d.erros !== 1 ? "s" : ""}</span>
+                  <span className="perfil-bd-item perfil-bd-miss">{d.aproveitamento}% aproveito</span>
                 </div>
-              )}
+
+                {evolucao.length > 1 && (
+                  <div className="campeao-bolao-linha campeao-bolao-linha-grafico">
+                    <div className="campeao-bolao-secao-titulo">EVOLUÇÃO NA COPA</div>
+                    <GraficoTrajetoria evolucao={evolucao} />
+                  </div>
+                )}
+
+                {d.melhor && (
+                  <div className="campeao-bolao-linha">
+                    <span>🎯 Melhor jogo: {d.melhor.jogo.casa} × {d.melhor.jogo.fora}</span>
+                    <span className="campeao-bolao-linha-pts">{d.melhor.ptsPeso} pt{d.melhor.ptsPeso !== 1 ? "s" : ""}</span>
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
@@ -5002,17 +5054,95 @@ function Estilo() {
         letter-spacing: .08em; text-transform: uppercase; color: var(--ambar); white-space: nowrap;
       }
 
-      /* modal de celebração do campeão do bolão */
-      .modal-campeao-bolao { position: relative; overflow: hidden; }
-      .campeao-bolao-cartao { text-align: center; padding: 22px 16px; margin-bottom: 12px; }
-      .campeao-bolao-topo { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-      .campeao-bolao-coroa { font-size: 30px; }
-      .campeao-bolao-nome { font-size: 22px; font-weight: 800; margin-top: 4px; }
+      /* modal de celebração do campeão do bolão — "placa de troféu": topo de
+         cerimônia (holofote, coroa, avatar — centralizado) + uma placa única
+         de fatos embaixo (linhas com divisória, alinhada à esquerda). Nada de
+         cartões soltos: é isso que fazia parecer disperso antes. */
+      .campeao-bolao-cartao {
+        position: relative; overflow: hidden; text-align: center;
+        padding: 30px 18px 20px; margin-bottom: 14px;
+        border-radius: calc(var(--r) + 6px);
+        border: 1px solid rgba(255,197,61,.32);
+        background:
+          radial-gradient(ellipse 130% 65% at 50% -8%, rgba(255,197,61,.32), transparent 58%),
+          radial-gradient(ellipse 90% 50% at 50% 12%, rgba(255,197,61,.1), transparent 70%),
+          linear-gradient(180deg, #0d2415 0%, #071a0e 50%, #04100a 100%);
+        box-shadow: 0 14px 46px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.05);
+      }
+      .campeao-bolao-confete { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+      @keyframes confete-campeao-cai {
+        0%   { top: -6%;  transform: rotate(0deg)   scaleX(1);  opacity: 1; }
+        55%  {            transform: rotate(280deg) scaleX(-1); opacity: 1; }
+        100% { top: 104%; transform: rotate(560deg) scaleX(1);  opacity: 0; }
+      }
+      .campeao-bolao-confete-peca {
+        position: absolute; top: -6%; border-radius: 1px;
+        animation: confete-campeao-cai ease-in forwards;
+      }
+      .campeao-bolao-topo { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+      .campeao-bolao-topo::before {
+        content: ""; position: absolute; top: -22px; left: 50%; width: 220px; height: 220px;
+        transform: translate(-50%, 0);
+        background: conic-gradient(from 0deg, rgba(255,197,61,.18) 0deg 10deg, transparent 10deg 30deg);
+        border-radius: 50%; z-index: -1; opacity: .9;
+        animation: campeao-holofote-girar 22s linear infinite;
+      }
+      @keyframes campeao-holofote-girar { to { transform: translate(-50%, 0) rotate(360deg); } }
+      .campeao-bolao-coroa {
+        font-size: 32px; display: block;
+        animation: campeao-coroa-cai .6s cubic-bezier(.34,1.56,.64,1) both;
+      }
+      @keyframes campeao-coroa-cai {
+        0%   { transform: translateY(-22px) scale(.4) rotate(-15deg); opacity: 0; }
+        60%  { transform: translateY(3px) scale(1.15) rotate(6deg); opacity: 1; }
+        100% { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; }
+      }
+      .campeao-bolao-anel {
+        display: inline-flex; padding: 5px; margin: 4px 0 8px; border-radius: 50%;
+        background: radial-gradient(circle, rgba(255,197,61,.9), rgba(255,197,61,.18) 68%, transparent 72%);
+        box-shadow: 0 0 30px 6px rgba(255,197,61,.35);
+        animation: campeao-anel-surge .5s var(--t) .12s both;
+      }
+      @keyframes campeao-anel-surge { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: scale(1); } }
+      .campeao-bolao-eyebrow {
+        font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .3em;
+        text-transform: uppercase; color: rgba(255,197,61,.8);
+      }
+      .campeao-bolao-nome {
+        font-size: clamp(28px, 8vw, 40px); font-weight: 800; letter-spacing: .02em;
+        line-height: 1.05; margin-top: 2px;
+        text-shadow: 0 3px 0 rgba(0,0,0,.5), 0 0 30px rgba(255,197,61,.25);
+      }
       .campeao-bolao-pts {
         font-family: 'IBM Plex Mono', monospace; font-size: 12px;
-        color: var(--ambar); letter-spacing: .06em;
+        color: var(--ambar); letter-spacing: .06em; margin-top: 2px;
       }
-      .grafico-trajetoria { width: 100%; height: 90px; margin-top: 8px; display: block; }
+
+      .campeao-bolao-placa {
+        position: relative; z-index: 1; text-align: left; margin-top: 20px;
+        background: rgba(0,0,0,.24); border: 1px solid rgba(255,197,61,.2);
+        border-radius: calc(var(--r) + 2px); overflow: hidden;
+      }
+      .campeao-bolao-linha {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        padding: 12px 16px; font-size: 13px; font-weight: 600;
+        border-bottom: 1px solid rgba(255,255,255,.07);
+      }
+      .campeao-bolao-linha:last-child { border-bottom: none; }
+      .campeao-bolao-linha-pts { font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: var(--ambar); flex: none; }
+      .campeao-bolao-linha-breakdown { flex-wrap: wrap; row-gap: 8px; }
+      .campeao-bolao-linha-grafico { flex-direction: column; align-items: stretch; }
+      .campeao-bolao-secao-titulo {
+        font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .16em;
+        color: rgba(255,197,61,.75); margin-bottom: 4px;
+      }
+      .grafico-trajetoria { width: 100%; height: 90px; display: block; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .campeao-bolao-topo::before { animation: none; }
+        .campeao-bolao-coroa, .campeao-bolao-anel { animation: none; }
+        .campeao-bolao-confete-peca { animation: none; opacity: 0; }
+      }
 
       /* painel "sua posição" — placar do próprio usuário */
       .meu-status {
