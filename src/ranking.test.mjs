@@ -3,7 +3,7 @@
    principal. Roda com: node src/ranking.test.mjs
    Não é parte do bundle — é uma rede de segurança do refactor. */
 
-import { pontosDoPalpite, pontosComPeso, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate, temPlacar, calcularDetalhamento, calcularEvolucao } from "./ranking.js";
+import { pontosDoPalpite, pontosComPeso, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate, temPlacar, calcularDetalhamento, calcularEvolucao, BONUS_CAMPEAO, BONUS_ARTILHEIRO } from "./ranking.js";
 import { pesoDaRodada, pesoDoJogo, ehClassico } from "../lib/clubes.js";
 
 let falhas = 0;
@@ -34,9 +34,9 @@ function rankingAntigo(estado, palpitesMap, hojeKey, chaveData, antecedenciaMap)
     const re = estado.resultadoEspecial;
     const acertouCampeao = !!(re?.campeao?.confirmado && (estado.palpitesCampeao || []).some(
       (pc) => pc.participante_id === p.id && pc.selecao === re.campeao.valor));
-    if (acertouCampeao) bonus += 12;
+    if (acertouCampeao) bonus += BONUS_CAMPEAO;
     const acertouArtilheiro = !!(re?.artilheiro?.confirmado && (estado.premiadosArtilheiro || []).includes(p.id));
-    if (acertouArtilheiro) bonus += 18;
+    if (acertouArtilheiro) bonus += BONUS_ARTILHEIRO;
     let pontos = bonus, exatos = 0, resultados = 0, exatosHoje = 0;
     for (const m of estado.jogos) {
       const pts = pontosAntigo(palpitesMap[m.id]?.[p.id], m);
@@ -78,7 +78,7 @@ const estado = {
     artilheiro: { confirmado: true },
   },
   palpitesCampeao: [
-    { participante_id: 1, selecao: "BRA" }, // Ana acerta campeã (+12)
+    { participante_id: 1, selecao: "BRA" }, // Ana acerta campeã (+BONUS_CAMPEAO)
     { participante_id: 3, selecao: "ARG" },
   ],
   premiadosArtilheiro: [2], // Bruno acerta artilheiro (+18)

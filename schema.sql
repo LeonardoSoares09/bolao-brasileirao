@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS palpites (
 CREATE INDEX IF NOT EXISTS idx_palpites_jogo ON palpites (jogo_id);
 
 -- ─────────────────────────────────────────────────────────────────────────
--- Palpite de campeão (+9 pts) e artilheiro (+6 pts). Travam ao confirmar.
+-- Palpite de campeão (+6 pts) e artilheiro (+18 pts). Travam ao confirmar.
 -- ─────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS palpite_campeao (
   participante_id INT PRIMARY KEY REFERENCES participantes(id) ON DELETE CASCADE,

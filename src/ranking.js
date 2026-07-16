@@ -6,7 +6,7 @@
 
 export const PTS_EXATO = 3;
 export const PTS_RESULTADO = 1;
-export const BONUS_CAMPEAO = 12;
+export const BONUS_CAMPEAO = 6;
 export const BONUS_ARTILHEIRO = 18;
 
 /* "Tem placar que conta pontos" — INCLUI jogo ao vivo (gh/ga preenchidos).
@@ -53,7 +53,7 @@ export function pontosComPeso(palpite, jogo) {
   return base === null ? null : base * pesoDoJogo(jogo);
 }
 
-/* Bônus de campeã (+9) e artilheiro (+6) de um participante, mais os flags
+/* Bônus de campeão (+6) e artilheiro (+18) de um participante, mais os flags
    de acerto (usados como critério de desempate). */
 export function calcularBonus(p, estado) {
   let bonus = 0;
