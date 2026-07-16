@@ -1,9 +1,10 @@
 /* /api/jogo — gestão de jogos (somente admin)
-   POST   { t, casa, fora, kickoff }   → cria jogo
+   POST   { t, casa, fora, kickoff, rodada, peso? } → cria jogo (peso derivado se omitido)
    PUT    { t, jogoId, gh, ga }        → lança/limpa resultado
    DELETE { t, jogoId }                → remove jogo (e palpites em cascata) */
 
 import { sql, autenticar, intOuNull } from "../lib/db.js";
+import { pesoDoJogo } from "../lib/clubes.js";
 
 export default async function handler(req, res) {
   const eu = await autenticar(req.body?.t);
@@ -20,12 +21,11 @@ export default async function handler(req, res) {
     const casa = String(req.body?.casa || "").trim();
     const fora = String(req.body?.fora || "").trim();
     const kickoff = req.body?.kickoff ? new Date(req.body.kickoff) : null;
-    const fase = req.body?.fase === "eliminatórias" ? "eliminatórias" : "grupos";
-    /* peso de pontuação: aceita 1..5 explícito; senão deriva da fase
-       (grupos 1×, mata-mata 2×). Quartas (3×), semi/3º (4×) e final (5×)
-       precisam vir explícitas. */
+    const rodada = intOuNull(req.body?.rodada);
+    /* peso de pontuação: aceita 1..3 explícito; senão deriva de rodada +
+       clássico (ver lib/clubes.js:pesoDoJogo). */
     const pesoReq = intOuNull(req.body?.peso);
-    const peso = [1, 2, 3, 4, 5].includes(pesoReq) ? pesoReq : (fase === "eliminatórias" ? 2 : 1);
+    const peso = [1, 2, 3].includes(pesoReq) ? pesoReq : pesoDoJogo(rodada, casa, fora);
     if (!casa || !fora || casa.length > 60 || fora.length > 60) {
       res.status(400).json({ error: "Times inválidos" });
       return;
@@ -35,8 +35,8 @@ export default async function handler(req, res) {
       return;
     }
     const rows = await sql`
-      INSERT INTO jogos (casa, fora, kickoff, fase, peso)
-      VALUES (${casa}, ${fora}, ${kickoff}, ${fase}, ${peso})
+      INSERT INTO jogos (casa, fora, kickoff, rodada, peso)
+      VALUES (${casa}, ${fora}, ${kickoff}, ${rodada}, ${peso})
       RETURNING id
     `;
     res.status(200).json({ ok: true, id: rows[0].id });
