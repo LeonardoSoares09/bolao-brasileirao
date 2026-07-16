@@ -6,7 +6,7 @@
 import { sql, autenticar, intOuNull } from "../lib/db.js";
 
 /* dados "ao vivo" administrados na mão, guardados na tabela config (JSON):
-   'artilheiro_gols' (ranking do artilheiro) e 'selecoes_eliminadas' (visual na
+   'artilheiro_gols' (ranking do artilheiro) e 'times_fora_disputa' (visual na
    aba Campeão). Ficam AQUI (e não num endpoint novo) porque o plano Hobby limita
    a 12 Serverless Functions — uma a mais estoura e vira 404. */
 async function salvarConfig(chave, valorObj) {
@@ -53,16 +53,16 @@ export default async function handler(req, res) {
       return;
     }
 
-    if (tipoRaw === "selecoes-eliminadas") {
-      const codigos = req.body?.codigos;
-      if (!Array.isArray(codigos)) {
-        res.status(400).json({ error: "codigos inválido" });
+    if (tipoRaw === "times-fora-disputa") {
+      const times = req.body?.times;
+      if (!Array.isArray(times)) {
+        res.status(400).json({ error: "times inválido" });
         return;
       }
       const limpo = [...new Set(
-        codigos.filter((c) => typeof c === "string" && c).map((c) => c.slice(0, 10))
+        times.filter((c) => typeof c === "string" && c).map((c) => c.slice(0, 60))
       )];
-      await salvarConfig("selecoes_eliminadas", limpo);
+      await salvarConfig("times_fora_disputa", limpo);
       res.status(200).json({ ok: true });
       return;
     }
