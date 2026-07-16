@@ -1699,7 +1699,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                       <div className="jogo-times">{fl(m.casa)}{m.casa} <span className="vs">×</span> {fl(m.fora)}{m.fora}</div>
                       <div className="jogo-meta">
                         {fmtQuando(m) && <span className="jogo-quando">{fmtQuando(m)}</span>}
-                        {m.fase === "eliminatórias" && rotuloDaFase(m) && (
+                        {rotuloDaFase(m) && (
                           <span className={"tag tag-elim" + (rotuloDaFase(m).destaque ? " tag-final" : "")}>
                             {rotuloDaFase(m).texto} · {pesoDoJogo(m)}× pts
                           </span>
@@ -1796,9 +1796,6 @@ function ResultadoAdmin({ jogo, salvar, remover, emAndamento = false }) {
 
   return (
     <div className="jogo-resultado">
-      {jogo.fase === "eliminatórias" && (
-        <span className="aviso-90min" title="Lançar o placar após a prorrogação (90min + prorrogação) — sem contar pênaltis">⏱ 90min + prorrog.</span>
-      )}
       <input type="number" min="0" inputMode="numeric" value={gh} placeholder="–"
         onChange={(e) => mudar("gh", e.target.value)} aria-label={"Gols " + jogo.casa} />
       <span className="vs">:</span>
@@ -5166,11 +5163,6 @@ function Estilo() {
         border-radius: 5px; padding: 2px 0;
       }
       .regras-peso-final .regras-peso-x { color: var(--ambar); background: rgba(255,197,61,.14); border-color: rgba(255,197,61,.4); }
-      .aviso-90min {
-        font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
-        color: var(--ambar); opacity: .75; white-space: nowrap; flex: none;
-        border: 1px solid rgba(255,197,61,.3); border-radius: 4px; padding: 2px 5px;
-      }
       .input-rodada {
         background: var(--fundo); border: 2px solid var(--linha); color: var(--giz);
         font-family: 'IBM Plex Mono', monospace; font-size: 11px;
