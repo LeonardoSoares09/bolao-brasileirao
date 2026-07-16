@@ -1,4 +1,4 @@
-# ⚽ Bolão da Copa 2026 — versão compartilhada
+# ⚽ Bolão dos Guris — Brasileirão 2026/2
 
 Bolão para grupo de amigos: cada um acessa pelo **seu link** (com token), lança o próprio palpite, e todos veem o mesmo ranking. React + Vite, serverless functions da Vercel, Neon Postgres.
 
@@ -14,7 +14,7 @@ Bolão para grupo de amigos: cada um acessa pelo **seu link** (com token), lanç
 ### 1. Banco — Neon Postgres
 1. Crie um projeto grátis em [neon.tech](https://neon.tech) (dá pra integrar direto pela aba *Storage* do projeto na Vercel, que já configura a `DATABASE_URL` sozinha).
 2. Abra o **SQL Editor** do Neon, cole o conteúdo de `schema.sql` e execute.
-3. Rode também `migrations/V2__external_id.sql` (adiciona a coluna `external_id` em `jogos`, usada pela busca automática). Pode rodar a qualquer momento — é não-destrutivo e idempotente.
+3. O `schema.sql` já é a planta completa e atual — rodar ele uma vez num banco vazio cobre tudo (não precisa rodar migrations extras num banco novo).
 
 ### 2. Variáveis de ambiente na Vercel
 Em *Settings → Environment Variables*:
@@ -22,7 +22,7 @@ Em *Settings → Environment Variables*:
 | Variável | Valor |
 |---|---|
 | `DATABASE_URL` | string de conexão do Neon (automática se usou a integração) |
-| `FOOTBALL_DATA_KEY` | sua chave grátis de https://www.football-data.org/client/register (free tier cobre a Copa do Mundo) |
+| `FOOTBALL_DATA_KEY` | sua chave grátis de https://www.football-data.org/client/register (free tier cobre a Série A, código de competição `BSA`) |
 | `ADMIN_TOKEN` | invente uma senha longa (ex: saída de `openssl rand -hex 16`) |
 | `CRON_SECRET` | outra senha longa — protege o endpoint `/api/cron-resultados` que a Vercel chama de 5 em 5 minutos pra atualizar placares sozinho |
 

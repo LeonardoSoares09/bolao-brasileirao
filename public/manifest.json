@@ -1,7 +1,7 @@
 {
-  "name": "Bolão da Copa 2026",
-  "short_name": "Bolão Copa",
-  "description": "Acompanhe o bolão da Copa do Mundo 2026",
+  "name": "Bolão dos Guris — Brasileirão 2026/2",
+  "short_name": "Bolão Guris",
+  "description": "Acompanhe o bolão do 2º turno do Brasileirão Série A 2026",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#071a0e",
