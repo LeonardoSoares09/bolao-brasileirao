@@ -5,7 +5,7 @@ import {
   pontosDoPalpite, pontosComPeso, pesoDoJogo, rotuloDaFase, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate,
   calcularDetalhamento, calcularEvolucao,
 } from "./ranking";
-import { TIMES, CLUBE_INFO } from "../lib/clubes.js";
+import { TIMES, CLUBE_INFO, pesoDoJogo as pesoDoJogoBase } from "../lib/clubes.js";
 
 /* ============================================================
    BOLÃO DA COPA 2026 — versão compartilhada (Vercel + Neon)
@@ -1423,7 +1423,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
   const [casa, setCasa] = useState("");
   const [fora, setFora] = useState("");
   const [kickoff, setKickoff] = useState("");
-  const [fase, setFase] = useState("grupos");
+  const [rodada, setRodada] = useState("");
   const [buscandoJogos, setBuscandoJogos] = useState(false);
   const [buscandoResultados, setBuscandoResultados] = useState(false);
   const [aviso, setAviso] = useState("");
@@ -1510,16 +1510,14 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
   const addJogo = async () => {
     if (!casa.trim() || !fora.trim()) return;
     try {
-      /* o seletor combina fase+peso: no banco `fase` é só grupos|eliminatórias,
-         e o peso é que diz a rodada (2× mata-mata, 3× quartas, 4× semi/3º, 5× final) */
-      const faseReal = fase === "grupos" ? "grupos" : "eliminatórias";
-      const PESO_DO_SELETOR = { grupos: 1, "eliminatórias": 2, quartas: 3, semi: 4, final: 5 };
-      const peso = PESO_DO_SELETOR[fase] ?? 1;
+      /* peso vem de lib/clubes.js: escalona por rodada e sobe pra 2× em
+         clássico regional, pegando o maior dos dois critérios. */
+      const peso = pesoDoJogoBase(rodada, casa, fora);
       await api("/api/jogo", {
         method: "POST",
-        body: JSON.stringify({ t: token, casa, fora, kickoff: kickoff ? new Date(kickoff).toISOString() : null, fase: faseReal, peso }),
+        body: JSON.stringify({ t: token, casa, fora, kickoff: kickoff ? new Date(kickoff).toISOString() : null, rodada: rodada ? Number(rodada) : null, peso }),
       });
-      setCasa(""); setFora(""); setKickoff(""); setFase("grupos");
+      setCasa(""); setFora(""); setKickoff(""); setRodada("");
       recarregar();
     } catch (e) { setAviso(e.message); }
   };
@@ -1621,13 +1619,16 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
               <input value={fora} onChange={(e) => setFora(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addJogo()} placeholder="Visitante" />
             </div>
             <div className="form-linha">
-              <select value={fase} onChange={(e) => setFase(e.target.value)} className="select-fase" aria-label="Fase do jogo">
-                <option value="grupos">Fase de grupos (1×)</option>
-                <option value="eliminatórias">Mata-mata — 16-avos/oitavas (2×)</option>
-                <option value="quartas">Quartas de final (3×)</option>
-                <option value="semi">Semifinal / 3º lugar (4×)</option>
-                <option value="final">Final (5×)</option>
-              </select>
+              <input
+                type="number"
+                min="19"
+                max="38"
+                value={rodada}
+                onChange={(e) => setRodada(e.target.value)}
+                placeholder="Rodada"
+                className="input-rodada"
+                aria-label="Rodada do jogo"
+              />
               <input type="datetime-local" value={kickoff} onChange={(e) => setKickoff(e.target.value)} aria-label="Data e hora do jogo" />
               <button className="botao" onClick={addJogo}>Adicionar</button>
             </div>
@@ -5170,10 +5171,10 @@ function Estilo() {
         color: var(--ambar); opacity: .75; white-space: nowrap; flex: none;
         border: 1px solid rgba(255,197,61,.3); border-radius: 4px; padding: 2px 5px;
       }
-      .select-fase {
+      .input-rodada {
         background: var(--fundo); border: 2px solid var(--linha); color: var(--giz);
         font-family: 'IBM Plex Mono', monospace; font-size: 11px;
-        padding: 6px 8px; border-radius: 0; flex: none;
+        padding: 6px 8px; border-radius: 0; flex: none; width: 90px;
       }
       .botao-zap { border-color: rgba(37,211,102,.45); color: #5ddb85; }
       .botao-zap:hover:not(:disabled) { background: rgba(37,211,102,.12); border-color: rgba(37,211,102,.8); }
