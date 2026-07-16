@@ -95,16 +95,13 @@ apito)"*.
 **Status:** aplicado. `src/App.jsx` ~linha 1051: `window.open(..., "_blank",
 "noopener")`. Risco era irrelevante (destino confiável), mas é boa prática.
 
----
-
-## ⏳ Pendente / decisão do dono
-
-### [ ] Item 2 — Remover endpoint TEMP de diagnóstico
-**Arquivo:** `api/futebol.js` (`acao === "debug-status"`, ~linha 212-225).
-**Status:** **deixado de propósito** — o dono quer manter até medir o placar ao
-vivo no próximo jogo. É admin-only (risco baixo), mas devolve o JSON cru da
-football-data. **Remover depois de medir.** Quando for remover: apagar o bloco
-`if (acao === "debug-status") {...}` inteiro.
+### [x] Item 2 — Remover endpoint TEMP de diagnóstico
+**Arquivo:** `api/futebol.js` (`acao === "debug-status"`).
+**Status:** removido — já deu pra medir o placar ao vivo. Bloco inteiro
+apagado (incluía o import indireto de `placarBolao`/`buscarPartidas` só pra
+esse diagnóstico; ambos seguem em uso normal em `acaoJogosHoje`/`acaoPlacares`,
+nada ficou órfão). `acao` inválida agora só aceita `jogos-hoje`, `resultados`
+ou `placar-vivo`.
 
 ---
 
@@ -160,8 +157,8 @@ API controla esses dados; o boundary é a rede de segurança.
 | 3 | rotação de token | ✅ feito |
 | 8 | `noopener` no WhatsApp | ✅ feito |
 | 6 | robustez de render | ✅ coberto pelo ErrorBoundary |
-| 2 | remover `debug-status` | ⏳ manter até medir o ao vivo |
-| 4 | segredo do cron na URL | ⏳ exige reconfig externa primeiro |
+| 2 | remover `debug-status` | ✅ feito |
+| 4 | segredo do cron na URL | 🟢 exige reconfig externa primeiro (informativo) |
 | 5 | rate limiting | 🟢 ok nesta escala |
 | 7 | `exatos` ao vivo no desempate | ✋ intencional (decisão de produto) — não mexer |
 
