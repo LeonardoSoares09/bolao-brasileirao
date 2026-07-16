@@ -484,7 +484,7 @@ export default function App() {
           ["ranking", "Ranking"],
           ["jogos", "Jogos"],
           ["palpites", "Palpites"],
-          ["campeao", "Campeão"],
+          ["campeao", "Bônus"],
           ["galera", "Galera"],
         ].map(([id, rotulo]) => (
           <button
