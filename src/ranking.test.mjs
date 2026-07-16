@@ -3,7 +3,7 @@
    principal. Roda com: node src/ranking.test.mjs
    Não é parte do bundle — é uma rede de segurança do refactor. */
 
-import { pontosDoPalpite, pontosComPeso, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate, temPlacar } from "./ranking.js";
+import { pontosDoPalpite, pontosComPeso, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate, temPlacar, calcularDetalhamento, calcularEvolucao } from "./ranking.js";
 
 let falhas = 0;
 const check = (cond, msg) => { if (!cond) { falhas++; console.error("  ✗ " + msg); } };
@@ -214,6 +214,59 @@ check(viuBonus, "cenario deveria ter ao menos um participante com bonus (campea/
 
   /* rótulo de mata-mata que a API invente cai em 2×, nunca em algo inflado */
   check(pesoDaStage("PLAYOFF_ROUND_INEXISTENTE") === 2, "stage desconhecido = 2× (fallback seguro)");
+}
+
+/* ---- calcularDetalhamento (Meu Perfil + Campeão do Bolão) ---- */
+{
+  // Ana (id 1): crava os 4 jogos encerrados → 100% de aproveitamento
+  const dAna = calcularDetalhamento(1, estado, palpitesMap);
+  check(dAna.jogosEncerrados.length === 4, `Ana: esperava 4 jogos encerrados, veio ${dAna.jogosEncerrados.length}`);
+  check(dAna.acertosExatos === 4 && dAna.acertosResult === 0 && dAna.erros === 0,
+    `Ana: esperava 4 exatos/0 resultado/0 erro, veio ${dAna.acertosExatos}/${dAna.acertosResult}/${dAna.erros}`);
+  check(dAna.aproveitamento === 100, `Ana: aproveitamento deveria ser 100%, veio ${dAna.aproveitamento}%`);
+  check(dAna.melhor?.jogo.id === 10 && dAna.pior?.jogo.id === 10,
+    "Ana: com tudo empatado em 3pts, melhor/pior deve cair no primeiro jogo (id 10)");
+
+  // Bruno (id 2): 1 exato + 3 resultados certos → 50% (6 de 12 possíveis)
+  const dBruno = calcularDetalhamento(2, estado, palpitesMap);
+  check(dBruno.acertosExatos === 1 && dBruno.acertosResult === 3 && dBruno.erros === 0,
+    `Bruno: esperava 1 exato/3 resultado/0 erro, veio ${dBruno.acertosExatos}/${dBruno.acertosResult}/${dBruno.erros}`);
+  check(dBruno.aproveitamento === 50, `Bruno: aproveitamento deveria ser 50%, veio ${dBruno.aproveitamento}%`);
+  check(dBruno.melhor?.jogo.id === 11, `Bruno: melhor jogo deveria ser o 11 (único exato), veio ${dBruno.melhor?.jogo.id}`);
+
+  // Duda (id 4): sem palpite no jogo 11 — não pode contar como erro nem entrar no máximo possível
+  const dDuda = calcularDetalhamento(4, estado, palpitesMap);
+  check(dDuda.apostasFeitas === 3, `Duda: esperava 3 apostas (jogo 11 sem palpite), veio ${dDuda.apostasFeitas}`);
+  check(dDuda.erros === 1, `Duda: só o jogo 10 (errado, mas COM palpite) deveria contar como erro, veio ${dDuda.erros}`);
+  check(dDuda.maxPossivel === 9, `Duda: máximo possível deveria ignorar o jogo sem palpite (3 jogos × 3 = 9), veio ${dDuda.maxPossivel}`);
+  check(dDuda.aproveitamento === 67, `Duda: aproveitamento deveria ser 67% (6/9), veio ${dDuda.aproveitamento}%`);
+
+  // detalhamento (sem bônus) tem que bater com ranking.pontos - ranking.bonus, p/ qualquer participante
+  for (const p of novo) {
+    const d = calcularDetalhamento(p.id, estado, palpitesMap);
+    check(d.totalPtsJogos === p.pontos - p.bonus,
+      `${p.nome}: detalhamento.totalPtsJogos (${d.totalPtsJogos}) != ranking.pontos-bonus (${p.pontos - p.bonus})`);
+  }
+}
+
+/* ---- calcularEvolucao (gráfico de trajetória do Campeão do Bolão) ---- */
+{
+  const evoAna = calcularEvolucao(1, estado, palpitesMap);
+  // ordem cronológica por kickoff: 10 (dia 14) → 11 (dia 15) → 14 (dia 16, 15h) → 12 (dia 16, 18h)
+  check(evoAna.map((e) => e.jogo.id).join(",") === "10,11,14,12",
+    `Ana: ordem cronológica errada — veio ${evoAna.map((e) => e.jogo.id).join(",")}`);
+  check(evoAna.every((e, i) => i === 0 || e.acumulado >= evoAna[i - 1].acumulado),
+    "Ana: acumulado da evolução nunca pode cair");
+  const totalAna = calcularDetalhamento(1, estado, palpitesMap).totalPtsJogos;
+  check(evoAna[evoAna.length - 1].acumulado === totalAna,
+    `Ana: último ponto da evolução (${evoAna[evoAna.length - 1].acumulado}) deveria bater com o total do detalhamento (${totalAna})`);
+}
+
+/* ---- "campeões do bolão" (App.jsx): topo do ranking, incluindo empates reais ---- */
+{
+  const campeoes = novo.filter((p) => compararRanking(p, novo[0], antecedenciaMap) === 0);
+  check(campeoes.length === 1, `cenário sem empate real no topo deveria dar 1 campeão só, veio ${campeoes.length}`);
+  check(campeoes[0].id === novo[0].id, "campeão deveria ser o próprio líder do ranking (auto-comparação = 0)");
 }
 
 if (falhas === 0) console.log("✓ ranking.test.mjs — todos os cenários passaram (novo == antigo + alinhamento M4 + escala de peso)");

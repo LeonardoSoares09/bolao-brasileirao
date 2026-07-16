@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import {
   PTS_EXATO, PTS_RESULTADO, temPlacar, BONUS_CAMPEAO, BONUS_ARTILHEIRO,
   pontosDoPalpite, pontosComPeso, pesoDoJogo, rotuloDaFase, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate,
+  calcularDetalhamento, calcularEvolucao,
 } from "./ranking";
 
 /* ============================================================
@@ -189,6 +190,7 @@ export default function App() {
   const [abrirPagamento, setAbrirPagamento] = useState(false);
   const [abrirLembrete, setAbrirLembrete] = useState(false);
   const [participanteModal, setParticipanteModal] = useState(null);
+  const [campeaoModalAberto, setCampeaoModalAberto] = useState(false);
   const [proximoFechado, setProximoFechado] = useState(false);
   const [jogoPreSel, setJogoPreSel] = useState(null);
   const [statsPreSel, setStatsPreSel] = useState(null);
@@ -370,6 +372,15 @@ export default function App() {
     .map((p) => calcularStats(p, estado, palpitesMap, { jogos: estado.jogos, hojeKey, chaveData }))
     .sort((a, b) => compararRanking(a, b, antecedenciaMap));
 
+  /* Campeão do bolão: só depois que os DOIS bônus especiais são confirmados
+     (na prática, só acontece depois da final). "campeões" no plural cobre o
+     raro empate que sobrevive a todos os critérios de desempate — reusa o
+     próprio compararRanking pra achar quem empatou de verdade com o 1º. */
+  const bolaoEncerrado = !!(estado.resultadoEspecial?.campeao?.confirmado && estado.resultadoEspecial?.artilheiro?.confirmado);
+  const campeoesDoBolao = bolaoEncerrado && ranking.length > 0
+    ? ranking.filter((p) => compararRanking(p, ranking[0], antecedenciaMap) === 0)
+    : [];
+
   /* posições antes dos jogos de hoje — para setas de tendência.
      Usa o MESMO comparador do ranking (compararRanking), só que sobre os jogos
      de antes de hoje. Antes usava um comparador diferente (por nome), o que
@@ -479,6 +490,16 @@ export default function App() {
         />
       )}
 
+      {campeaoModalAberto && campeoesDoBolao.length > 0 && (
+        <ModalCampeaoBolao
+          campeoes={campeoesDoBolao}
+          estado={estado}
+          palpitesMap={palpitesMap}
+          euId={estado.eu.id}
+          onFechar={() => setCampeaoModalAberto(false)}
+        />
+      )}
+
       <nav className="abas entra-2" role="tablist">
         {[
           ["ranking", "Ranking"],
@@ -511,6 +532,8 @@ export default function App() {
             palpitesMap={palpitesMap}
             jogos={estado.jogos}
             euId={estado.eu.id}
+            campeoes={campeoesDoBolao}
+            onAbrirCampeao={() => setCampeaoModalAberto(true)}
           />
         )}
         {tab === "jogos" && (
@@ -693,7 +716,7 @@ function Podio({ top3, ranking, posAntes, onClick, euId }) {
   );
 }
 
-function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickParticipante, palpitesMap, jogos, euId }) {
+function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickParticipante, palpitesMap, jogos, euId, campeoes, onAbrirCampeao }) {
   const temAoVivo = (jogos || []).some((m) => m.live && temPlacar(m));
   useEffect(() => { aoAbrir(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (ranking.length === 0)
@@ -711,6 +734,7 @@ function Ranking({ ranking, temJogos, primeiraVez, aoAbrir, posAntes, onClickPar
   return (
     <div>
       {primeiraVez && ranking.some((p) => p.exatosHoje > 0) && <Confete />}
+      <BannerCampeaoBolao campeoes={campeoes} onAbrir={onAbrirCampeao} />
       {!temJogos && (
         <p className="dica">Nenhum jogo encerrado ainda — o placar acende quando entrar o primeiro resultado.</p>
       )}
@@ -3057,6 +3081,31 @@ function ReacaoStrip({ jogoId, reacoes, euId, token, onUpdate }) {
   );
 }
 
+/* Linhas de bônus de campeã/artilheiro — pontos que não vêm de nenhum jogo
+   específico, então precisam aparecer explicados (senão parecem "sumir do
+   nada" no histórico). Compartilhado entre Meu Perfil e Campeão do Bolão. */
+function BonusEspeciais({ participante, style }) {
+  if (!participante?.acertouCampeao && !participante?.acertouArtilheiro) return null;
+  return (
+    <div className="perfil-destaques" style={style}>
+      {participante.acertouCampeao && (
+        <div className="perfil-destaque">
+          <span className="perfil-destaque-icon">🏆</span>
+          <span className="perfil-destaque-txt">Acertou a campeã</span>
+          <span className="perfil-destaque-pts perfil-bd-exato">+{BONUS_CAMPEAO} pts</span>
+        </div>
+      )}
+      {participante.acertouArtilheiro && (
+        <div className="perfil-destaque">
+          <span className="perfil-destaque-icon">⚽</span>
+          <span className="perfil-destaque-txt">Acertou o artilheiro</span>
+          <span className="perfil-destaque-pts perfil-bd-exato">+{BONUS_ARTILHEIRO} pts</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, onFechar, euId, isAdmin, estado, palpitesMap, ranking }) {
   const [emojiSel, setEmojiSel] = useState(emojiInicial || "");
   const [corSel, setCorSel] = useState(corInicial || corDoNome(nome));
@@ -3077,32 +3126,16 @@ function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, on
 
   const iniciais = nome.split(" ").filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join("");
 
-  /* ── stats ── */
-  /* inclui jogo ao vivo (temPlacar) p/ os totais baterem com o ranking — M4 */
-  const jogosEncerrados = (estado?.jogos || []).filter(temPlacar);
-  const perfilTemAoVivo = jogosEncerrados.some((m) => m.live);
-  const meusPalpites = jogosEncerrados.map((m) => {
-    const palpite = palpitesMap?.[m.id]?.[euId];
-    const pts = pontosDoPalpite(palpite, m);        // bruto (classifica)
-    const ptsPeso = pontosComPeso(palpite, m);      // já com peso da fase
-    return { jogo: m, palpite, pts, ptsPeso };
-  });
-  const apostasFeitas   = meusPalpites.filter((x) => x.palpite).length;
-  const acertosExatos   = meusPalpites.filter((x) => x.pts === PTS_EXATO).length;
-  const acertosResult   = meusPalpites.filter((x) => x.pts === PTS_RESULTADO).length;
-  const erros           = meusPalpites.filter((x) => x.palpite && x.pts === 0).length;
-  /* total e aproveitamento já consideram o peso da fase (igual ao ranking) */
-  const totalPtsJogos   = meusPalpites.reduce((s, x) => s + (x.ptsPeso || 0), 0);
-  const maxPossivel     = meusPalpites.reduce((s, x) => s + (x.palpite ? pesoDoJogo(x.jogo) * PTS_EXATO : 0), 0);
-  const aproveitamento  = maxPossivel > 0 ? Math.round((totalPtsJogos / maxPossivel) * 100) : 0;
+  /* ── stats ── (fonte única: mesmo cálculo usado no Campeão do Bolão) */
+  const {
+    jogosEncerrados, temAoVivo: perfilTemAoVivo, comPalpite,
+    apostasFeitas, acertosExatos, acertosResult, erros,
+    aproveitamento, melhor, pior,
+  } = calcularDetalhamento(euId, estado || { jogos: [] }, palpitesMap || {});
 
   const euRanking   = ranking?.find((p) => p.id === euId);
   const posicao     = ranking ? ranking.findIndex((p) => p.id === euId) + 1 : 0;
   const totalPts    = euRanking?.pontos ?? 0;
-
-  const comPalpite  = meusPalpites.filter((x) => x.palpite);
-  const melhor      = comPalpite.reduce((b, x) => (!b || x.ptsPeso > b.ptsPeso) ? x : b, null);
-  const pior        = comPalpite.reduce((w, x) => (!w || x.ptsPeso < w.ptsPeso) ? x : w, null);
 
   const temStats = jogosEncerrados.length > 0;
 
@@ -3194,24 +3227,7 @@ function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, on
       {/* bônus de campeã/artilheiro — pontos que já entram no total acima, mas
           não vêm de nenhum jogo, então precisam aparecer explicados aqui
           (senão parece que os pontos "somem do nada" no histórico). */}
-      {(euRanking?.acertouCampeao || euRanking?.acertouArtilheiro) && (
-        <div className="perfil-destaques" style={{ marginTop: temStats ? 0 : "14px" }}>
-          {euRanking.acertouCampeao && (
-            <div className="perfil-destaque">
-              <span className="perfil-destaque-icon">🏆</span>
-              <span className="perfil-destaque-txt">Acertou a campeã</span>
-              <span className="perfil-destaque-pts perfil-bd-exato">+{BONUS_CAMPEAO} pts</span>
-            </div>
-          )}
-          {euRanking.acertouArtilheiro && (
-            <div className="perfil-destaque">
-              <span className="perfil-destaque-icon">⚽</span>
-              <span className="perfil-destaque-txt">Acertou o artilheiro</span>
-              <span className="perfil-destaque-pts perfil-bd-exato">+{BONUS_ARTILHEIRO} pts</span>
-            </div>
-          )}
-        </div>
-      )}
+      <BonusEspeciais participante={euRanking} style={{ marginTop: temStats ? 0 : "14px" }} />
 
       {/* personalizar */}
       <div className="secao-titulo" style={{ marginTop: "14px" }}>PERSONALIZAR</div>
@@ -4008,6 +4024,117 @@ function ModalPalpites({ participante, jogos, palpitesMap, euId, onFechar }) {
                 {pts === 0            && <span className="pts pts-0">✕</span>}
                 {pts === null         && <span className="pts pts-0">—</span>}
               </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ================= CAMPEÃO DO BOLÃO ================= */
+/* Destaque no topo do Ranking quando o bolão termina (campeã + artilheiro
+   confirmados) — abre o modal de celebração. Some sozinho antes disso. */
+function BannerCampeaoBolao({ campeoes, onAbrir }) {
+  if (!campeoes || campeoes.length === 0) return null;
+  return (
+    <button className="banner-campeao-bolao entra-2" onClick={onAbrir}>
+      <span className="banner-campeao-emoji" aria-hidden="true">🏆</span>
+      <span className="banner-campeao-txt">
+        {campeoes.length > 1
+          ? `${campeoes.length} campeões empatados no bolão!`
+          : `${campeoes[0].nome} é o campeão do bolão!`}
+      </span>
+      <span className="banner-campeao-cta">Ver celebração →</span>
+    </button>
+  );
+}
+
+/* Gráfico de linha de UM participante só (SVG feito na mão) — não confundir
+   com GraficoEvolucao (comparação de todo mundo, no fim do Ranking). Este é
+   focado: a trajetória individual do campeão até o topo. Pontos dourados
+   marcam placar exato; a linha nunca cai (acumulado é não-decrescente —
+   ver calcularEvolucao). */
+function GraficoTrajetoria({ evolucao }) {
+  if (evolucao.length < 2) return null;
+  const w = 300, h = 90, pad = 6;
+  const max = Math.max(1, evolucao[evolucao.length - 1].acumulado);
+  const pontos = evolucao.map((e, i) => ({
+    ...e,
+    x: (i / (evolucao.length - 1)) * (w - pad * 2) + pad,
+    y: h - pad - (e.acumulado / max) * (h - pad * 2),
+  }));
+  const linha = pontos.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const area = `${pad},${h - pad} ${linha} ${w - pad},${h - pad}`;
+  return (
+    <svg className="grafico-trajetoria" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none"
+      role="img" aria-label="Evolução de pontos ao longo da Copa">
+      <defs>
+        <linearGradient id="gradEvolucao" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--ambar)" stopOpacity=".35" />
+          <stop offset="100%" stopColor="var(--ambar)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={area} fill="url(#gradEvolucao)" />
+      <polyline points={linha} fill="none" stroke="var(--ambar)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      {pontos.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r={p.pts === PTS_EXATO ? 3 : 1.5}
+          fill={p.pts === PTS_EXATO ? "var(--ambar)" : "rgba(255,255,255,.45)"} />
+      ))}
+    </svg>
+  );
+}
+
+/* Modal de celebração — abre pelo banner do Ranking. Um cartão por campeão
+   (normalmente 1; empate real no topo vira uma lista, sem tratamento
+   especial: cada um ganha seu próprio cartão com stats e gráfico). */
+function ModalCampeaoBolao({ campeoes, estado, palpitesMap, euId, onFechar }) {
+  return (
+    <div className="modal-overlay" onClick={onFechar}>
+      <div className="modal-painel modal-campeao-bolao" onClick={(e) => e.stopPropagation()}>
+        <Confete />
+        <div className="modal-header">
+          <div className="modal-nome">🏆 Campeão do Bolão</div>
+          <button className="apagar" onClick={onFechar} aria-label="Fechar">✕</button>
+        </div>
+
+        {campeoes.map((c) => {
+          const d = calcularDetalhamento(c.id, estado, palpitesMap);
+          const evolucao = calcularEvolucao(c.id, estado, palpitesMap);
+          return (
+            <div key={c.id} className="cartao campeao-bolao-cartao">
+              <div className="campeao-bolao-topo">
+                <span className="campeao-bolao-coroa" aria-hidden="true">👑</span>
+                <Avatar nome={c.nome} emoji={c.avatarEmoji} cor={c.avatarCor} size={64} />
+                <div className="campeao-bolao-nome">{c.nome}{c.id === euId ? " (você)" : ""}</div>
+                <div className="campeao-bolao-pts">1º lugar · {c.pontos} pts</div>
+              </div>
+
+              <BonusEspeciais participante={c} style={{ marginTop: "14px" }} />
+
+              <div className="perfil-breakdown" style={{ marginTop: "12px", justifyContent: "center" }}>
+                <span className="perfil-bd-item perfil-bd-exato">🎯 {d.acertosExatos} exato{d.acertosExatos !== 1 ? "s" : ""}</span>
+                <span className="perfil-bd-item perfil-bd-result">✓ {d.acertosResult} certo{d.acertosResult !== 1 ? "s" : ""}</span>
+                <span className="perfil-bd-item perfil-bd-erro">✗ {d.erros} erro{d.erros !== 1 ? "s" : ""}</span>
+                <span className="perfil-bd-item perfil-bd-miss">{d.aproveitamento}% aproveito</span>
+              </div>
+
+              {evolucao.length > 1 && (
+                <>
+                  <div className="secao-titulo" style={{ marginTop: "16px", textAlign: "center" }}>EVOLUÇÃO NA COPA</div>
+                  <GraficoTrajetoria evolucao={evolucao} />
+                </>
+              )}
+
+              {d.melhor && (
+                <div className="perfil-destaques" style={{ marginTop: "12px" }}>
+                  <div className="perfil-destaque">
+                    <span className="perfil-destaque-icon">🎯</span>
+                    <span className="perfil-destaque-txt">Melhor jogo: {d.melhor.jogo.casa} × {d.melhor.jogo.fora}</span>
+                    <span className="perfil-destaque-pts perfil-bd-exato">{d.melhor.ptsPeso} pt{d.melhor.ptsPeso !== 1 ? "s" : ""}</span>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
@@ -4857,6 +4984,35 @@ function Estilo() {
       .podio-prata:hover { background: rgba(200,200,210,.14) !important; }
       .podio-bronze:hover{ background: rgba(180,100,40,.14) !important; }
       .col-pos-medal { font-size: 18px; opacity: 1; }
+
+      /* banner "campeão do bolão" — só aparece quando o bolão termina */
+      .banner-campeao-bolao {
+        display: flex; align-items: center; gap: 10px;
+        width: 100%; text-align: left; font-family: inherit; color: var(--giz);
+        padding: 14px 16px; margin-bottom: 14px; cursor: pointer;
+        background: linear-gradient(135deg, rgba(255,197,61,.2), rgba(255,197,61,.05));
+        border: 1.5px solid var(--ambar); border-radius: var(--r);
+        transition: background var(--t);
+      }
+      .banner-campeao-bolao:hover { background: linear-gradient(135deg, rgba(255,197,61,.3), rgba(255,197,61,.08)); }
+      .banner-campeao-emoji { font-size: 26px; flex: none; }
+      .banner-campeao-txt { flex: 1; min-width: 0; font-weight: 800; font-size: 15px; letter-spacing: .01em; }
+      .banner-campeao-cta {
+        flex: none; font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+        letter-spacing: .08em; text-transform: uppercase; color: var(--ambar); white-space: nowrap;
+      }
+
+      /* modal de celebração do campeão do bolão */
+      .modal-campeao-bolao { position: relative; overflow: hidden; }
+      .campeao-bolao-cartao { text-align: center; padding: 22px 16px; margin-bottom: 12px; }
+      .campeao-bolao-topo { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+      .campeao-bolao-coroa { font-size: 30px; }
+      .campeao-bolao-nome { font-size: 22px; font-weight: 800; margin-top: 4px; }
+      .campeao-bolao-pts {
+        font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+        color: var(--ambar); letter-spacing: .06em;
+      }
+      .grafico-trajetoria { width: 100%; height: 90px; margin-top: 8px; display: block; }
 
       /* painel "sua posição" — placar do próprio usuário */
       .meu-status {

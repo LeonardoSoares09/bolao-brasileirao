@@ -95,6 +95,50 @@ export function calcularStats(p, estado, palpitesMap, opts = {}) {
   return { ...p, pontos, exatos, resultados, bonus, exatosHoje, acertouCampeao, acertouArtilheiro };
 }
 
+/* Detalhamento jogo-a-jogo de UM participante (Meu Perfil e Campeão do Bolão
+   usam o mesmo cálculo — antes só existia inline dentro do PerfilPicker,
+   preso ao participante logado). Sem bônus de propósito: é sobre desempenho
+   nos JOGOS (aproveitamento, melhor/pior), o bônus tem seu próprio bloco. */
+export function calcularDetalhamento(participanteId, estado, palpitesMap) {
+  const jogosEncerrados = (estado.jogos || []).filter(temPlacar);
+  const temAoVivo = jogosEncerrados.some((m) => m.live);
+  const porJogo = jogosEncerrados.map((m) => {
+    const palpite = palpitesMap[m.id]?.[participanteId];
+    return { jogo: m, palpite, pts: pontosDoPalpite(palpite, m), ptsPeso: pontosComPeso(palpite, m) };
+  });
+  const comPalpite = porJogo.filter((x) => x.palpite);
+  const acertosExatos = porJogo.filter((x) => x.pts === PTS_EXATO).length;
+  const acertosResult = porJogo.filter((x) => x.pts === PTS_RESULTADO).length;
+  const erros = comPalpite.filter((x) => x.pts === 0).length;
+  const totalPtsJogos = porJogo.reduce((s, x) => s + (x.ptsPeso || 0), 0);
+  const maxPossivel = porJogo.reduce((s, x) => s + (x.palpite ? pesoDoJogo(x.jogo) * PTS_EXATO : 0), 0);
+  const aproveitamento = maxPossivel > 0 ? Math.round((totalPtsJogos / maxPossivel) * 100) : 0;
+  const melhor = comPalpite.reduce((b, x) => (!b || x.ptsPeso > b.ptsPeso) ? x : b, null);
+  const pior = comPalpite.reduce((w, x) => (!w || x.ptsPeso < w.ptsPeso) ? x : w, null);
+  return {
+    jogosEncerrados, temAoVivo, porJogo, comPalpite,
+    apostasFeitas: comPalpite.length, acertosExatos, acertosResult, erros,
+    totalPtsJogos, maxPossivel, aproveitamento, melhor, pior,
+  };
+}
+
+/* Evolução de pontos (COM peso, SEM bônus) de um participante ao longo da
+   Copa, em ordem cronológica — usado no gráfico de linha do Campeão do
+   Bolão. Palpite ausente/errado soma 0 (a linha nunca cai, só sobe ou
+   estagna: acumulado é sempre não-decrescente). */
+export function calcularEvolucao(participanteId, estado, palpitesMap) {
+  const jogosEncerrados = (estado.jogos || [])
+    .filter((m) => temPlacar(m) && m.kickoff)
+    .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
+  let acumulado = 0;
+  return jogosEncerrados.map((m) => {
+    const palpite = palpitesMap[m.id]?.[participanteId];
+    const pts = pontosDoPalpite(palpite, m);
+    acumulado += pontosComPeso(palpite, m) || 0;
+    return { jogo: m, pts, acumulado };
+  });
+}
+
 /* 5º critério de desempate: ANTECEDÊNCIA MÉDIA (segundos antes do kickoff).
    Maior = palpita mais cedo, em média = vence. Quem tem dado vence quem não tem
    (não palpitou nenhum jogo com horário). Empate real (mesma média ou ambos sem
