@@ -1265,29 +1265,16 @@ function Countdown({ kickoff, offsetMs = 0 }) {
 
 /* ================= ESTATÍSTICAS DO JOGO (100% client-side) ================= */
 
-/* grupo inferido dos nossos próprios jogos: na fase de grupos (round-robin de
-   4), os times que enfrentam casa/fora são justamente os 4 do grupo. Mata-mata
-   não tem grupo (devolve []). */
-function grupoDoJogo(jogos, jogo) {
-  if (jogo.fase !== "grupos") return [];
-  const { casa: a, fora: b } = jogo;
-  const set = new Set([a, b]);
-  for (const j of jogos) {
-    if (j.fase !== "grupos") continue;
-    if (j.casa === a || j.fora === a || j.casa === b || j.fora === b) {
-      set.add(j.casa); set.add(j.fora);
-    }
-  }
-  return [...set];
-}
-
-/* tabela do grupo calculada dos nossos jogos (inclui ao vivo via temPlacar). */
-function tabelaDoGrupo(jogos, times) {
-  const tset = new Set(times);
+/* Tabela do campeonato (2º turno) calculada dos nossos próprios jogos —
+   inclui ao vivo via temPlacar. Antes era "tabela do grupo" (round-robin de
+   4 seleções); no Brasileirão é round-robin de todos os clubes cadastrados
+   no bolão, então não há mais trava de fase — considera todo mundo. */
+function tabelaCampeonato(jogos) {
   const tab = {};
-  for (const t of times) tab[t] = { time: t, j: 0, v: 0, e: 0, d: 0, gp: 0, gc: 0, pts: 0 };
   for (const j of jogos) {
-    if (j.fase !== "grupos" || !tset.has(j.casa) || !tset.has(j.fora) || !temPlacar(j)) continue;
+    if (!tab[j.casa]) tab[j.casa] = { time: j.casa, j: 0, v: 0, e: 0, d: 0, gp: 0, gc: 0, pts: 0 };
+    if (!tab[j.fora]) tab[j.fora] = { time: j.fora, j: 0, v: 0, e: 0, d: 0, gp: 0, gc: 0, pts: 0 };
+    if (!temPlacar(j)) continue;
     const A = tab[j.casa], B = tab[j.fora];
     A.j++; B.j++;
     A.gp += j.gh; A.gc += j.ga; B.gp += j.ga; B.gc += j.gh;
@@ -1341,8 +1328,7 @@ function formaDoTime(jogos, time, limite = 5) {
 const STAT_RES_LABEL = { V: "Vitória", E: "Empate", D: "Derrota" };
 
 function ModalEstatisticas({ jogo, jogos, onFechar }) {
-  const grupo = grupoDoJogo(jogos, jogo);
-  const tabela = grupo.length ? tabelaDoGrupo(jogos, grupo) : [];
+  const tabela = tabelaCampeonato(jogos);
 
   /* Link puro de busca no Google (sem API): só "Time A x Time B", SEM a palavra
      "escalação" — com ela o Google abre o AI Overview (resposta em texto) em vez
@@ -1390,7 +1376,7 @@ function ModalEstatisticas({ jogo, jogos, onFechar }) {
 
         {tabela.length > 0 && (
           <>
-            <div className="secao-titulo">CLASSIFICAÇÃO DO GRUPO</div>
+            <div className="secao-titulo">TABELA DO CAMPEONATO</div>
             <div className="stat-tabela-wrap">
               <table className="stat-tabela">
                 <thead>
