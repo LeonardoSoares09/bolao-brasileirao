@@ -546,6 +546,8 @@ export default function App() {
             euId={estado.eu.id}
             artilheiroGols={estado.artilheiroGols || {}}
             selecoesEliminadas={estado.selecoesEliminadas || []}
+            resultadoEspecial={estado.resultadoEspecial}
+            premiadosArtilheiro={estado.premiadosArtilheiro || []}
           />
         )}
         {tab === "galera" && (
@@ -3189,6 +3191,28 @@ function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, on
         </>
       )}
 
+      {/* bônus de campeã/artilheiro — pontos que já entram no total acima, mas
+          não vêm de nenhum jogo, então precisam aparecer explicados aqui
+          (senão parece que os pontos "somem do nada" no histórico). */}
+      {(euRanking?.acertouCampeao || euRanking?.acertouArtilheiro) && (
+        <div className="perfil-destaques" style={{ marginTop: temStats ? 0 : "14px" }}>
+          {euRanking.acertouCampeao && (
+            <div className="perfil-destaque">
+              <span className="perfil-destaque-icon">🏆</span>
+              <span className="perfil-destaque-txt">Acertou a campeã</span>
+              <span className="perfil-destaque-pts perfil-bd-exato">+{BONUS_CAMPEAO} pts</span>
+            </div>
+          )}
+          {euRanking.acertouArtilheiro && (
+            <div className="perfil-destaque">
+              <span className="perfil-destaque-icon">⚽</span>
+              <span className="perfil-destaque-txt">Acertou o artilheiro</span>
+              <span className="perfil-destaque-pts perfil-bd-exato">+{BONUS_ARTILHEIRO} pts</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* personalizar */}
       <div className="secao-titulo" style={{ marginTop: "14px" }}>PERSONALIZAR</div>
 
@@ -3233,7 +3257,7 @@ function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, on
   );
 }
 
-function Campeao({ token, euId, artilheiroGols = {}, selecoesEliminadas = [] }) {
+function Campeao({ token, euId, artilheiroGols = {}, selecoesEliminadas = [], resultadoEspecial = null, premiadosArtilheiro = [] }) {
   // — campeão —
   const [meu, setMeu] = useState(null);
   const [confirmados, setConfirmados] = useState([]);
@@ -3464,6 +3488,7 @@ function Campeao({ token, euId, artilheiroGols = {}, selecoesEliminadas = [] }) 
           ) : (
             confirmados.map((c, i) => {
               const eliminada = selecoesEliminadas.includes(FLAG_CODES[c.selecao]);
+              const acertou = resultadoEspecial?.campeao?.confirmado && c.selecao === resultadoEspecial.campeao.valor;
               return (
                 <div
                   key={c.participante_id}
@@ -3474,6 +3499,7 @@ function Campeao({ token, euId, artilheiroGols = {}, selecoesEliminadas = [] }) 
                     {c.nome}{c.participante_id === euId ? " (você)" : ""}
                   </span>
                   {eliminada && <span className="tag-eliminada">✗ eliminada</span>}
+                  {acertou && <span className="pts pts-3" title={`Acertou a campeã! +${BONUS_CAMPEAO} pts`}>✓ +{BONUS_CAMPEAO}</span>}
                   <span className="pts pts-1">{fl(c.selecao)}{c.selecao}</span>
                 </div>
               );
@@ -3569,7 +3595,9 @@ function Campeao({ token, euId, artilheiroGols = {}, selecoesEliminadas = [] }) 
                 .sort((a, b) => b.gols - a.gols || a.nome.localeCompare(b.nome));
               let pos = 0, prev = null;
               rank.forEach((c) => { if (c.gols !== prev) { pos += 1; prev = c.gols; } c.pos = pos; });
-              return rank.map((c, i) => (
+              return rank.map((c, i) => {
+                const acertou = resultadoEspecial?.artilheiro?.confirmado && premiadosArtilheiro.includes(c.participante_id);
+                return (
                 <div
                   key={c.participante_id}
                   className={"cartao palpite-linha entra-cartao" + (c.participante_id === euId ? " meu-palpite" : "")}
@@ -3580,12 +3608,16 @@ function Campeao({ token, euId, artilheiroGols = {}, selecoesEliminadas = [] }) 
                     <span>{c.nome}{c.participante_id === euId ? " (você)" : ""}</span>
                     <span className="rank-jogador">{c.jogador}</span>
                   </span>
+                  {acertou && <span className="pts pts-3" title={`Acertou o artilheiro! +${BONUS_ARTILHEIRO} pts`}>✓ +{BONUS_ARTILHEIRO}</span>}
                   <span className="pts pts-1">⚽ {c.gols}</span>
                 </div>
-              ));
+                );
+              });
             })()
           ) : (
-            confirmadosArt.map((c, i) => (
+            confirmadosArt.map((c, i) => {
+              const acertou = resultadoEspecial?.artilheiro?.confirmado && premiadosArtilheiro.includes(c.participante_id);
+              return (
               <div
                 key={c.participante_id}
                 className={"cartao palpite-linha entra-cartao" + (c.participante_id === euId ? " meu-palpite" : "")}
@@ -3594,9 +3626,11 @@ function Campeao({ token, euId, artilheiroGols = {}, selecoesEliminadas = [] }) 
                 <span className="palpite-nome">
                   {c.nome}{c.participante_id === euId ? " (você)" : ""}
                 </span>
+                {acertou && <span className="pts pts-3" title={`Acertou o artilheiro! +${BONUS_ARTILHEIRO} pts`}>✓ +{BONUS_ARTILHEIRO}</span>}
                 <span className="pts pts-1">{c.jogador}</span>
               </div>
-            ))
+              );
+            })
           )}
           </>); })()}
         </>
