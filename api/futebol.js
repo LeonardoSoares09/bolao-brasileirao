@@ -1,168 +1,10 @@
-/* /api/futebol — integração com football-data.org (free tier cobre o WC).
+/* /api/futebol — integração com football-data.org (competição BSA, Série A).
    GET ?t=TOKEN&acao=jogos-hoje  → busca partidas do dia (fuso SP) e insere/adota
    GET ?t=TOKEN&acao=resultados  → grava placar final dos jogos FINISHED
    Somente admin. Auth via header X-Auth-Token (env FOOTBALL_DATA_KEY). */
 
 import { sql, autenticar } from "../lib/db.js";
-
-/* Mapa pt-BR das seleções que podem cair em Copa do Mundo.
-   Não-mapeado cai no fallback: usa o próprio nome em inglês. */
-const TRADUCAO = {
-  // CONMEBOL
-  "Brazil": "Brasil",
-  "Argentina": "Argentina",
-  "Uruguay": "Uruguai",
-  "Colombia": "Colômbia",
-  "Ecuador": "Equador",
-  "Paraguay": "Paraguai",
-  "Peru": "Peru",
-  "Venezuela": "Venezuela",
-  "Bolivia": "Bolívia",
-  "Chile": "Chile",
-  // CONCACAF
-  "United States": "Estados Unidos",
-  "USA": "Estados Unidos",
-  "Mexico": "México",
-  "Canada": "Canadá",
-  "Costa Rica": "Costa Rica",
-  "Panama": "Panamá",
-  "Jamaica": "Jamaica",
-  "Honduras": "Honduras",
-  "El Salvador": "El Salvador",
-  "Guatemala": "Guatemala",
-  "Trinidad and Tobago": "Trinidad e Tobago",
-  "Curaçao": "Curaçao",
-  "Curacao": "Curaçao",
-  "Haiti": "Haiti",
-  // UEFA
-  "Germany": "Alemanha",
-  "France": "França",
-  "Spain": "Espanha",
-  "England": "Inglaterra",
-  "Portugal": "Portugal",
-  "Italy": "Itália",
-  "Netherlands": "Holanda",
-  "Belgium": "Bélgica",
-  "Croatia": "Croácia",
-  "Switzerland": "Suíça",
-  "Denmark": "Dinamarca",
-  "Poland": "Polônia",
-  "Austria": "Áustria",
-  "Sweden": "Suécia",
-  "Norway": "Noruega",
-  "Czech Republic": "República Tcheca",
-  "Czechia": "República Tcheca",
-  "Serbia": "Sérvia",
-  "Turkey": "Turquia",
-  "Türkiye": "Turquia",
-  "Ukraine": "Ucrânia",
-  "Wales": "País de Gales",
-  "Scotland": "Escócia",
-  "Republic of Ireland": "Irlanda",
-  "Ireland": "Irlanda",
-  "Northern Ireland": "Irlanda do Norte",
-  "Hungary": "Hungria",
-  "Romania": "Romênia",
-  "Greece": "Grécia",
-  "Russia": "Rússia",
-  "Slovakia": "Eslováquia",
-  "Slovenia": "Eslovênia",
-  "Albania": "Albânia",
-  "Bosnia and Herzegovina": "Bósnia e Herzegovina",
-  "Bosnia-Herzegovina": "Bósnia e Herzegovina",
-  "Iceland": "Islândia",
-  "Finland": "Finlândia",
-  "Bulgaria": "Bulgária",
-  "Montenegro": "Montenegro",
-  "North Macedonia": "Macedônia do Norte",
-  // CAF
-  "Morocco": "Marrocos",
-  "Senegal": "Senegal",
-  "Tunisia": "Tunísia",
-  "Algeria": "Argélia",
-  "Egypt": "Egito",
-  "Nigeria": "Nigéria",
-  "Ghana": "Gana",
-  "Cameroon": "Camarões",
-  "Ivory Coast": "Costa do Marfim",
-  "Côte d'Ivoire": "Costa do Marfim",
-  "South Africa": "África do Sul",
-  "Mali": "Mali",
-  "Burkina Faso": "Burkina Faso",
-  "Cape Verde": "Cabo Verde",
-  "Cape Verde Islands": "Cabo Verde",
-  "DR Congo": "República Democrática do Congo",
-  "Democratic Republic of the Congo": "República Democrática do Congo",
-  // AFC
-  "Japan": "Japão",
-  "South Korea": "Coreia do Sul",
-  "Korea Republic": "Coreia do Sul",
-  "Iran": "Irã",
-  "IR Iran": "Irã",
-  "Saudi Arabia": "Arábia Saudita",
-  "Australia": "Austrália",
-  "Qatar": "Catar",
-  "United Arab Emirates": "Emirados Árabes Unidos",
-  "UAE": "Emirados Árabes Unidos",
-  "Iraq": "Iraque",
-  "Uzbekistan": "Uzbequistão",
-  "Jordan": "Jordânia",
-  "China": "China",
-  "China PR": "China",
-  // OFC
-  "New Zealand": "Nova Zelândia",
-};
-
-const traduzir = (nome) => (nome && TRADUCAO[nome]) || nome || "";
-
-const mapearFase = (stage) =>
-  (!stage || stage === "GROUP_STAGE") ? "grupos" : "eliminatórias";
-
-/* peso de pontuação por fase: erro no começo pesa menos, acerto no fim vale mais.
-   Escala a partir das quartas de 2026: 16-avos/oitavas 2×, quartas 3×, semi e
-   3º lugar 4×, final 5×.
-   Os aliases cobrem variações de rótulo da football-data entre competições
-   (LAST_8 x QUARTER_FINALS etc.) sem depender de um único nome exato.
-   Rótulo de mata-mata desconhecido cai no fallback 2× — nunca infla pontuação
-   por causa de um nome que a API passe a mandar. */
-const PESO_POR_STAGE = {
-  GROUP_STAGE: 1,
-  LAST_32: 2, ROUND_OF_32: 2,
-  LAST_16: 2, ROUND_OF_16: 2,
-  QUARTER_FINALS: 3, QUARTER_FINAL: 3, LAST_8: 3,
-  SEMI_FINALS: 4, SEMI_FINAL: 4, LAST_4: 4,
-  THIRD_PLACE: 4, THIRD_PLACE_PLAYOFF: 4,
-  FINAL: 5,
-};
-export const pesoDaStage = (stage) => {
-  if (!stage) return 1;
-  return PESO_POR_STAGE[stage] ?? 2;
-};
-
-/* Placar que o bolão pontua: 90min + prorrogação, PÊNALTIS FORA.
-   ATENÇÃO (corrigido 29/06/2026): na football-data v4 o score.fullTime INCLUI
-   os pênaltis num jogo decidido no shootout — gravar fullTime direto fazia o
-   Alemanha 1×1 Paraguai virar 4×5. Tentei fullTime − penalties, mas o dado real
-   da API vem INCONSISTENTE (Germany: fullTime 4-5, penalties 4-4, winner null —
-   os pênaltis não fecham). A fonte CONFIÁVEL do fim da prorrogação é
-   `regularTime + extraTime` (1-1 + 0-0 = 1-1), que não depende do campo de
-   pênaltis bagunçado. Quando a partida não foi à prorrogação, a API não manda
-   regularTime → cai no fullTime, que aí já é o placar certo (90min).
-   Ref: https://docs.football-data.org/general/v4/overtime.html */
-function placarBolao(score) {
-  const ft = score?.fullTime || {};
-  const rt = score?.regularTime;
-  const et = score?.extraTime;
-  /* teve prorrogação/pênaltis → soma 90min + prorrogação, ignora pênaltis */
-  if (rt && rt.home != null && rt.away != null) {
-    return {
-      home: rt.home + (et?.home ?? 0),
-      away: rt.away + (et?.away ?? 0),
-    };
-  }
-  /* partida normal: fullTime é o placar certo */
-  return { home: ft.home ?? null, away: ft.away ?? null };
-}
+import { traduzirClube, pesoDoJogo } from "../lib/clubes.js";
 
 /* normaliza pra comparação: sem acento, sem caixa, sem borda */
 const norm = (s) =>
@@ -172,7 +14,7 @@ const norm = (s) =>
     .trim()
     .toLowerCase();
 
-const FOOTBALL_API = "https://api.football-data.org/v4/competitions/WC/matches";
+const FOOTBALL_API = "https://api.football-data.org/v4/competitions/BSA/matches";
 
 /* data "hoje" em America/Sao_Paulo, formato YYYY-MM-DD */
 function hojeEmSP() {
@@ -200,6 +42,14 @@ function addDias(yyyymmdd, dias) {
   const d = new Date(yyyymmdd + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + dias);
   return d.toISOString().slice(0, 10);
+}
+
+/* Placar que o bolão pontua: sempre os 90 minutos (fullTime). Diferente da
+   Copa do Mundo, jogo de pontos corridos não tem prorrogação nem pênaltis —
+   fullTime já é o placar final em qualquer status. */
+function placarBolao(score) {
+  const ft = score?.fullTime || {};
+  return { home: ft.home ?? null, away: ft.away ?? null };
 }
 
 async function buscarPartidas(query) {
@@ -291,22 +141,22 @@ export async function acaoJogosHoje() {
 
   for (const m of relevantes) {
     const externalId = String(m.id);
-    const casa = traduzir(m.homeTeam?.name);
-    const fora = traduzir(m.awayTeam?.name);
+    const casa = traduzirClube(m.homeTeam?.name);
+    const fora = traduzirClube(m.awayTeam?.name);
     const kickoff = m.utcDate;
-    const fase = mapearFase(m.stage);
-    const peso = pesoDaStage(m.stage);
+    const rodada = m.matchday ?? null;
+    const peso = pesoDoJogo(rodada, casa, fora);
     const ehHoje = dataSP(m.utcDate) === hoje;
     if (!casa || !fora) continue;
 
-    /* (a) já carimbado — atualiza kickoff, fase e peso se mudou */
+    /* (a) já carimbado — atualiza kickoff, rodada e peso se mudou */
     const achado = porExt.get(externalId);
     if (achado) {
       const rows = await sql`
         UPDATE jogos
-           SET kickoff = ${kickoff}, fase = ${fase}, peso = ${peso}
+           SET kickoff = ${kickoff}, rodada = ${rodada}, peso = ${peso}
          WHERE id = ${achado.id}
-           AND (kickoff IS DISTINCT FROM ${kickoff} OR fase IS DISTINCT FROM ${fase} OR peso IS DISTINCT FROM ${peso})
+           AND (kickoff IS DISTINCT FROM ${kickoff} OR rodada IS DISTINCT FROM ${rodada} OR peso IS DISTINCT FROM ${peso})
         RETURNING id
       `;
       if (rows.length > 0) atualizados++;
@@ -326,7 +176,7 @@ export async function acaoJogosHoje() {
         UPDATE jogos
            SET external_id = ${externalId},
                kickoff = COALESCE(kickoff, ${kickoff}),
-               fase = ${fase},
+               rodada = ${rodada},
                peso = ${peso}
          WHERE id = ${cand.id}
       `;
@@ -338,8 +188,8 @@ export async function acaoJogosHoje() {
     /* (c) novo — só pra hoje (não ressuscita jogos antigos não cadastrados) */
     if (ehHoje) {
       await sql`
-        INSERT INTO jogos (casa, fora, kickoff, external_id, fase, peso)
-        VALUES (${casa}, ${fora}, ${kickoff}, ${externalId}, ${fase}, ${peso})
+        INSERT INTO jogos (casa, fora, kickoff, external_id, rodada, peso)
+        VALUES (${casa}, ${fora}, ${kickoff}, ${externalId}, ${rodada}, ${peso})
       `;
       adicionados++;
     }
