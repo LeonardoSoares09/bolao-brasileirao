@@ -569,7 +569,7 @@ export default function App() {
             token={token}
             euId={estado.eu.id}
             artilheiroGols={estado.artilheiroGols || {}}
-            selecoesEliminadas={estado.selecoesEliminadas || []}
+            timesForaDaDisputa={estado.timesForaDaDisputa || []}
             resultadoEspecial={estado.resultadoEspecial}
             premiadosArtilheiro={estado.premiadosArtilheiro || []}
           />
@@ -2470,10 +2470,10 @@ function BonusAdmin({ token, estado, recarregar }) {
     setSalvandoGols(false);
   };
 
-  const salvarEliminadas = async (codigos) => {
+  const salvarForaDaDisputa = async (times) => {
     setSalvandoElim(true);
     try {
-      await api("/api/resultado-especial", { method: "POST", body: JSON.stringify({ t: token, tipo: "selecoes-eliminadas", codigos }) });
+      await api("/api/resultado-especial", { method: "POST", body: JSON.stringify({ t: token, tipo: "times-fora-disputa", times }) });
       await recarregar();
     } catch (e) { setAviso(e.message); }
     setSalvandoElim(false);
@@ -2496,10 +2496,10 @@ function BonusAdmin({ token, estado, recarregar }) {
     }
     return [...m.entries()];
   })();
-  /* seleções distintas escolhidas como campeã, p/ marcar eliminadas (só confirmadas) */
+  /* times distintos escolhidos como campeão, p/ marcar fora da disputa (só confirmados) */
   const selsCampeao = [...new Set((estado.palpitesCampeao || []).map((pc) => pc.selecao))]
     .sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const eliminadaSel = (sel) => (estado.selecoesEliminadas || []).includes(FLAG_CODES[sel]);
+  const foraDaDisputa = (time) => (estado.timesForaDaDisputa || []).includes(time);
 
   const filtradas = campeaoFiltro
     ? TIMES.filter((s) => normBusca(s).includes(normBusca(campeaoFiltro)))
@@ -2511,7 +2511,7 @@ function BonusAdmin({ token, estado, recarregar }) {
 
       {/* Campeão */}
       <div className="cartao form-jogo" style={{ marginBottom: "10px" }}>
-        <div className="secao-titulo" style={{ margin: "0 0 8px" }}>SELEÇÃO CAMPEÃ · +{BONUS_CAMPEAO} pts para quem acertou</div>
+        <div className="secao-titulo" style={{ margin: "0 0 8px" }}>TIME CAMPEÃO · +{BONUS_CAMPEAO} pts para quem acertou</div>
         {resultado.campeao?.confirmado ? (
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
             <span style={{ fontSize: "20px", fontWeight: 800 }}>{fl(resultado.campeao.valor)}{resultado.campeao.valor}</span>
@@ -2521,7 +2521,7 @@ function BonusAdmin({ token, estado, recarregar }) {
           <>
             <input
               type="text"
-              placeholder="Buscar seleção campeã…"
+              placeholder="Buscar time campeão…"
               value={campeaoFiltro}
               onChange={(e) => { setCampeaoFiltro(e.target.value); setPedindoConfirm(null); }}
             />
@@ -2545,13 +2545,13 @@ function BonusAdmin({ token, estado, recarregar }) {
                 onClick={() => setPedindoConfirm("campeao")}
                 disabled={salvando || !!confirmando}
               >
-                🔒 Confirmar campeã e distribuir +{BONUS_CAMPEAO} pts
+                🔒 Confirmar campeão e distribuir +{BONUS_CAMPEAO} pts
               </button>
             )}
             {pedindoConfirm === "campeao" && (
               <>
                 <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px", color: "var(--erro)", marginTop: "8px" }}>
-                  ⚠ Confirmar <strong>{campeaoSel}</strong> como campeã? Não poderá alterar.
+                  ⚠ Confirmar <strong>{campeaoSel}</strong> como campeão? Não poderá alterar.
                 </p>
                 <div className="form-linha">
                   <button className="botao" style={{ flex: 1 }} onClick={() => confirmar("campeao")} disabled={!!confirmando}>
@@ -2578,38 +2578,36 @@ function BonusAdmin({ token, estado, recarregar }) {
         )}
       </div>
 
-      {/* Seleções eliminadas (manual, visual na aba Campeão) */}
+      {/* Times fora da disputa pelo título (manual, visual na aba Campeão) */}
       {selsCampeao.length > 0 && (
         <div className="cartao form-jogo" style={{ marginBottom: "10px" }}>
-          <div className="secao-titulo" style={{ margin: "0 0 4px" }}>SELEÇÕES ELIMINADAS</div>
+          <div className="secao-titulo" style={{ margin: "0 0 4px" }}>TIMES FORA DA DISPUTA PELO TÍTULO</div>
           <p className="dica" style={{ marginTop: 0, marginBottom: "8px", opacity: .7 }}>
-            Marca a seleção eliminada → o card de quem a escolheu fica acinzentado na aba Campeão. Reversível.
+            Marca o time fora da disputa → o card de quem o escolheu fica acinzentado na aba Campeão. Reversível.
           </p>
           {selsCampeao.map((sel) => {
-            const elim = eliminadaSel(sel);
-            const code = FLAG_CODES[sel];
+            const fora = foraDaDisputa(sel);
             return (
-              <div key={sel} className={"cartao palpite-linha" + (elim ? " card-eliminado" : "")} style={{ marginBottom: "6px" }}>
+              <div key={sel} className={"cartao palpite-linha" + (fora ? " card-eliminado" : "")} style={{ marginBottom: "6px" }}>
                 <span className="palpite-nome">
                   {fl(sel)}{sel}
-                  {elim && <span className="tag-eliminada" style={{ marginLeft: 8 }}>✗ eliminada</span>}
+                  {fora && <span className="tag-eliminada" style={{ marginLeft: 8 }}>✗ fora da disputa</span>}
                 </span>
-                {elim ? (
+                {fora ? (
                   <button className="botao-fantasma" style={{ padding: "4px 10px", fontSize: "13px" }}
-                    onClick={() => salvarEliminadas((estado.selecoesEliminadas || []).filter((c) => c !== code))}
+                    onClick={() => salvarForaDaDisputa((estado.timesForaDaDisputa || []).filter((c) => c !== sel))}
                     disabled={salvandoElim}>↩ desmarcar</button>
                 ) : pedindoElim === sel ? (
                   <span style={{ display: "inline-flex", gap: "6px", flex: "none" }}>
                     <button className="botao" style={{ padding: "4px 10px", fontSize: "13px" }}
-                      onClick={async () => { await salvarEliminadas([...new Set([...(estado.selecoesEliminadas || []), code])]); setPedindoElim(null); }}
-                      disabled={salvandoElim || !code}>Sim, eliminar</button>
+                      onClick={async () => { await salvarForaDaDisputa([...new Set([...(estado.timesForaDaDisputa || []), sel])]); setPedindoElim(null); }}
+                      disabled={salvandoElim}>Sim, marcar</button>
                     <button className="botao-fantasma" style={{ padding: "4px 10px", fontSize: "13px" }}
                       onClick={() => setPedindoElim(null)}>Não</button>
                   </span>
                 ) : (
                   <button className="botao-fantasma" style={{ padding: "4px 10px", fontSize: "13px" }}
-                    onClick={() => setPedindoElim(sel)} disabled={!code}
-                    title={code ? "" : "Sem código de bandeira — não dá pra marcar"}>marcar eliminada</button>
+                    onClick={() => setPedindoElim(sel)}>marcar fora da disputa</button>
                 )}
               </div>
             );
@@ -3046,7 +3044,7 @@ function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, on
   );
 }
 
-function Campeao({ token, euId, artilheiroGols = {}, selecoesEliminadas = [], resultadoEspecial = null, premiadosArtilheiro = [] }) {
+function Campeao({ token, euId, artilheiroGols = {}, timesForaDaDisputa = [], resultadoEspecial = null, premiadosArtilheiro = [] }) {
   // — campeão —
   const [meu, setMeu] = useState(null);
   const [confirmados, setConfirmados] = useState([]);
@@ -3211,7 +3209,7 @@ function Campeao({ token, euId, artilheiroGols = {}, selecoesEliminadas = [], re
             <div className="cartao form-jogo">
               <input
                 type="text"
-                placeholder="Buscar seleção…"
+                placeholder="Buscar time…"
                 value={filtro}
                 onChange={(e) => { setFiltro(e.target.value); setPedindoConfirm(false); }}
               />
@@ -3232,7 +3230,7 @@ function Campeao({ token, euId, artilheiroGols = {}, selecoesEliminadas = [], re
                   </button>
                 ))}
                 {filtradas.length === 0 && (
-                  <p className="campeao-vazio">Nenhuma seleção encontrada.</p>
+                  <p className="campeao-vazio">Nenhum time encontrado.</p>
                 )}
               </div>
 
@@ -3276,7 +3274,7 @@ function Campeao({ token, euId, artilheiroGols = {}, selecoesEliminadas = [], re
             <Vazio texto="Nenhum palpite confirmado ainda — seja o primeiro!" />
           ) : (
             confirmados.map((c, i) => {
-              const eliminada = selecoesEliminadas.includes(FLAG_CODES[c.selecao]);
+              const eliminada = timesForaDaDisputa.includes(c.selecao);
               const acertou = resultadoEspecial?.campeao?.confirmado && c.selecao === resultadoEspecial.campeao.valor;
               return (
                 <div
@@ -4757,7 +4755,7 @@ function Estilo() {
         letter-spacing: .04em; color: rgba(242,246,239,.42);
       }
       .palpite-nome { flex: 1; font-size: 18px; font-weight: 600; letter-spacing: .03em; display: flex; align-items: center; gap: 8px; overflow: hidden; min-width: 0; }
-      /* ranking do artilheiro + seleção eliminada */
+      /* ranking do artilheiro + time fora da disputa */
       .rank-pos { flex: none; min-width: 30px; text-align: center; font-family: 'IBM Plex Mono', monospace; font-weight: 800; font-size: 15px; color: rgba(242,246,239,.55); }
       .rank-pos-top { color: var(--ambar); }
       .rank-jogador { font-size: 12px; font-weight: 500; opacity: .6; font-family: 'IBM Plex Mono', monospace; }
