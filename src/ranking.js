@@ -20,17 +20,13 @@ export const temPlacar = (m) => m.gh !== null && m.ga !== null;
    Fallback 1 mantém compatibilidade se vier um jogo sem o campo. */
 export const pesoDoJogo = (jogo) => Number(jogo?.peso) || 1;
 
-/* Rótulo da rodada a partir do peso. O banco só guarda `fase` como
-   grupos|eliminatórias, então o peso é a única pista de QUAL rodada é.
-   3× identifica as quartas sem ambiguidade; 4× é semi OU disputa de 3º lugar
-   (indistinguíveis com o que temos) — daí o rótulo duplo, em vez de chutar.
-   `destaque` liga o realce âmbar das fases decisivas. Null = grupos (sem tag). */
+/* Rótulo do peso do jogo (rodada final e/ou clássico regional — ver
+   lib/clubes.js:pesoDoJogo). `destaque` liga o realce âmbar da reta final.
+   Null = peso normal (sem tag). */
 export function rotuloDoPeso(peso) {
   switch (Number(peso)) {
-    case 5: return { texto: "🏆 Final", destaque: true };
-    case 4: return { texto: "⚔ Semi / 3º lugar", destaque: true };
-    case 3: return { texto: "⚔ Quartas de final", destaque: false };
-    case 2: return { texto: "⚔ Mata-mata", destaque: false };
+    case 3: return { texto: "🔥 3× pts", destaque: true };
+    case 2: return { texto: "⚡ 2× pts", destaque: false };
     default: return null;
   }
 }

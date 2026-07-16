@@ -189,13 +189,11 @@ check(viuBonus, "cenario deveria ter ao menos um participante com bonus (campea/
   check(pontosComPeso(null, jogo(3)) === null, "sem palpite = null (não 0)");
 
   /* rótulo: 4× NÃO pode virar "Final" (regressão da UI antiga, que usava >= 4) */
-  check(rotuloDoPeso(5).texto.includes("Final"), "5× rotula Final");
-  check(rotuloDoPeso(5).destaque === true, "5× tem destaque");
-  check(!rotuloDoPeso(4).texto.includes("🏆"), "4× não pode ser rotulado como Final");
-  check(rotuloDoPeso(4).destaque === true, "4× tem destaque");
-  check(rotuloDoPeso(3).texto.includes("Quartas"), "3× rotula Quartas");
-  check(rotuloDoPeso(2).texto.includes("Mata-mata"), "2× rotula Mata-mata");
-  check(rotuloDoPeso(1) === null, "grupos não tem rótulo de mata-mata");
+  check(rotuloDoPeso(3).texto.includes("3×"), "peso 3 rotula 3×");
+  check(rotuloDoPeso(3).destaque === true, "peso 3 tem destaque");
+  check(rotuloDoPeso(2).texto.includes("2×"), "peso 2 rotula 2×");
+  check(rotuloDoPeso(2).destaque === false, "peso 2 não tem destaque");
+  check(rotuloDoPeso(1) === null, "peso normal não tem rótulo");
 }
 
 /* ---- mapa stage(football-data) → peso, a fonte que o cron grava no banco ---- */
