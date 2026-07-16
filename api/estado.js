@@ -15,7 +15,7 @@ export default async function handler(req, res) {
 
   const [participantes, jogos, contagens, palpitesCampeao, palpitesArtilheiro, resultadoEspecialRows, premiadosArtilheiro, antecedenciaRows, reacoesRows, configRows] = await Promise.all([
     sql`SELECT id, nome, is_admin, avatar_emoji, avatar_cor, pagou FROM participantes ORDER BY nome`,
-    sql`SELECT id, casa, fora, kickoff, gh, ga, fase, peso, live FROM jogos ORDER BY kickoff NULLS LAST, id`,
+    sql`SELECT id, casa, fora, kickoff, gh, ga, rodada, peso, live FROM jogos ORDER BY kickoff NULLS LAST, id`,
     sql`SELECT jogo_id, COUNT(*)::int AS total FROM palpites GROUP BY jogo_id`,
     sql`SELECT participante_id, selecao FROM palpite_campeao WHERE confirmado = TRUE`,
     eu.isAdmin
@@ -41,9 +41,9 @@ export default async function handler(req, res) {
       GROUP BY p.participante_id
     `,
     sql`SELECT jogo_id, participante_id, emoji FROM reacoes`,
-    /* dados "ao vivo" administrados pelo admin (ver api/live-admin.js): gols
-       atuais dos artilheiros escolhidos e seleções marcadas como eliminadas. */
-    sql`SELECT chave, valor FROM config WHERE chave IN ('artilheiro_gols', 'selecoes_eliminadas')`,
+    /* dados "ao vivo" administrados pelo admin: gols atuais dos artilheiros
+       escolhidos e times marcados como fora da disputa pelo título. */
+    sql`SELECT chave, valor FROM config WHERE chave IN ('artilheiro_gols', 'times_fora_disputa')`,
   ]);
 
   const cfg = {};
@@ -81,7 +81,7 @@ export default async function handler(req, res) {
     antecedenciaMedia: antecedenciaRows.map((r) => ({ participante_id: r.participante_id, segundos: Number(r.antecedencia_seg) })),
     resultadoEspecial: { campeao: reMap.campeao || null, artilheiro: reMap.artilheiro || null },
     artilheiroGols: cfg.artilheiro_gols && typeof cfg.artilheiro_gols === "object" ? cfg.artilheiro_gols : {},
-    selecoesEliminadas: Array.isArray(cfg.selecoes_eliminadas) ? cfg.selecoes_eliminadas : [],
+    timesForaDaDisputa: Array.isArray(cfg.times_fora_disputa) ? cfg.times_fora_disputa : [],
     agora: new Date().toISOString(),
   });
 }
