@@ -4,6 +4,7 @@
    Não é parte do bundle — é uma rede de segurança do refactor. */
 
 import { pontosDoPalpite, pontosComPeso, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate, temPlacar, calcularDetalhamento, calcularEvolucao } from "./ranking.js";
+import { pesoDaRodada, pesoDoJogo, ehClassico } from "../lib/clubes.js";
 
 let falhas = 0;
 const check = (cond, msg) => { if (!cond) { falhas++; console.error("  ✗ " + msg); } };
@@ -196,22 +197,25 @@ check(viuBonus, "cenario deveria ter ao menos um participante com bonus (campea/
   check(rotuloDoPeso(1) === null, "peso normal não tem rótulo");
 }
 
-/* ---- mapa stage(football-data) → peso, a fonte que o cron grava no banco ---- */
+/* ---- mapa rodada/clássico → peso (lib/clubes.js), a fonte que o cron e o
+   cadastro manual gravam no banco ---- */
 {
-  process.env.DATABASE_URL ||= "postgres://teste:teste@localhost/teste";
-  const { pesoDaStage } = await import("../api/futebol.js");
+  check(pesoDaRodada(19) === 1, "rodada 19 = 1×");
+  check(pesoDaRodada(30) === 1, "rodada 30 = 1×");
+  check(pesoDaRodada(31) === 2, "rodada 31 = 2× (início da reta final)");
+  check(pesoDaRodada(35) === 2, "rodada 35 = 2×");
+  check(pesoDaRodada(36) === 3, "rodada 36 = 3× (reta final)");
+  check(pesoDaRodada(38) === 3, "rodada 38 = 3×");
+  check(pesoDaRodada(null) === 1, "rodada ausente = 1× (jogo cadastrado na mão sem rodada)");
 
-  check(pesoDaStage("GROUP_STAGE") === 1, "GROUP_STAGE = 1×");
-  check(pesoDaStage(null) === 1, "stage ausente = 1× (jogo cadastrado na mão)");
-  check(pesoDaStage("LAST_32") === 2, "LAST_32 (16-avos) = 2×");
-  check(pesoDaStage("LAST_16") === 2, "LAST_16 (oitavas) = 2×");
-  check(pesoDaStage("QUARTER_FINALS") === 3, "QUARTER_FINALS = 3×");
-  check(pesoDaStage("SEMI_FINALS") === 4, "SEMI_FINALS = 4×");
-  check(pesoDaStage("THIRD_PLACE") === 4, "THIRD_PLACE = 4×");
-  check(pesoDaStage("FINAL") === 5, "FINAL = 5×");
+  check(ehClassico("Flamengo", "Fluminense") === true, "Fla-Flu é clássico");
+  check(ehClassico("Fluminense", "Flamengo") === true, "clássico bate nos dois sentidos (casa/fora invertidos)");
+  check(ehClassico("Flamengo", "Palmeiras") === false, "times de clássicos diferentes não formam clássico entre si");
 
-  /* rótulo de mata-mata que a API invente cai em 2×, nunca em algo inflado */
-  check(pesoDaStage("PLAYOFF_ROUND_INEXISTENTE") === 2, "stage desconhecido = 2× (fallback seguro)");
+  check(pesoDoJogo(20, "Flamengo", "Fluminense") === 2, "clássico fora da reta final = 2× (não é 1×)");
+  check(pesoDoJogo(37, "Flamengo", "Fluminense") === 3, "clássico NA reta final = 3× (maior dos dois, não soma pra 5×/6×)");
+  check(pesoDoJogo(37, "Botafogo", "Santos") === 3, "não-clássico na reta final = 3×");
+  check(pesoDoJogo(20, "Botafogo", "Santos") === 1, "não-clássico fora da reta final = 1×");
 }
 
 /* ---- calcularDetalhamento (Meu Perfil + Campeão do Bolão) ---- */
