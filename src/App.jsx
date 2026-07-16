@@ -185,6 +185,7 @@ export default function App() {
   });
   const [abrirPerfil, setAbrirPerfil] = useState(false);
   const [abrirRegras, setAbrirRegras] = useState(false);
+  const [abrirPerfilObrigatorio, setAbrirPerfilObrigatorio] = useState(false);
   const [abrirPagamento, setAbrirPagamento] = useState(false);
   const [abrirArtilheiro, setAbrirArtilheiro] = useState(false);
   const [abrirLembrete, setAbrirLembrete] = useState(false);
@@ -197,6 +198,7 @@ export default function App() {
   const rankingJaAbriu = useRef(false);
   const pagamentoVerificado = useRef(false);
   const artilheiroVerificado = useRef(false);
+  const perfilVerificado = useRef(false);
   /* estágio de lembrete já fechado por jogo — SÓ nesta sessão (em memória).
      Reabrir/recarregar o app zera, então o popup volta a aparecer. Os limiares
      de 2h/30min continuam escalando dentro da sessão. */
@@ -225,37 +227,49 @@ export default function App() {
     await carregar();
   }, [token, carregar]);
 
+  /* obriga escolher cor+ícone no primeiro acesso — sinal é avatar_cor (não
+     avatar_emoji): "usar iniciais" é uma escolha válida que grava emoji=null
+     de propósito, então só a ausência de COR indica que a pessoa nunca
+     passou pelo picker nenhuma vez. Prioridade máxima — antes até do
+     lembrete de pagamento. */
+  useEffect(() => {
+    if (!estado || perfilVerificado.current || estado.eu.id === null) return;
+    perfilVerificado.current = true;
+    const euP = estado.participantes.find((p) => p.id === estado.eu.id);
+    if (euP && !euP.avatarCor) setAbrirPerfilObrigatorio(true);
+  }, [estado]);
+
   /* abre popup de pagamento na primeira carga, uma vez por sessão */
   useEffect(() => {
-    if (!estado || pagamentoVerificado.current) return;
+    if (!estado || pagamentoVerificado.current || abrirPerfilObrigatorio) return;
     pagamentoVerificado.current = true;
     const euP = estado.participantes.find((p) => p.id === estado.eu.id);
     if (euP && !euP.pagou && !estado.eu.isAdmin) setAbrirPagamento(true);
-  }, [estado]);
+  }, [estado, abrirPerfilObrigatorio]);
 
   /* abre popup de artilheiro pendente na primeira carga, uma vez por sessão —
      só se o prazo (kickoff do 1º jogo da rodada limite) ainda não passou; se
      já passou, o palpite está travado mesmo e o popup não ajuda em nada. */
   useEffect(() => {
-    if (!estado || artilheiroVerificado.current) return;
+    if (!estado || artilheiroVerificado.current || abrirPerfilObrigatorio) return;
     artilheiroVerificado.current = true;
     if (estado.eu.isAdmin || !estado.prazoBonus) return;
     if (new Date(estado.prazoBonus).getTime() <= Date.now() + offsetRef.current) return;
     const confirmouArt = (estado.palpitesArtilheiro || []).some((p) => p.participante_id === estado.eu.id);
     if (!confirmouArt) setAbrirArtilheiro(true);
-  }, [estado]);
+  }, [estado, abrirPerfilObrigatorio]);
 
   /* lembrete de palpites: abre quando o estágio de urgência do jogo pendente
      mais próximo ultrapassa o que o usuário já fechou. Reavalia na carga e a
-     cada tick (30s), então escalona sozinho para 2h e 30min. Pagamento e
-     artilheiro têm prioridade (não empilha). */
+     cada tick (30s), então escalona sozinho para 2h e 30min. Perfil,
+     pagamento e artilheiro têm prioridade (não empilha). */
   useEffect(() => {
-    if (!estado || abrirPagamento || abrirArtilheiro || abrirLembrete) return;
+    if (!estado || abrirPerfilObrigatorio || abrirPagamento || abrirArtilheiro || abrirLembrete) return;
     const { nearest, stage } = analisarLembrete(estado, Date.now() + offsetRef.current);
     if (!nearest || stage < 0) return;
     const jaFechado = lembreteDismiss.current[nearest.id] ?? -1;
     if (stage > jaFechado) setAbrirLembrete(true);
-  }, [estado, tick, abrirPagamento, abrirArtilheiro, abrirLembrete]);
+  }, [estado, tick, abrirPerfilObrigatorio, abrirPagamento, abrirArtilheiro, abrirLembrete]);
 
   const fecharLembrete = useCallback(() => {
     setAbrirLembrete(false);
@@ -453,15 +467,22 @@ export default function App() {
       </header>
 
       {abrirRegras && <ModalRegras onFechar={() => setAbrirRegras(false)} />}
-      {abrirPagamento && <ModalPagamento onFechar={() => setAbrirPagamento(false)} prazo={estado.prazoBonus} />}
-      {abrirArtilheiro && !abrirPagamento && estado.prazoBonus && (
+      {abrirPerfilObrigatorio && (
+        <ModalPerfilObrigatorio
+          nome={estado.eu.nome}
+          onSalvar={salvarAvatar}
+          onConcluido={() => setAbrirPerfilObrigatorio(false)}
+        />
+      )}
+      {abrirPagamento && !abrirPerfilObrigatorio && <ModalPagamento onFechar={() => setAbrirPagamento(false)} prazo={estado.prazoBonus} />}
+      {abrirArtilheiro && !abrirPerfilObrigatorio && !abrirPagamento && estado.prazoBonus && (
         <ModalArtilheiroLembrete
           prazo={estado.prazoBonus}
           onFechar={() => setAbrirArtilheiro(false)}
           onEscolher={() => { setAbrirArtilheiro(false); setTab("campeao"); }}
         />
       )}
-      {abrirLembrete && !abrirPagamento && !abrirArtilheiro && (() => {
+      {abrirLembrete && !abrirPerfilObrigatorio && !abrirPagamento && !abrirArtilheiro && (() => {
         const { pendentes, nearest } = analisarLembrete(estado, Date.now() + offsetRef.current);
         return nearest ? (
           <ModalLembretePalpites
@@ -2390,12 +2411,15 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
 
 /* ================= CAMPEÃO ================= */
 
-/* Badge emoji+cor do clube — mesmo padrão visual do Avatar dos
-   participantes (círculo colorido + emoji), em vez da bandeira de país usada
-   em versões anteriores do bolão. */
+/* Badge do clube: escudo oficial (SVG em public/escudos/) quando existe;
+   cai pro círculo emoji+cor (mesmo padrão do Avatar dos participantes) se o
+   clube não tiver escudo cadastrado — nunca quebra. */
 const fl = (nome) => {
   const info = CLUBE_INFO[nome];
   if (!info) return null;
+  if (info.escudo) {
+    return <img src={info.escudo} alt={nome} title={nome} className="clube-badge-img" loading="lazy" />;
+  }
   return <span className="clube-badge" style={{ background: info.cor }} title={nome}>{info.emoji}</span>;
 };
 
@@ -3453,6 +3477,94 @@ function Campeao({ token, euId, artilheiroGols = {}, timesForaDaDisputa = [], re
 
 /* ================= MODAL REGRAS ================= */
 /* ================= MODAL PAGAMENTO ================= */
+/* ================= MODAL PERFIL OBRIGATÓRIO (primeiro acesso) ================= */
+
+/* Bloqueante de propósito: sem botão de fechar nem overlay clicável — só
+   libera depois que a pessoa escolhe cor+emoji (ou "usar iniciais") pelo
+   menos uma vez. O nome continua definido pelo admin, não muda aqui. */
+function ModalPerfilObrigatorio({ nome, onSalvar, onConcluido }) {
+  const [emojiSel, setEmojiSel] = useState("");
+  const [corSel, setCorSel] = useState(() => corDoNome(nome));
+  const [escolheu, setEscolheu] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [aviso, setAviso] = useState("");
+
+  const iniciais = nome.split(" ").filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join("");
+
+  const confirmar = async () => {
+    setSalvando(true);
+    try {
+      await onSalvar(emojiSel || null, corSel);
+      onConcluido();
+    } catch (e) {
+      setAviso(e.message);
+    }
+    setSalvando(false);
+  };
+
+  return createPortal(
+    <div className="modal-overlay">
+      <div className="modal-painel modal-pagamento" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-nome">👋 Bem-vindo(a), {nome}!</div>
+        </div>
+
+        <div className="pagamento-corpo">
+          <p className="pagamento-aviso">Escolha uma cor e um ícone pra te identificar no bolão antes de continuar.</p>
+
+          <div style={{ display: "flex", justifyContent: "center", margin: "10px 0" }}>
+            <Avatar nome={nome} emoji={emojiSel} cor={corSel} size={56} />
+          </div>
+
+          <div className="secao-titulo" style={{ marginTop: "8px", opacity: .55, fontSize: "9px" }}>COR</div>
+          <div className="paleta">
+            {PALETA_CORES.map((c) => (
+              <button
+                key={c}
+                className={"paleta-cor" + (c === corSel ? " paleta-cor-ativa" : "")}
+                style={{ background: c }}
+                onClick={() => setCorSel(c)}
+                disabled={salvando}
+                aria-label={"Cor " + c}
+              />
+            ))}
+          </div>
+
+          <div className="secao-titulo" style={{ marginTop: "12px", opacity: .55, fontSize: "9px" }}>EMOJI</div>
+          <div className="emoji-grid">
+            <button
+              className={"emoji-item" + (!emojiSel && escolheu ? " emoji-item-ativo" : "")}
+              onClick={() => { setEmojiSel(""); setEscolheu(true); }}
+              disabled={salvando}
+              title="Usar iniciais"
+            >
+              <span style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "13px", fontWeight: 800 }}>
+                {iniciais}
+              </span>
+            </button>
+            {EMOJIS_AVATAR.map((e) => (
+              <button
+                key={e}
+                className={"emoji-item" + (e === emojiSel ? " emoji-item-ativo" : "")}
+                onClick={() => { setEmojiSel(e); setEscolheu(true); }}
+                disabled={salvando}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+
+          <button className="botao botao-largo" style={{ marginTop: "14px" }} onClick={confirmar} disabled={!escolheu || salvando}>
+            {salvando ? "Salvando…" : "✓ Confirmar e entrar"}
+          </button>
+          {aviso && <p className="dica toast" role="status">{aviso}</p>}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function ModalPagamento({ onFechar, prazo }) {
   const deadlineMs = prazo ? new Date(prazo).getTime() : null;
   const [seg, setSeg] = useState(() => (deadlineMs ? Math.max(0, Math.floor((deadlineMs - Date.now()) / 1000)) : 0));
@@ -4622,6 +4734,20 @@ function Estilo() {
         line-height: 1;
         margin-right: 4px;
         flex: none;
+      }
+      .clube-badge-img {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        object-fit: contain;
+        margin-right: 4px;
+        flex: none;
+        vertical-align: middle;
+        /* fundo claro sutil — muitos escudos têm traço escuro/transparente
+           que some contra o tema escuro do app sem isso */
+        background: rgba(255,255,255,.9);
+        border-radius: 50%;
+        padding: 1px;
       }
 
       .jogo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
