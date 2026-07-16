@@ -8,7 +8,7 @@ import {
 import { TIMES, CLUBE_INFO, pesoDoJogo as pesoDoJogoBase } from "../lib/clubes.js";
 
 /* ============================================================
-   BOLÃO DA COPA 2026 — versão compartilhada (Vercel + Neon)
+   BOLÃO DOS GURIS — Brasileirão 2026/2 (Vercel + Neon)
    Cada amigo acessa pelo seu link com token (?t=...).
    Regras: placar exato = 3 pts | resultado certo = 1 pt
    Travamento de palpites validado NO SERVIDOR.
@@ -17,11 +17,8 @@ import { TIMES, CLUBE_INFO, pesoDoJogo as pesoDoJogoBase } from "../lib/clubes.j
 /* PTS_EXATO, PTS_RESULTADO, criterioDesempate e pontosDoPalpite agora vêm de
    ./ranking.js (fonte única — item M1 do review). */
 
-/* Constantes do bolão (item P3 — tira números mágicos espalhados).
-   DEADLINE_PAGAMENTO e _LABEL precisam ficar em sincronia se a data mudar. */
+/* Constantes do bolão (item P3 — tira números mágicos espalhados). */
 const VALOR_ENTRADA = 20; // R$ por participante
-const DEADLINE_PAGAMENTO = new Date("2026-06-13T21:59:00Z"); // 18:59 BRT (UTC-3)
-const DEADLINE_PAGAMENTO_LABEL = "13/06 às 18:59";
 
 /* Lembrete de palpites: só jogos começando em até 26h (jogos do dia + madrugada
    seguinte). Depois de fechado, reaparece faltando 2h e depois 30min pro mais
@@ -189,6 +186,7 @@ export default function App() {
   const [abrirPerfil, setAbrirPerfil] = useState(false);
   const [abrirRegras, setAbrirRegras] = useState(false);
   const [abrirPagamento, setAbrirPagamento] = useState(false);
+  const [abrirArtilheiro, setAbrirArtilheiro] = useState(false);
   const [abrirLembrete, setAbrirLembrete] = useState(false);
   const [participanteModal, setParticipanteModal] = useState(null);
   const [campeaoModalAberto, setCampeaoModalAberto] = useState(false);
@@ -198,6 +196,7 @@ export default function App() {
   const offsetRef = useRef(0);
   const rankingJaAbriu = useRef(false);
   const pagamentoVerificado = useRef(false);
+  const artilheiroVerificado = useRef(false);
   /* estágio de lembrete já fechado por jogo — SÓ nesta sessão (em memória).
      Reabrir/recarregar o app zera, então o popup volta a aparecer. Os limiares
      de 2h/30min continuam escalando dentro da sessão. */
@@ -234,17 +233,29 @@ export default function App() {
     if (euP && !euP.pagou && !estado.eu.isAdmin) setAbrirPagamento(true);
   }, [estado]);
 
+  /* abre popup de artilheiro pendente na primeira carga, uma vez por sessão —
+     só se o prazo (kickoff do 1º jogo da rodada limite) ainda não passou; se
+     já passou, o palpite está travado mesmo e o popup não ajuda em nada. */
+  useEffect(() => {
+    if (!estado || artilheiroVerificado.current) return;
+    artilheiroVerificado.current = true;
+    if (estado.eu.isAdmin || !estado.prazoBonus) return;
+    if (new Date(estado.prazoBonus).getTime() <= Date.now() + offsetRef.current) return;
+    const confirmouArt = (estado.palpitesArtilheiro || []).some((p) => p.participante_id === estado.eu.id);
+    if (!confirmouArt) setAbrirArtilheiro(true);
+  }, [estado]);
+
   /* lembrete de palpites: abre quando o estágio de urgência do jogo pendente
      mais próximo ultrapassa o que o usuário já fechou. Reavalia na carga e a
-     cada tick (30s), então escalona sozinho para 2h e 30min. Pagamento tem
-     prioridade (não empilha). */
+     cada tick (30s), então escalona sozinho para 2h e 30min. Pagamento e
+     artilheiro têm prioridade (não empilha). */
   useEffect(() => {
-    if (!estado || abrirPagamento || abrirLembrete) return;
+    if (!estado || abrirPagamento || abrirArtilheiro || abrirLembrete) return;
     const { nearest, stage } = analisarLembrete(estado, Date.now() + offsetRef.current);
     if (!nearest || stage < 0) return;
     const jaFechado = lembreteDismiss.current[nearest.id] ?? -1;
     if (stage > jaFechado) setAbrirLembrete(true);
-  }, [estado, tick, abrirPagamento, abrirLembrete]);
+  }, [estado, tick, abrirPagamento, abrirArtilheiro, abrirLembrete]);
 
   const fecharLembrete = useCallback(() => {
     setAbrirLembrete(false);
@@ -442,8 +453,15 @@ export default function App() {
       </header>
 
       {abrirRegras && <ModalRegras onFechar={() => setAbrirRegras(false)} />}
-      {abrirPagamento && <ModalPagamento onFechar={() => setAbrirPagamento(false)} />}
-      {abrirLembrete && !abrirPagamento && (() => {
+      {abrirPagamento && <ModalPagamento onFechar={() => setAbrirPagamento(false)} prazo={estado.prazoBonus} />}
+      {abrirArtilheiro && !abrirPagamento && estado.prazoBonus && (
+        <ModalArtilheiroLembrete
+          prazo={estado.prazoBonus}
+          onFechar={() => setAbrirArtilheiro(false)}
+          onEscolher={() => { setAbrirArtilheiro(false); setTab("campeao"); }}
+        />
+      )}
+      {abrirLembrete && !abrirPagamento && !abrirArtilheiro && (() => {
         const { pendentes, nearest } = analisarLembrete(estado, Date.now() + offsetRef.current);
         return nearest ? (
           <ModalLembretePalpites
@@ -571,6 +589,7 @@ export default function App() {
             timesForaDaDisputa={estado.timesForaDaDisputa || []}
             resultadoEspecial={estado.resultadoEspecial}
             premiadosArtilheiro={estado.premiadosArtilheiro || []}
+            prazoArtilheiro={estado.prazoBonus}
           />
         )}
         {tab === "galera" && (
@@ -2135,20 +2154,20 @@ function LinhaPalpite({ jogo, participante, palpite, bloqueado, destaque, token,
 }
 
 /* ================= TIMER PAGAMENTO ================= */
-function TimerPagamento() {
-  const DEADLINE = DEADLINE_PAGAMENTO;
-  const [seg, setSeg] = useState(() => Math.max(0, Math.floor((DEADLINE - Date.now()) / 1000)));
+function TimerPagamento({ prazo }) {
+  const deadlineMs = prazo ? new Date(prazo).getTime() : null;
+  const [seg, setSeg] = useState(() => (deadlineMs ? Math.max(0, Math.floor((deadlineMs - Date.now()) / 1000)) : 0));
 
   useEffect(() => {
-    if (seg <= 0) return;
+    if (!deadlineMs || seg <= 0) return;
     const id = setInterval(() => {
-      const diff = Math.max(0, Math.floor((DEADLINE - Date.now()) / 1000));
+      const diff = Math.max(0, Math.floor((deadlineMs - Date.now()) / 1000));
       setSeg(diff);
     }, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [deadlineMs]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (seg <= 0) return null;
+  if (!deadlineMs || seg <= 0) return null;
 
   const h = Math.floor(seg / 3600);
   const m = Math.floor((seg % 3600) / 60);
@@ -2165,7 +2184,7 @@ function TimerPagamento() {
         <span className="timer-sep">:</span>
         <span className="timer-bloco"><span className="timer-num">{pad(s)}</span><span className="timer-unidade">s</span></span>
       </div>
-      <span className="timer-data">{DEADLINE_PAGAMENTO_LABEL}</span>
+      <span className="timer-data">{fmtMomento(prazo)}</span>
     </div>
   );
 }
@@ -2289,7 +2308,7 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
     return (
       <div>
         {PremioCard}
-        <TimerPagamento />
+        <TimerPagamento prazo={estado.prazoBonus} />
         {BotaoInstalar}
         {estado.participantes.length === 0 && <Vazio texto="Ainda não há participantes." />}
         {estado.participantes.map((p, i) => (
@@ -2320,7 +2339,7 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
         </label>
       </div>
 
-      <TimerPagamento />
+      <TimerPagamento prazo={estado.prazoBonus} />
       {BotaoInstalar}
 
       {aviso && <p className="dica toast" role="status">{aviso}</p>}
@@ -3042,7 +3061,7 @@ function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, on
   );
 }
 
-function Campeao({ token, euId, artilheiroGols = {}, timesForaDaDisputa = [], resultadoEspecial = null, premiadosArtilheiro = [] }) {
+function Campeao({ token, euId, artilheiroGols = {}, timesForaDaDisputa = [], resultadoEspecial = null, premiadosArtilheiro = [], prazoArtilheiro = null }) {
   // — campeão —
   const [meu, setMeu] = useState(null);
   const [confirmados, setConfirmados] = useState([]);
@@ -3299,6 +3318,12 @@ function Campeao({ token, euId, artilheiroGols = {}, timesForaDaDisputa = [], re
             <>
               <div className="secao-titulo">SEU PALPITE</div>
 
+          {!confirmadoArt && prazoArtilheiro && (
+            <p className="dica" style={{ marginTop: 0, marginBottom: "10px", opacity: .8 }}>
+              ⏰ Prazo pra escolher/confirmar: <strong>{fmtMomento(prazoArtilheiro)}</strong> — depois disso trava.
+            </p>
+          )}
+
           {confirmadoArt ? (
             <div className="cartao meu-palpite" style={{ textAlign: "center", padding: "22px 16px" }}>
               <div style={{
@@ -3428,17 +3453,17 @@ function Campeao({ token, euId, artilheiroGols = {}, timesForaDaDisputa = [], re
 
 /* ================= MODAL REGRAS ================= */
 /* ================= MODAL PAGAMENTO ================= */
-function ModalPagamento({ onFechar }) {
-  const DEADLINE = DEADLINE_PAGAMENTO;
-  const [seg, setSeg] = useState(() => Math.max(0, Math.floor((DEADLINE - Date.now()) / 1000)));
+function ModalPagamento({ onFechar, prazo }) {
+  const deadlineMs = prazo ? new Date(prazo).getTime() : null;
+  const [seg, setSeg] = useState(() => (deadlineMs ? Math.max(0, Math.floor((deadlineMs - Date.now()) / 1000)) : 0));
   const [copiado, setCopiado] = useState(false);
   const PIX = "9a92ec8d-356e-43a7-a56a-de947add29dd"; // chave PIX aleatória (sem PII — item P5)
 
   useEffect(() => {
-    if (seg <= 0) return;
-    const id = setInterval(() => setSeg(Math.max(0, Math.floor((DEADLINE - Date.now()) / 1000))), 1000);
+    if (!deadlineMs || seg <= 0) return;
+    const id = setInterval(() => setSeg(Math.max(0, Math.floor((deadlineMs - Date.now()) / 1000))), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [deadlineMs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const copiarPix = async () => {
     try {
@@ -3476,7 +3501,7 @@ function ModalPagamento({ onFechar }) {
             </div>
           </div>
 
-          {seg > 0 && (
+          {deadlineMs && seg > 0 && (
             <div className="pagamento-timer">
               <span className="timer-label">⏰ Prazo encerra em</span>
               <div className="timer-display">
@@ -3486,7 +3511,7 @@ function ModalPagamento({ onFechar }) {
                 <span className="timer-sep">:</span>
                 <span className="timer-bloco"><span className="timer-num">{pad(s)}</span><span className="timer-unidade">s</span></span>
               </div>
-              <span className="timer-data">{DEADLINE_PAGAMENTO_LABEL}</span>
+              <span className="timer-data">{fmtMomento(prazo)}</span>
             </div>
           )}
 
@@ -3552,6 +3577,58 @@ function ModalLembretePalpites({ pendentes, nearest, offsetMs, onPalpitar, onFec
           </div>
 
           <button className="botao botao-largo" onClick={onPalpitar}>✍️ Palpitar agora</button>
+          <button className="botao-fantasma pagamento-fechar" onClick={onFechar}>Agora não</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= MODAL LEMBRETE DE ARTILHEIRO ================= */
+
+function ModalArtilheiroLembrete({ onFechar, onEscolher, prazo }) {
+  const deadlineMs = new Date(prazo).getTime();
+  const [seg, setSeg] = useState(() => Math.max(0, Math.floor((deadlineMs - Date.now()) / 1000)));
+  useEffect(() => {
+    if (seg <= 0) return;
+    const id = setInterval(() => setSeg(Math.max(0, Math.floor((deadlineMs - Date.now()) / 1000))), 1000);
+    return () => clearInterval(id);
+  }, [deadlineMs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pad = (n) => String(n).padStart(2, "0");
+  const h = Math.floor(seg / 3600);
+  const m = Math.floor((seg % 3600) / 60);
+  const s = seg % 60;
+
+  return (
+    <div className="modal-overlay" onClick={onFechar}>
+      <div className="modal-painel modal-pagamento" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-nome">⚽ Escolha seu artilheiro!</div>
+          <button className="apagar" onClick={onFechar} aria-label="Fechar">✕</button>
+        </div>
+
+        <div className="pagamento-corpo">
+          <p className="pagamento-aviso">
+            Você ainda não confirmou seu palpite de artilheiro do turno.<br/>
+            Depois do prazo, ninguém mais consegue escolher ou trocar!
+          </p>
+
+          {seg > 0 && (
+            <div className="pagamento-timer">
+              <span className="timer-label">⏰ Prazo encerra em</span>
+              <div className="timer-display">
+                <span className="timer-bloco"><span className="timer-num">{pad(h)}</span><span className="timer-unidade">h</span></span>
+                <span className="timer-sep">:</span>
+                <span className="timer-bloco"><span className="timer-num">{pad(m)}</span><span className="timer-unidade">m</span></span>
+                <span className="timer-sep">:</span>
+                <span className="timer-bloco"><span className="timer-num">{pad(s)}</span><span className="timer-unidade">s</span></span>
+              </div>
+              <span className="timer-data">{fmtMomento(prazo)}</span>
+            </div>
+          )}
+
+          <button className="botao botao-largo" onClick={onEscolher}>⚽ Escolher agora</button>
           <button className="botao-fantasma pagamento-fechar" onClick={onFechar}>Agora não</button>
         </div>
       </div>

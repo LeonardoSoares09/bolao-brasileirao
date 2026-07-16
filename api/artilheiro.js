@@ -1,9 +1,19 @@
-/* /api/artilheiro — palpite do artilheiro da Copa
+/* /api/artilheiro — palpite do artilheiro do turno
    GET  ?t=TOKEN          → palpite próprio + todos os confirmados
-   POST { t, jogador }    → salva/atualiza (só se não confirmado)
-   PUT  { t }             → confirma e trava para sempre */
+   POST { t, jogador }    → salva/atualiza (só se não confirmado e prazo aberto)
+   PUT  { t }             → confirma e trava para sempre (só se prazo aberto)
+   Prazo: trava no kickoff do 1º jogo da rodada RODADA_LIMITE_ARTILHEIRO —
+   depois disso nem escolher nem confirmar é mais aceito, mesmo que o
+   participante nunca tenha escolhido nada. */
 
 import { sql, autenticar } from "../lib/db.js";
+import { RODADA_LIMITE_ARTILHEIRO } from "../lib/clubes.js";
+
+async function prazoEncerrado() {
+  const rows = await sql`SELECT MIN(kickoff) AS inicio FROM jogos WHERE rodada = ${RODADA_LIMITE_ARTILHEIRO}`;
+  const inicio = rows[0]?.inicio;
+  return !!inicio && new Date(inicio).getTime() <= Date.now();
+}
 
 export default async function handler(req, res) {
   const token = req.method === "GET" ? req.query.t : req.body?.t;
@@ -41,6 +51,10 @@ export default async function handler(req, res) {
       res.status(400).json({ error: "Token mestre não participa do bolão" });
       return;
     }
+    if (await prazoEncerrado()) {
+      res.status(403).json({ error: `Prazo encerrado — o palpite de artilheiro travou no início da rodada ${RODADA_LIMITE_ARTILHEIRO}.` });
+      return;
+    }
 
     const jogador = String(req.body?.jogador || "").trim();
     if (!jogador || jogador.length > 100) {
@@ -70,6 +84,10 @@ export default async function handler(req, res) {
   if (req.method === "PUT") {
     if (eu.id === null) {
       res.status(400).json({ error: "Token mestre não participa do bolão" });
+      return;
+    }
+    if (await prazoEncerrado()) {
+      res.status(403).json({ error: `Prazo encerrado — o palpite de artilheiro travou no início da rodada ${RODADA_LIMITE_ARTILHEIRO}.` });
       return;
     }
 

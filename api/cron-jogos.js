@@ -1,4 +1,4 @@
-/* Cron de jogos do dia — cadastra/adota as partidas da Copa de hoje sozinho,
+/* Cron de jogos do dia — cadastra/adota as partidas de hoje sozinho,
    sem depender de o organizador lembrar de abrir o app e clicar em "Jogos de
    hoje". Disparado por:
      - Vercel Cron Jobs (vercel.json) → manda "Authorization: Bearer <CRON_SECRET>"
