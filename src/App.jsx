@@ -294,9 +294,8 @@ export default function App() {
      sem resultado lançado (órfão) mantinha temJogoVivo=true pra sempre, fazendo
      todos os clientes martelarem a football-data eternamente por jogos que nem
      estão acontecendo (combinado com o rate limit, derruba o placar ao vivo). */
-  /* 4h, não 3h: um mata-mata com prorrogação + pênaltis dura ~3h do kickoff ao
-     apito final; 4h dá folga pra não cortar o polling no clímax. Ainda é uma
-     janela fechada, então jogo órfão (passado sem placar) para de pollar. */
+  /* 4h dá folga pra não cortar o polling em jogos com muito acréscimo/atraso.
+     Ainda é uma janela fechada, então jogo órfão (passado sem placar) para de pollar. */
   const JANELA_VIVO = 4 * 60 * 60 * 1000;
   const temJogoVivo = !!estado && estado.jogos.some((m) => {
     if (!m.kickoff || temResultado(m)) return false;
@@ -432,7 +431,7 @@ export default function App() {
             </button>
           )}
         </div>
-        <div className="topo-eyebrow">COPA DO MUNDO · 2026</div>
+        <div className="topo-eyebrow">BRASILEIRÃO · 2º TURNO 2026</div>
         <h1 className="topo-titulo">BOLÃO DOS GURIS</h1>
         <div className="topo-divider" aria-hidden="true" />
         <div className="topo-stats">
@@ -1307,8 +1306,7 @@ function bateArtilheiro(real, pick) {
   return palavras(a).some((w) => setB.has(w)); /* sobrenome/primeiro nome em comum */
 }
 
-/* Mesmo clube? Comparação direta por nome — diferente de seleção (que tinha
-   grafias variantes EN/PT do mesmo time), clube não precisa de código de
+/* Mesmo clube? Comparação direta por nome — clube não precisa de código de
    bandeira pra casar nomes. */
 const mesmaSelecao = (a, b) => a === b;
 
@@ -1418,7 +1416,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
     () => (statsInicial ? estado.jogos.find((j) => j.id === statsInicial) || null : null)
   );
   /* veio da aba Palpites pedindo as stats deste jogo: já abriu acima; limpa o
-     pré-seleção no App pra não reabrir ao voltar pra esta aba. */
+     valor pré-selecionado no App pra não reabrir ao voltar pra esta aba. */
   useEffect(() => { if (statsInicial && onStatsConsumido) onStatsConsumido(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [casa, setCasa] = useState("");
   const [fora, setFora] = useState("");
@@ -1550,7 +1548,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
       const total = r.total || 0;
       setAviso(
         total === 0
-          ? "Nenhum jogo da Copa hoje."
+          ? "Nenhum jogo do Brasileirão hoje."
           : adicionados === 0 && atualizados === 0
           ? "Os jogos de hoje já estão cadastrados."
           : `${adicionados} adicionado${adicionados === 1 ? "" : "s"} · ${atualizados} atualizado${atualizados === 1 ? "" : "s"} ⚽`
@@ -2374,8 +2372,8 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
 /* ================= CAMPEÃO ================= */
 
 /* Badge emoji+cor do clube — mesmo padrão visual do Avatar dos
-   participantes (círculo colorido + emoji), em vez da bandeira de país da
-   versão Copa do Mundo. */
+   participantes (círculo colorido + emoji), em vez da bandeira de país usada
+   em versões anteriores do bolão. */
 const fl = (nome) => {
   const info = CLUBE_INFO[nome];
   if (!info) return null;
@@ -3585,50 +3583,37 @@ function ModalRegras({ onFechar }) {
             <span>Resultado errado</span>
           </div>
 
-          <div className="regras-secao">Peso por fase 🔥</div>
+          <div className="regras-secao">Peso por rodada e clássico 🔥</div>
           <p className="regras-p">
-            Os pontos de cada jogo são <strong>multiplicados</strong> pela fase — erros no começo pesam menos,
-            acertos no fim valem mais:
+            Os pontos de cada jogo são <strong>multiplicados</strong> pela rodada — quanto mais perto do fim
+            do turno, mais vale — e clássicos regionais também pesam mais:
           </p>
           <div className="regras-pesos">
-            <div className="regras-peso"><span className="regras-peso-x">1×</span><span>Fase de grupos</span></div>
-            <div className="regras-peso"><span className="regras-peso-x">2×</span><span>16-avos e oitavas</span></div>
-            <div className="regras-peso"><span className="regras-peso-x">3×</span><span>Quartas de final</span></div>
-            <div className="regras-peso regras-peso-final"><span className="regras-peso-x">4×</span><span>Semifinal e 3º lugar</span></div>
-            <div className="regras-peso regras-peso-final"><span className="regras-peso-x">5×</span><span>Final</span></div>
+            <div className="regras-peso"><span className="regras-peso-x">1×</span><span>Rodadas 19 a 30</span></div>
+            <div className="regras-peso"><span className="regras-peso-x">2×</span><span>Rodadas 31 a 35, ou clássico regional em qualquer rodada</span></div>
+            <div className="regras-peso regras-peso-final"><span className="regras-peso-x">3×</span><span>Rodadas 36 a 38 (reta final)</span></div>
           </div>
           <p className="regras-p">
-            Exemplo: placar exato na <strong>final</strong> vale <strong>{PTS_EXATO * 5} pts</strong> (3 × 5);
-            nas <strong>quartas</strong> vale <strong>{PTS_EXATO * 3} pts</strong> (3 × 3);
-            resultado certo nas <strong>oitavas</strong> vale <strong>{PTS_RESULTADO * 2} pts</strong> (1 × 2).
-            Os bônus de campeã e artilheiro <strong>não</strong> têm peso.
+            Exemplo: placar exato numa rodada da <strong>reta final (36-38)</strong> vale <strong>{PTS_EXATO * 3} pts</strong> (3 × 3);
+            resultado certo num <strong>clássico</strong> (Fla-Flu, Gre-Nal, Choque-Rei etc.) fora da reta final vale <strong>{PTS_RESULTADO * 2} pts</strong> (1 × 2).
+            Quando as duas regras se aplicam ao mesmo jogo, vale o <strong>maior</strong> peso, não a soma.
+            Os bônus de campeão e artilheiro <strong>não</strong> têm peso.
           </p>
 
           <div className="regras-secao">Bônus especiais</div>
           <div className="regras-item">
             <span className="pts pts-3">+{BONUS_CAMPEAO} pts</span>
-            <span>Acertar a seleção campeã (palpite travado antes da Copa)</span>
+            <span>Acertar o time campeão do turno (palpite travado antes do fim da rodada 38)</span>
           </div>
           <div className="regras-item">
             <span className="pts pts-1">+{BONUS_ARTILHEIRO} pts</span>
-            <span>Acertar o artilheiro da Copa (palpite travado antes da Copa)</span>
+            <span>Acertar o artilheiro do turno (palpite travado antes do fim da rodada 38)</span>
           </div>
-
-          <div className="regras-secao">Mata-mata ⚔</div>
-          <p className="regras-p">
-            Nos jogos eliminatórios, o palpite vale pelo placar dos <strong>90 minutos + a prorrogação inteira</strong>.
-            Os <strong>pênaltis ficam de fora</strong>.
-          </p>
-          <p className="regras-p">
-            Exemplo: jogo está <strong>1×1</strong> nos 90min, sai um gol na prorrogação e termina <strong>2×1</strong>
-            (sem pênaltis) → vale o <strong>2×1</strong>. Se ficar <strong>1×1</strong> na prorrogação e for decidido
-            nos <strong>pênaltis</strong>, vale o <strong>1×1</strong> — o resultado dos pênaltis não conta.
-          </p>
 
           <div className="regras-secao">Desempate (em caso de pontuação igual)</div>
           <div className="regras-item"><span className="pts pts-3">1º</span><span>Mais placares exatos</span></div>
-          <div className="regras-item"><span className="pts pts-3">2º</span><span>Acertou a seleção campeã</span></div>
-          <div className="regras-item"><span className="pts pts-3">3º</span><span>Acertou o artilheiro da Copa</span></div>
+          <div className="regras-item"><span className="pts pts-3">2º</span><span>Acertou o time campeão</span></div>
+          <div className="regras-item"><span className="pts pts-3">3º</span><span>Acertou o artilheiro do turno</span></div>
           <div className="regras-item"><span className="pts pts-1">4º</span><span>Mais resultados certos</span></div>
           <div className="regras-item"><span className="pts pts-0">5º</span><span>Quem palpita com mais antecedência (média antes do apito)</span></div>
 
@@ -3728,8 +3713,8 @@ function ModalPalpites({ participante, jogos, palpitesMap, euId, onFechar }) {
     });
   const modalTemAoVivo = encerrados.some((m) => m.live);
   /* total/exatos/result vêm direto da linha do ranking (participante): assim o
-     modal mostra o MESMO total do ranking, incluindo o bônus de campeã/artilheiro.
-     Durante a Copa o bônus é 0, então nada muda; no fim, a conta fecha com as
+     modal mostra o MESMO total do ranking, incluindo o bônus de campeão/artilheiro.
+     Durante o turno o bônus é 0, então nada muda; no fim, a conta fecha com as
      linhas de bônus abaixo (item M4 — alinhamento do total). */
   const { pontos: totalPts, exatos: totalExatos, resultados: totalResultados } = participante;
 
@@ -3839,7 +3824,7 @@ function GraficoTrajetoria({ evolucao }) {
   const area = `${pad},${h - pad} ${linha} ${w - pad},${h - pad}`;
   return (
     <svg className="grafico-trajetoria" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none"
-      role="img" aria-label="Evolução de pontos ao longo da Copa">
+      role="img" aria-label="Evolução de pontos ao longo do turno">
       <defs>
         <linearGradient id="gradEvolucao" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="var(--ambar)" stopOpacity=".35" />
