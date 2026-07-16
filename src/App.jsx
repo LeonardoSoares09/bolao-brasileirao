@@ -650,7 +650,7 @@ function SeloParcial({ style }) {
    usada na legenda abaixo do pódio. */
 const CRIT_FRASE = {
   "🎯": "ter mais placares exatos",
-  "🏆": "ter acertado a campeã",
+  "🏆": "ter acertado o campeão",
   "⚽": "ter acertado o artilheiro",
   "✅": "ter mais resultados certos",
   "⏱": "palpitar mais cedo",
@@ -1401,7 +1401,7 @@ function ModalEstatisticas({ jogo, jogos, onFechar }) {
           </>
         )}
 
-        <div className="secao-titulo">ÚLTIMOS JOGOS NA COPA</div>
+        <div className="secao-titulo">ÚLTIMOS JOGOS NO TURNO</div>
         {blocoForma(jogo.casa)}
         {blocoForma(jogo.fora)}
       </div>
@@ -2860,7 +2860,7 @@ function BonusEspeciais({ participante, style }) {
       {participante.acertouCampeao && (
         <div className="perfil-destaque">
           <span className="perfil-destaque-icon">🏆</span>
-          <span className="perfil-destaque-txt">Acertou a campeã</span>
+          <span className="perfil-destaque-txt">Acertou o campeão</span>
           <span className="perfil-destaque-pts perfil-bd-exato">+{BONUS_CAMPEAO} pts</span>
         </div>
       )}
@@ -3284,7 +3284,7 @@ function Campeao({ token, euId, artilheiroGols = {}, timesForaDaDisputa = [], re
                     {c.nome}{c.participante_id === euId ? " (você)" : ""}
                   </span>
                   {eliminada && <span className="tag-eliminada">✗ eliminada</span>}
-                  {acertou && <span className="pts pts-3" title={`Acertou a campeã! +${BONUS_CAMPEAO} pts`}>✓ +{BONUS_CAMPEAO}</span>}
+                  {acertou && <span className="pts pts-3" title={`Acertou o campeão! +${BONUS_CAMPEAO} pts`}>✓ +{BONUS_CAMPEAO}</span>}
                   <span className="pts pts-1">{fl(c.selecao)}{c.selecao}</span>
                 </div>
               );
@@ -3741,7 +3741,7 @@ function ModalPalpites({ participante, jogos, palpitesMap, euId, onFechar }) {
 
         {participante.acertouCampeao && (
           <div className="modal-jogo modal-jogo-exato">
-            <div className="modal-jogo-times">🏆 Acertou a campeã</div>
+            <div className="modal-jogo-times">🏆 Acertou o campeão</div>
             <div className="modal-jogo-direita"><span className="pts pts-3">+{BONUS_CAMPEAO}</span></div>
           </div>
         )}
@@ -3911,7 +3911,7 @@ function ModalCampeaoBolao({ campeoes, estado, palpitesMap, euId, onFechar }) {
               <div className="campeao-bolao-placa">
                 {c.acertouCampeao && (
                   <div className="campeao-bolao-linha">
-                    <span>🏆 Acertou a campeã</span>
+                    <span>🏆 Acertou o campeão</span>
                     <span className="campeao-bolao-linha-pts">+{BONUS_CAMPEAO} pts</span>
                   </div>
                 )}
@@ -3931,7 +3931,7 @@ function ModalCampeaoBolao({ campeoes, estado, palpitesMap, euId, onFechar }) {
 
                 {evolucao.length > 1 && (
                   <div className="campeao-bolao-linha campeao-bolao-linha-grafico">
-                    <div className="campeao-bolao-secao-titulo">EVOLUÇÃO NA COPA</div>
+                    <div className="campeao-bolao-secao-titulo">EVOLUÇÃO NO TURNO</div>
                     <GraficoTrajetoria evolucao={evolucao} />
                   </div>
                 )}

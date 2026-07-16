@@ -167,7 +167,7 @@ export function compararRanking(a, b, antecedenciaMap = {}) {
 export function criterioDesempate(a, b) {
   if (a.pontos !== b.pontos) return null;
   if (a.exatos !== b.exatos) return { icon: "🎯", label: "mais exatos" };
-  if (!!a.acertouCampeao !== !!b.acertouCampeao) return { icon: "🏆", label: "acertou a campeã" };
+  if (!!a.acertouCampeao !== !!b.acertouCampeao) return { icon: "🏆", label: "acertou o campeão" };
   if (!!a.acertouArtilheiro !== !!b.acertouArtilheiro) return { icon: "⚽", label: "acertou o artilheiro" };
   if (a.resultados !== b.resultados) return { icon: "✅", label: "mais resultados" };
   return { icon: "⏱", label: "palpita com mais antecedência" };
