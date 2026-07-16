@@ -1255,6 +1255,20 @@ const agruparPorData = (jogos) => {
   return [...grupos.entries()];
 };
 
+/* rodada de um jogo, como chave de agrupamento — "__semrodada__" pros
+   cadastrados na mão sem número de rodada (fallback seguro, não some). */
+const rodadaChave = (m) => (m.rodada != null ? String(m.rodada) : "__semrodada__");
+
+const agruparPorRodada = (jogos) => {
+  const grupos = new Map();
+  for (const m of jogos) {
+    const chave = rodadaChave(m);
+    if (!grupos.has(chave)) grupos.set(chave, []);
+    grupos.get(chave).push(m);
+  }
+  return [...grupos.entries()];
+};
+
 /* ================= COUNTDOWN ================= */
 
 const MSGS_CD = [
@@ -1887,6 +1901,30 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
       s.has(chave) ? s.delete(chave) : s.add(chave);
       return s;
     });
+
+  /* rodada é "passada" (some sozinha pra dentro de "Rodadas anteriores") só
+     quando TODOS os jogos dela já são de dias anteriores a hoje — uma rodada
+     em andamento (alguns jogos já jogados, outros no fim de semana) continua
+     aberta no topo. */
+  const rodadaPassada = (grupo) => grupo.every((m) => m.kickoff && chaveData(m.kickoff) < hoje);
+  const [rodadasAbertas, setRodadasAbertas] = useState(() => {
+    const abertas = new Set();
+    for (const [chave, grupo] of agruparPorRodada(estado.jogos)) {
+      if (!rodadaPassada(grupo)) abertas.add(chave);
+    }
+    if (jogoInicial) {
+      const j = estado.jogos.find((m) => m.id === jogoInicial);
+      if (j) abertas.add(rodadaChave(j));
+    }
+    return abertas;
+  });
+  const toggleRodada = (chave) =>
+    setRodadasAbertas((prev) => {
+      const s = new Set(prev);
+      s.has(chave) ? s.delete(chave) : s.add(chave);
+      return s;
+    });
+
   const [anterioresAberto, setAnterioresAberto] = useState(false);
   const palpiteRef = useRef(null);
   /* ao escolher um jogo, leva direto para a área do palpite (mesma página) */
@@ -1911,21 +1949,26 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
   const jaPalpitei = meuPalpite != null && meuPalpite.h != null && meuPalpite.a != null;
   const revelado = travado; /* palpites dos outros só aparecem depois que começa */
 
-  /* separa em "hoje + futuros" (no topo, abertos como antes) e "passados"
-     (recolhidos num único grupo "Jogos anteriores" no rodapé), para que os
-     dias já jogados não empilhem cabeçalhos acima do jogo de hoje. */
-  const grupos = agruparPorData(estado.jogos);
-  const passados = grupos
-    .filter(([c]) => c !== "__semdata__" && c < hoje)
-    .sort((a, b) => (a[0] < b[0] ? 1 : -1)); /* mais recente primeiro */
-  const futuros = grupos
-    .filter(([c]) => c === "__semdata__" || c >= hoje)
+  /* separa em rodadas "atuais" (no topo, abertas como antes) e "anteriores"
+     (recolhidas num único grupo no rodapé), pro mesmo motivo de antes — só
+     que agora o nível principal é a RODADA, não o dia: dentro de cada
+     rodada os jogos continuam sub-agrupados por data (renderDia). */
+  const rodadas = agruparPorRodada(estado.jogos);
+  const rodadasAnteriores = rodadas
+    .filter(([, g]) => rodadaPassada(g))
     .sort((a, b) => {
-      if (a[0] === "__semdata__") return 1;
-      if (b[0] === "__semdata__") return -1;
-      return a[0] < b[0] ? -1 : 1; /* mais próximo primeiro */
+      if (a[0] === "__semrodada__") return 1;
+      if (b[0] === "__semrodada__") return -1;
+      return Number(b[0]) - Number(a[0]); /* mais recente primeiro */
     });
-  const nPassados = passados.reduce((s, [, g]) => s + g.length, 0);
+  const rodadasAtuais = rodadas
+    .filter(([, g]) => !rodadaPassada(g))
+    .sort((a, b) => {
+      if (a[0] === "__semrodada__") return 1;
+      if (b[0] === "__semrodada__") return -1;
+      return Number(a[0]) - Number(b[0]); /* mais próxima primeiro */
+    });
+  const nAnteriores = rodadasAnteriores.reduce((s, [, g]) => s + g.length, 0);
 
   const renderDia = (chave, grupo) => {
     const aberto = gruposAbertos.has(chave);
@@ -1991,24 +2034,51 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
     );
   };
 
+  const renderRodada = (chave, grupoRodada) => {
+    const aberta = rodadasAbertas.has(chave);
+    const encRodada = grupoRodada.filter(temResultado).length;
+    const label = chave === "__semrodada__" ? "Sem rodada definida" : `Rodada ${chave}`;
+    const gruposData = agruparPorData(grupoRodada).sort((a, b) => {
+      if (a[0] === "__semdata__") return 1;
+      if (b[0] === "__semdata__") return -1;
+      return a[0] < b[0] ? -1 : 1;
+    });
+    return (
+      <div key={chave}>
+        <button
+          className="seletor-data-header seletor-rodada-header"
+          onClick={() => toggleRodada(chave)}
+          aria-expanded={aberta}
+        >
+          <span>{label}</span>
+          <span className="seletor-data-info">
+            {encRodada > 0 && <span className="seletor-data-cnt">{encRodada}/{grupoRodada.length}</span>}
+            <span className="seletor-data-chevron">{aberta ? "▾" : "▸"}</span>
+          </span>
+        </button>
+        {aberta && gruposData.map(([diaChave, diaGrupo]) => renderDia(diaChave, diaGrupo))}
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="seletor-jogos" role="listbox" aria-label="Selecionar jogo">
-        {futuros.map(([chave, grupo]) => renderDia(chave, grupo))}
-        {passados.length > 0 && (
+        {rodadasAtuais.map(([chave, grupo]) => renderRodada(chave, grupo))}
+        {rodadasAnteriores.length > 0 && (
           <>
             <button
               className="seletor-data-header seletor-data-mae"
               onClick={() => setAnterioresAberto((v) => !v)}
               aria-expanded={anterioresAberto}
             >
-              <span>↩ Jogos anteriores</span>
+              <span>↩ Rodadas anteriores</span>
               <span className="seletor-data-info">
-                <span className="seletor-data-cnt">{nPassados}</span>
+                <span className="seletor-data-cnt">{nAnteriores}</span>
                 <span className="seletor-data-chevron">{anterioresAberto ? "▾" : "▸"}</span>
               </span>
             </button>
-            {anterioresAberto && passados.map(([chave, grupo]) => renderDia(chave, grupo))}
+            {anterioresAberto && rodadasAnteriores.map(([chave, grupo]) => renderRodada(chave, grupo))}
           </>
         )}
       </div>
@@ -4722,6 +4792,12 @@ function Estilo() {
       .seletor-data-mae .seletor-data-cnt {
         background: rgba(255,255,255,.1); opacity: .8;
       }
+      .seletor-rodada-header {
+        font-size: 12px; font-weight: 700; padding: 9px 12px 8px;
+        background: rgba(255,197,61,.1);
+        border-bottom: 2px solid rgba(255,197,61,.35);
+      }
+      .seletor-rodada-header:hover { background: rgba(255,197,61,.16); }
 
       .clube-badge {
         display: inline-flex;
