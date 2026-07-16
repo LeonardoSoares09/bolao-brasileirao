@@ -5,6 +5,7 @@ import {
   pontosDoPalpite, pontosComPeso, pesoDoJogo, rotuloDaFase, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate,
   calcularDetalhamento, calcularEvolucao,
 } from "./ranking";
+import { TIMES, CLUBE_INFO } from "../lib/clubes.js";
 
 /* ============================================================
    BOLÃO DA COPA 2026 — versão compartilhada (Vercel + Neon)
@@ -2490,124 +2491,14 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
 
 /* ================= CAMPEÃO ================= */
 
-/* 46 classificados confirmados para a Copa 2026
-   (faltam os 2 vencedores do playoff intercontinental — me diga quais são) */
-const FLAG_CODES = {
-  // CONMEBOL
-  "Brasil":"br","Brazil":"br",
-  "Argentina":"ar",
-  "Uruguai":"uy","Uruguay":"uy",
-  "Colômbia":"co","Colombia":"co",
-  "Equador":"ec","Ecuador":"ec",
-  "Paraguai":"py","Paraguay":"py",
-  "Peru":"pe",
-  "Venezuela":"ve",
-  "Bolívia":"bo","Bolivia":"bo",
-  "Chile":"cl",
-  // CONCACAF
-  "Estados Unidos":"us","United States":"us","USA":"us","EUA":"us",
-  "México":"mx","Mexico":"mx",
-  "Canadá":"ca","Canada":"ca",
-  "Costa Rica":"cr",
-  "Panamá":"pa","Panama":"pa",
-  "Jamaica":"jm",
-  "Honduras":"hn",
-  "El Salvador":"sv",
-  "Guatemala":"gt",
-  "Trinidad e Tobago":"tt","Trinidad and Tobago":"tt",
-  "Curaçao":"cw","Curacao":"cw",
-  "Haiti":"ht",
-  // UEFA
-  "Alemanha":"de","Germany":"de",
-  "França":"fr","France":"fr",
-  "Espanha":"es","Spain":"es",
-  "Inglaterra":"gb-eng","England":"gb-eng",
-  "Portugal":"pt",
-  "Itália":"it","Italy":"it",
-  "Holanda":"nl","Netherlands":"nl","Países Baixos":"nl",
-  "Bélgica":"be","Belgium":"be",
-  "Croácia":"hr","Croatia":"hr",
-  "Suíça":"ch","Switzerland":"ch",
-  "Dinamarca":"dk","Denmark":"dk",
-  "Polônia":"pl","Poland":"pl",
-  "Áustria":"at","Austria":"at",
-  "Suécia":"se","Sweden":"se",
-  "Noruega":"no","Norway":"no",
-  "República Tcheca":"cz","Czech Republic":"cz","Czechia":"cz",
-  "Sérvia":"rs","Serbia":"rs",
-  "Turquia":"tr","Turkey":"tr","Türkiye":"tr",
-  "Ucrânia":"ua","Ukraine":"ua",
-  "País de Gales":"gb-wls","Wales":"gb-wls",
-  "Escócia":"gb-sct","Scotland":"gb-sct",
-  "Irlanda":"ie","Republic of Ireland":"ie","Ireland":"ie",
-  "Irlanda do Norte":"gb-nir","Northern Ireland":"gb-nir",
-  "Hungria":"hu","Hungary":"hu",
-  "Romênia":"ro","Romania":"ro",
-  "Grécia":"gr","Greece":"gr",
-  "Rússia":"ru","Russia":"ru",
-  "Eslováquia":"sk","Slovakia":"sk",
-  "Eslovênia":"si","Slovenia":"si",
-  "Albânia":"al","Albania":"al",
-  "Bósnia e Herzegovina":"ba","Bosnia and Herzegovina":"ba","Bosnia-Herzegovina":"ba",
-  "Islândia":"is","Iceland":"is",
-  "Finlândia":"fi","Finland":"fi",
-  "Bulgária":"bg","Bulgaria":"bg",
-  "Montenegro":"me",
-  "Macedônia do Norte":"mk","North Macedonia":"mk",
-  // CAF
-  "Marrocos":"ma","Morocco":"ma",
-  "Senegal":"sn",
-  "Tunísia":"tn","Tunisia":"tn",
-  "Argélia":"dz","Algeria":"dz",
-  "Egito":"eg","Egypt":"eg",
-  "Nigéria":"ng","Nigeria":"ng",
-  "Gana":"gh","Ghana":"gh",
-  "Camarões":"cm","Cameroon":"cm",
-  "Costa do Marfim":"ci","Ivory Coast":"ci","Côte d'Ivoire":"ci",
-  "África do Sul":"za","South Africa":"za",
-  "Mali":"ml",
-  "Burkina Faso":"bf",
-  "Cabo Verde":"cv","Cape Verde":"cv","Cape Verde Islands":"cv",
-  "República Democrática do Congo":"cd","DR Congo":"cd","Congo DR":"cd",
-  // AFC
-  "Japão":"jp","Japan":"jp",
-  "Coreia do Sul":"kr","South Korea":"kr","Korea Republic":"kr",
-  "Irã":"ir","Iran":"ir","IR Iran":"ir",
-  "Arábia Saudita":"sa","Saudi Arabia":"sa",
-  "Austrália":"au","Australia":"au",
-  "Catar":"qa","Qatar":"qa",
-  "Emirados Árabes Unidos":"ae","United Arab Emirates":"ae","UAE":"ae",
-  "Iraque":"iq","Iraq":"iq",
-  "Uzbequistão":"uz","Uzbekistan":"uz",
-  "Jordânia":"jo","Jordan":"jo",
-  "China":"cn","China PR":"cn",
-  // OFC
-  "Nova Zelândia":"nz","New Zealand":"nz",
-};
+/* Badge emoji+cor do clube — mesmo padrão visual do Avatar dos
+   participantes (círculo colorido + emoji), em vez da bandeira de país da
+   versão Copa do Mundo. */
 const fl = (nome) => {
-  const code = FLAG_CODES[nome];
-  if (!code) return null;
-  return <img src={`https://flagcdn.com/20x15/${code}.png`} alt={nome} className="flag-img" />;
+  const info = CLUBE_INFO[nome];
+  if (!info) return null;
+  return <span className="clube-badge" style={{ background: info.cor }} title={nome}>{info.emoji}</span>;
 };
-
-const SELECOES = [
-  // CONCACAF
-  "Canadá", "Costa Rica", "Estados Unidos", "Honduras", "México", "Panamá",
-  // CONMEBOL
-  "Argentina", "Brasil", "Colômbia", "Equador", "Uruguai", "Venezuela",
-  // UEFA
-  "Alemanha", "Áustria", "Bélgica", "Croácia", "Dinamarca", "Escócia",
-  "Espanha", "França", "Holanda", "Hungria", "Inglaterra", "Itália",
-  "Portugal", "Sérvia", "Suíça", "Turquia",
-  // CAF
-  "África do Sul", "Argélia", "Camarões", "Costa do Marfim",
-  "Egito", "Mali", "Marrocos", "Nigéria", "Senegal",
-  // AFC
-  "Arábia Saudita", "Austrália", "Catar", "Coreia do Sul",
-  "Irã", "Iraque", "Japão", "Uzbequistão",
-  // OFC
-  "Nova Zelândia",
-].sort((a, b) => a.localeCompare(b, "pt-BR"));
 
 const normBusca = (s) =>
   s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
@@ -2729,8 +2620,8 @@ function BonusAdmin({ token, estado, recarregar }) {
   const eliminadaSel = (sel) => (estado.selecoesEliminadas || []).includes(FLAG_CODES[sel]);
 
   const filtradas = campeaoFiltro
-    ? SELECOES.filter((s) => normBusca(s).includes(normBusca(campeaoFiltro)))
-    : SELECOES;
+    ? TIMES.filter((s) => normBusca(s).includes(normBusca(campeaoFiltro)))
+    : TIMES;
 
   return (
     <div style={{ marginTop: "24px" }}>
@@ -3397,8 +3288,8 @@ function Campeao({ token, euId, artilheiroGols = {}, selecoesEliminadas = [], re
   const confirmado = meu?.confirmado;
   const confirmadoArt = meuArt?.confirmado;
   const filtradas = filtro
-    ? SELECOES.filter((s) => normBusca(s).includes(normBusca(filtro)))
-    : SELECOES;
+    ? TIMES.filter((s) => normBusca(s).includes(normBusca(filtro)))
+    : TIMES;
 
   return (
     <div>
@@ -4778,7 +4669,18 @@ function Estilo() {
         background: rgba(255,255,255,.1); opacity: .8;
       }
 
-      .flag-img { display: inline-block; vertical-align: middle; border-radius: 2px; margin-right: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+      .clube-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        font-size: 12px;
+        line-height: 1;
+        margin-right: 4px;
+        flex: none;
+      }
 
       .jogo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
       .jogo.encerrado { border-color: var(--ambar); }
