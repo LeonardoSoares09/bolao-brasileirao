@@ -1,4 +1,4 @@
-/* /api/campeao — palpite do campeão da Copa
+/* /api/campeao — palpite do time campeão
    GET  ?t=TOKEN          → palpite próprio + todos os confirmados
    POST { t, selecao }    → salva/atualiza (só se não confirmado)
    PUT  { t }             → confirma e trava para sempre */
@@ -44,7 +44,7 @@ export default async function handler(req, res) {
 
     const selecao = String(req.body?.selecao || "").trim();
     if (!selecao || selecao.length > 100) {
-      res.status(400).json({ error: "Seleção inválida" });
+      res.status(400).json({ error: "Time inválido" });
       return;
     }
 
@@ -78,7 +78,7 @@ export default async function handler(req, res) {
     `;
 
     if (rows.length === 0) {
-      res.status(400).json({ error: "Escolha uma seleção antes de confirmar" });
+      res.status(400).json({ error: "Escolha um time antes de confirmar" });
       return;
     }
     if (rows[0].confirmado) {
