@@ -5,7 +5,7 @@ import {
   pontosDoPalpite, pontosComPeso, pesoDoJogo, rotuloDaFase, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate,
   calcularDetalhamento, calcularEvolucao,
 } from "./ranking";
-import { TIMES, CLUBE_INFO, pesoDoJogo as pesoDoJogoBase } from "../lib/clubes.js";
+import { TIMES, CLUBE_INFO, pesoDoJogo as pesoDoJogoBase, RODADA_HISTORICO_MAX } from "../lib/clubes.js";
 
 /* ============================================================
    BOLÃO DOS GURIS — Brasileirão 2026/2 (Vercel + Neon)
@@ -1479,6 +1479,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
   const [rodada, setRodada] = useState("");
   const [buscandoJogos, setBuscandoJogos] = useState(false);
   const [buscandoResultados, setBuscandoResultados] = useState(false);
+  const [importandoHistorico, setImportandoHistorico] = useState(null); // { rodada, total } | null
   const [aviso, setAviso] = useState("");
   const [dataFiltro, setDataFiltro] = useState(() => {
     const agora = Date.now() + offsetMs;
@@ -1644,15 +1645,44 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
     setBuscandoResultados(false);
   };
 
+  const importarHistorico = async () => {
+    setAviso("");
+    let adicionados = 0;
+    let atualizados = 0;
+    let rodadaAtualImport = 1;
+    try {
+      for (rodadaAtualImport = 1; rodadaAtualImport <= RODADA_HISTORICO_MAX; rodadaAtualImport++) {
+        setImportandoHistorico({ rodada: rodadaAtualImport, total: RODADA_HISTORICO_MAX });
+        const r = await api(`/api/futebol?t=${encodeURIComponent(token)}&acao=historico&matchday=${rodadaAtualImport}`);
+        adicionados += r.adicionados || 0;
+        atualizados += r.atualizados || 0;
+        if (rodadaAtualImport < RODADA_HISTORICO_MAX) {
+          await new Promise((resolve) => setTimeout(resolve, 6500));
+        }
+      }
+      recarregar();
+      setAviso(
+        `${RODADA_HISTORICO_MAX} rodadas importadas — ${adicionados} adicionado${adicionados === 1 ? "" : "s"} · ${atualizados} atualizado${atualizados === 1 ? "" : "s"} ⚽`
+      );
+    } catch (e) {
+      console.error(e);
+      recarregar();
+      setAviso(`Falhou na rodada ${rodadaAtualImport} — clique de novo pra retomar (não duplica o que já importou).`);
+    }
+    setImportandoHistorico(null);
+  };
+
+  const precisaImportarHistorico = !estado.jogos.some((j) => j.rodada === RODADA_HISTORICO_MAX);
+
   return (
     <div>
       {ehAdmin && (
         <>
           <div className="linha-botoes">
-            <button className="botao botao-largo" onClick={buscarJogosDoDia} disabled={buscandoJogos || buscandoResultados}>
+            <button className="botao botao-largo" onClick={buscarJogosDoDia} disabled={buscandoJogos || buscandoResultados || !!importandoHistorico}>
               {buscandoJogos ? <><span className="spinner" aria-hidden="true"></span> Buscando…</> : "⚡ Jogos de hoje"}
             </button>
-            <button className="botao botao-largo" onClick={buscarResultados} disabled={buscandoJogos || buscandoResultados}>
+            <button className="botao botao-largo" onClick={buscarResultados} disabled={buscandoJogos || buscandoResultados || !!importandoHistorico}>
               {buscandoResultados ? <><span className="spinner" aria-hidden="true"></span> Buscando…</> : "🏁 Buscar resultados"}
             </button>
             <button
@@ -1664,6 +1694,20 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
               📲 Cobrar galera
             </button>
           </div>
+
+          {precisaImportarHistorico && (
+            <div className="linha-botoes">
+              <button
+                className="botao botao-largo"
+                onClick={importarHistorico}
+                disabled={buscandoJogos || buscandoResultados || !!importandoHistorico}
+              >
+                {importandoHistorico
+                  ? <><span className="spinner" aria-hidden="true"></span> Importando rodada {importandoHistorico.rodada} de {importandoHistorico.total}…</>
+                  : "↩ Importar histórico (rodadas 1-18)"}
+              </button>
+            </div>
+          )}
 
           <div className="cartao form-jogo">
             <div className="form-linha">
