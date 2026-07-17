@@ -18,7 +18,7 @@ import { TIMES, CLUBE_INFO, pesoDoJogo as pesoDoJogoBase } from "../lib/clubes.j
    ./ranking.js (fonte única — item M1 do review). */
 
 /* Constantes do bolão (item P3 — tira números mágicos espalhados). */
-const VALOR_ENTRADA = 20; // R$ por participante
+const VALOR_ENTRADA = 10; // R$ por participante
 
 /* Lembrete de palpites: só jogos começando em até 26h (jogos do dia + madrugada
    seguinte). Depois de fechado, reaparece faltando 2h e depois 30min pro mais
