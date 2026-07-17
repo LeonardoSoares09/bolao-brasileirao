@@ -1441,8 +1441,9 @@ function ModalEstatisticas({ jogo, jogos, onFechar }) {
                 <tbody>
                   {tabela.map((r, i) => {
                     const on = r.time === jogo.casa || r.time === jogo.fora;
+                    const zona = i < 4 ? "stat-row-g4" : i >= tabela.length - 4 ? "stat-row-z4" : "";
                     return (
-                      <tr key={r.time} className={on ? "stat-row-on" : ""}>
+                      <tr key={r.time} className={`${on ? "stat-row-on" : ""} ${zona}`.trim()}>
                         <td className="stat-td-time">{i + 1} {fl(r.time)}{r.time}</td>
                         <td className="stat-pts">{r.pts}</td>
                         <td>{r.j}</td><td>{r.v}</td><td>{r.e}</td><td>{r.d}</td><td>{r.gp}</td><td>{r.gc}</td>
@@ -4946,6 +4947,10 @@ function Estilo() {
       .stat-tabela td { padding: 9px 3px; text-align: center; border-top: 1px solid rgba(255,255,255,.07); color: var(--giz); }
       .stat-td-time { text-align: left !important; white-space: nowrap; padding-left: 4px !important; }
       .stat-pts { font-weight: 800; color: var(--ambar); }
+      .stat-row-g4 td:first-child { border-left: 3px solid #7ee2a0; }
+      .stat-row-g4 { background: rgba(126,226,160,.07); }
+      .stat-row-z4 td:first-child { border-left: 3px solid var(--erro); }
+      .stat-row-z4 { background: rgba(255,123,107,.07); }
       .stat-row-on { background: rgba(255,197,61,.08); }
       .stat-sg-pos { color: #7ee2a0; }
       .stat-sg-neg { color: var(--erro); }
