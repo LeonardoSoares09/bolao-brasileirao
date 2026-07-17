@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import {
   PTS_EXATO, PTS_RESULTADO, temPlacar, BONUS_CAMPEAO, BONUS_ARTILHEIRO,
   pontosDoPalpite, pontosComPeso, pesoDoJogo, rotuloDaFase, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate,
-  calcularDetalhamento, calcularEvolucao,
+  calcularDetalhamento, calcularEvolucao, contaParaRanking, RODADA_INICIO_RANKING,
 } from "./ranking";
 import { TIMES, CLUBE_INFO, pesoDoJogo as pesoDoJogoBase, RODADA_HISTORICO_MAX } from "../lib/clubes.js";
 
@@ -771,6 +771,10 @@ function Podio({ top3, ranking, antecedenciaMap = {}, posAntes, onClick, euId })
 
 function Ranking({ ranking, antecedenciaMap = {}, temJogos, primeiraVez, aoAbrir, posAntes, onClickParticipante, palpitesMap, jogos, euId, campeoes, onAbrirCampeao }) {
   const temAoVivo = (jogos || []).some((m) => m.live && temPlacar(m));
+  /* mensagem provisória (decisão de produto 2026-07-17): a rodada 19 é
+     treino, ninguém pontua por ela ainda — some sozinha assim que o
+     primeiro jogo da rodada 20 (ou depois) tiver placar. */
+  const rankingAindaNaoComecou = !(jogos || []).some((m) => contaParaRanking(m) && temPlacar(m));
   useEffect(() => { aoAbrir(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (ranking.length === 0)
     return <Vazio texto="O organizador ainda não cadastrou os participantes." />;
@@ -788,6 +792,14 @@ function Ranking({ ranking, antecedenciaMap = {}, temJogos, primeiraVez, aoAbrir
     <div>
       {primeiraVez && ranking.some((p) => p.exatosHoje > 0) && <Confete />}
       <BannerCampeaoBolao campeoes={campeoes} onAbrir={onAbrirCampeao} />
+      {rankingAindaNaoComecou && (
+        <div className="trava-aviso">
+          <span>
+            🏆 O ranking oficial começa a valer na <strong>rodada {RODADA_INICIO_RANKING}</strong>,
+            dia 25/07/2026 às 18h30 — a rodada 19 é treino, dá pra palpitar mas ainda não pontua.
+          </span>
+        </div>
+      )}
       {!temJogos && (
         <p className="dica">Nenhum jogo encerrado ainda — o placar acende quando entrar o primeiro resultado.</p>
       )}
@@ -904,9 +916,10 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos, euId }) {
     });
   };
 
-  /* inclui jogo ao vivo (temPlacar) para o último ponto bater com o ranking — M4 */
+  /* inclui jogo ao vivo (temPlacar) para o último ponto bater com o ranking — M4.
+     contaParaRanking exclui a rodada 19 (treino, não pontua ainda). */
   const jogosEncerrados = jogos
-    .filter(temPlacar)
+    .filter((m) => temPlacar(m) && contaParaRanking(m))
     .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
   const temAoVivo = jogosEncerrados.some((m) => m.live);
 
@@ -1064,7 +1077,7 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos, euId }) {
 function EstatisticasInutils({ ranking, palpitesMap, jogos }) {
   const [aberto, setAberto] = useState(false);
 
-  const jogosEncerrados = jogos.filter(temResultado);
+  const jogosEncerrados = jogos.filter((m) => temResultado(m) && contaParaRanking(m));
   if (jogosEncerrados.length < 5 || ranking.length < 2) return null;
 
   const plural = (n) => (n === 1 ? "" : "s");

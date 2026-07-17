@@ -3,7 +3,7 @@
    principal. Roda com: node src/ranking.test.mjs
    Não é parte do bundle — é uma rede de segurança do refactor. */
 
-import { pontosDoPalpite, pontosComPeso, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate, temPlacar, calcularDetalhamento, calcularEvolucao, BONUS_CAMPEAO, BONUS_ARTILHEIRO } from "./ranking.js";
+import { pontosDoPalpite, pontosComPeso, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate, temPlacar, calcularDetalhamento, calcularEvolucao, BONUS_CAMPEAO, BONUS_ARTILHEIRO, PTS_EXATO, contaParaRanking } from "./ranking.js";
 import { pesoDaRodada, pesoDoJogo, ehClassico, matchdayHistoricoValido, RODADA_HISTORICO_MIN, RODADA_HISTORICO_MAX } from "../lib/clubes.js";
 
 let falhas = 0;
@@ -292,6 +292,34 @@ check(viuBonus, "cenario deveria ter ao menos um participante com bonus (campea/
   const campeoes = novo.filter((p) => compararRanking(p, novo[0], antecedenciaMap) === 0);
   check(campeoes.length === 1, `cenário sem empate real no topo deveria dar 1 campeão só, veio ${campeoes.length}`);
   check(campeoes[0].id === novo[0].id, "campeão deveria ser o próprio líder do ranking (auto-comparação = 0)");
+}
+
+/* ---- corte de início do ranking (RODADA_INICIO_RANKING = 20): rodada 19
+   é treino, dá pra palpitar mas não conta ponto — decisão de produto
+   2026-07-17, ver comentário em ranking.js */
+{
+  check(contaParaRanking({ rodada: 19 }) === false, "rodada 19 não deveria contar pro ranking (é treino)");
+  check(contaParaRanking({ rodada: 20 }) === true, "rodada 20 deveria contar pro ranking");
+  check(contaParaRanking({ rodada: 25 }) === true, "rodada depois do início (25) deveria contar");
+  check(contaParaRanking({ rodada: null }) === true, "jogo sem rodada deveria contar (default permissivo)");
+  check(contaParaRanking({ rodada: undefined }) === true, "jogo sem campo rodada deveria contar (default permissivo)");
+
+  const p = { id: 1, nome: "Teste" };
+  const jogosMistos = [
+    { id: 901, rodada: 19, gh: 2, ga: 0 }, // treino — NÃO deveria contar
+    { id: 902, rodada: 20, gh: 1, ga: 1 }, // conta de verdade
+    { id: 903, rodada: null, gh: 3, ga: 3 }, // sem rodada — default permissivo, conta
+  ];
+  const palpitesMistos = {
+    901: { 1: { h: 2, a: 0 } }, // exato na rodada 19 — não deveria contar
+    902: { 1: { h: 1, a: 1 } }, // exato na rodada 20 — deveria contar
+    903: { 1: { h: 3, a: 3 } }, // exato sem rodada — deveria contar
+  };
+  const stats = calcularStats(p, {}, palpitesMistos, { jogos: jogosMistos });
+  check(stats.exatos === 2,
+    `rodada 19 não deveria virar "exato" no ranking — esperado 2 exatos (rodada 20 + sem rodada), veio ${stats.exatos}`);
+  check(stats.pontos === PTS_EXATO * 2,
+    `pontos deveriam ignorar a rodada 19 — esperado ${PTS_EXATO * 2}, veio ${stats.pontos}`);
 }
 
 if (falhas === 0) console.log("✓ ranking.test.mjs — todos os cenários passaram (novo == antigo + alinhamento M4 + escala de peso)");

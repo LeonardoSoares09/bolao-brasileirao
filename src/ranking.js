@@ -9,6 +9,23 @@ export const PTS_RESULTADO = 1;
 export const BONUS_CAMPEAO = 6;
 export const BONUS_ARTILHEIRO = 18;
 
+/* Rodada a partir da qual o ranking (e as estatísticas derivadas dele)
+   passa a contar pontos de verdade. Decisão de produto (2026-07-17): a
+   rodada 19 é "treino" — dá pra palpitar normal, mas não vale nada ainda,
+   pra dar tempo de todo mundo entrar no bolão antes da disputa valer de
+   verdade. Rodada 20 começa em 25/07/2026 às 18h30 (mensagem provisória
+   na aba Ranking, ver componente Ranking em App.jsx). */
+export const RODADA_INICIO_RANKING = 20;
+
+/* Um jogo conta pro ranking se a rodada dele já bateu RODADA_INICIO_RANKING,
+   OU se não tiver rodada definida (cadastro manual antigo sem o campo —
+   mesmo default permissivo usado no resto do app, ver pesoDaRodada em
+   lib/clubes.js). */
+export function contaParaRanking(jogo) {
+  const r = jogo?.rodada;
+  return r == null || Number(r) >= RODADA_INICIO_RANKING;
+}
+
 /* "Tem placar que conta pontos" — INCLUI jogo ao vivo (gh/ga preenchidos).
    Diferente de `temResultado` (no App.jsx), que exige jogo encerrado (!live).
    Usado para alinhar os totais ao vivo em todo lugar (item M4 do review). */
@@ -76,6 +93,7 @@ export function calcularStats(p, estado, palpitesMap, opts = {}) {
   const { bonus, acertouCampeao, acertouArtilheiro } = calcularBonus(p, estado);
   let pontos = bonus, exatos = 0, resultados = 0, exatosHoje = 0;
   for (const m of jogos) {
+    if (!contaParaRanking(m)) continue;
     const pts = pontosDoPalpite(palpitesMap[m.id]?.[p.id], m);
     /* peso entra SÓ no total de pontos; as contagens de exatos/resultados
        (usadas no desempate) seguem sem peso: 1 exato = 1 exato. */
@@ -96,7 +114,7 @@ export function calcularStats(p, estado, palpitesMap, opts = {}) {
    preso ao participante logado). Sem bônus de propósito: é sobre desempenho
    nos JOGOS (aproveitamento, melhor/pior), o bônus tem seu próprio bloco. */
 export function calcularDetalhamento(participanteId, estado, palpitesMap) {
-  const jogosEncerrados = (estado.jogos || []).filter(temPlacar);
+  const jogosEncerrados = (estado.jogos || []).filter((m) => temPlacar(m) && contaParaRanking(m));
   const temAoVivo = jogosEncerrados.some((m) => m.live);
   const porJogo = jogosEncerrados.map((m) => {
     const palpite = palpitesMap[m.id]?.[participanteId];
@@ -124,7 +142,7 @@ export function calcularDetalhamento(participanteId, estado, palpitesMap) {
    estagna: acumulado é sempre não-decrescente). */
 export function calcularEvolucao(participanteId, estado, palpitesMap) {
   const jogosEncerrados = (estado.jogos || [])
-    .filter((m) => temPlacar(m) && m.kickoff)
+    .filter((m) => temPlacar(m) && m.kickoff && contaParaRanking(m))
     .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
   let acumulado = 0;
   return jogosEncerrados.map((m) => {
