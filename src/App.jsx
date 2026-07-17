@@ -484,7 +484,7 @@ export default function App() {
           onConcluido={() => setAbrirPerfilObrigatorio(false)}
         />
       )}
-      {abrirPagamento && !abrirPerfilObrigatorio && <ModalPagamento onFechar={() => setAbrirPagamento(false)} prazo={estado.prazoBonus} />}
+      {abrirPagamento && !abrirPerfilObrigatorio && <ModalPagamento onFechar={() => setAbrirPagamento(false)} prazo={estado.prazoPagamento} />}
       {abrirArtilheiro && !abrirPerfilObrigatorio && !abrirPagamento && estado.prazoBonus && (
         <ModalArtilheiroLembrete
           prazo={estado.prazoBonus}
@@ -2322,6 +2322,18 @@ function LinhaPalpite({ jogo, participante, palpite, bloqueado, destaque, token,
 }
 
 /* ================= TIMER PAGAMENTO ================= */
+/* urgência escalonada — mesma linguagem visual do countdown de palpites
+   (cd-ok/cd-atencao/cd-alerta/cd-critico), só que em escala de DIAS: o
+   prazo de pagamento é uma data marcada, não o kickoff de um jogo só.
+   Compartilhada entre a barra (TimerPagamento) e o popup forçado
+   (ModalPagamento) — os dois escalam junto, na mesma régua. */
+function estagioPagamento(seg) {
+  if (seg <= 6 * 3600) return "critico";
+  if (seg <= 24 * 3600) return "alerta";
+  if (seg <= 3 * 86400) return "atencao";
+  return "ok";
+}
+
 function TimerPagamento({ prazo }) {
   const deadlineMs = prazo ? new Date(prazo).getTime() : null;
   const [seg, setSeg] = useState(() => (deadlineMs ? Math.max(0, Math.floor((deadlineMs - Date.now()) / 1000)) : 0));
@@ -2342,14 +2354,7 @@ function TimerPagamento({ prazo }) {
   const s = seg % 60;
   const pad = (n) => String(n).padStart(2, "0");
 
-  /* urgência escalonada — mesma linguagem visual do countdown de palpites
-     (cd-ok/cd-atencao/cd-alerta/cd-critico), só que em escala de DIAS: o
-     prazo de pagamento é o início de uma rodada inteira, não o kickoff de
-     um jogo só. Fica cada vez mais "ameaçador" conforme o prazo se aproxima. */
-  const estagio =
-    seg <= 6 * 3600 ? "critico" :
-    seg <= 24 * 3600 ? "alerta" :
-    seg <= 3 * 86400 ? "atencao" : "ok";
+  const estagio = estagioPagamento(seg);
 
   const LABEL_POR_ESTAGIO = {
     ok: "⏰ Prazo pro pix",
@@ -3752,17 +3757,37 @@ function ModalPagamento({ onFechar, prazo }) {
   const h = Math.floor(seg / 3600);
   const m = Math.floor((seg % 3600) / 60);
   const s = seg % 60;
+  const temPrazo = !!deadlineMs && seg > 0;
+  /* mesma escala de urgência da barra (TimerPagamento) — o modal forçado
+     escala junto: quanto mais perto do prazo, mais ameaçador. */
+  const estagio = temPrazo ? estagioPagamento(seg) : "ok";
+
+  const LABEL_TIMER = {
+    ok: "⏰ Prazo pra garantir seu acesso",
+    atencao: "⏰ O prazo do pix tá acabando",
+    alerta: "⚠️ ÚLTIMO DIA — depois seu acesso é cortado",
+    critico: "🚨 FALTAM HORAS — seu acesso será bloqueado!",
+  };
 
   return (
     <div className="modal-overlay" onClick={onFechar}>
-      <div className="modal-painel modal-pagamento" onClick={(e) => e.stopPropagation()}>
+      <div className={"modal-painel modal-pagamento modal-pagamento-" + estagio} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-nome">💸 Pagamento pendente</div>
+          <div className="modal-nome">🚨 Seu acesso está em risco</div>
           <button className="apagar" onClick={onFechar} aria-label="Fechar">✕</button>
         </div>
 
         <div className="pagamento-corpo">
-          <p className="pagamento-aviso">Você ainda não confirmou seu pagamento.<br/>Garante sua vaga no bolão!</p>
+          <p className="pagamento-aviso pagamento-aviso-forte">
+            Você ainda não pagou sua vaga no bolão.<br />
+            {temPrazo ? (
+              <>Sem o PIX até <strong>{fmtMomento(prazo)}</strong>, seu link para de funcionar —
+              você perde o acesso aos palpites, ao ranking e à disputa do prêmio.</>
+            ) : (
+              <>Sem o PIX, seu link para de funcionar — você perde o acesso aos palpites,
+              ao ranking e à disputa do prêmio.</>
+            )}
+          </p>
 
           <div className="pagamento-valor">R$ {VALOR_ENTRADA},00</div>
 
@@ -3776,9 +3801,9 @@ function ModalPagamento({ onFechar, prazo }) {
             </div>
           </div>
 
-          {deadlineMs && seg > 0 && (
-            <div className="pagamento-timer">
-              <span className="timer-label">⏰ Prazo encerra em</span>
+          {temPrazo && (
+            <div className={"pagamento-timer pagamento-timer-" + estagio}>
+              <span className="timer-label">{LABEL_TIMER[estagio]}</span>
               <div className="timer-display">
                 <span className="timer-bloco"><span className="timer-num">{pad(h)}</span><span className="timer-unidade">h</span></span>
                 <span className="timer-sep">:</span>
@@ -4774,12 +4799,18 @@ function Estilo() {
       .timer-pag-critico .timer-num { font-size: 32px; }
       @media (prefers-reduced-motion: reduce) { .timer-pag-critico { animation: none; } }
 
-      .modal-pagamento { max-width: 340px; }
+      .modal-pagamento { max-width: 340px; transition: border-color .2s; }
+      /* o painel inteiro escala junto com o prazo — quanto mais perto,
+         mais vermelho e mais "vivo" (pulsando na reta final). */
+      .modal-pagamento-alerta  { border-color: var(--erro); }
+      .modal-pagamento-critico { border-color: var(--erro); animation: pulsa-cd 1.1s ease-in-out infinite, sobe .28s var(--t) both; }
+      @media (prefers-reduced-motion: reduce) { .modal-pagamento-critico { animation: sobe .28s var(--t) both; } }
       .pagamento-corpo {
         display: flex; flex-direction: column; align-items: center;
         gap: 18px; padding: 4px 0 8px;
       }
       .pagamento-aviso { text-align: center; font-size: 14px; color: #ccc; line-height: 1.5; margin: 0; }
+      .pagamento-aviso-forte strong { color: var(--erro); font-weight: 800; }
 
       /* lista de jogos sem palpite (modal lembrete) */
       .lembrete-lista { display: flex; flex-direction: column; gap: 8px; width: 100%; }
@@ -4813,6 +4844,21 @@ function Estilo() {
         border: 1px solid #92400e; border-radius: 10px;
         padding: 12px 16px; display: flex; flex-direction: column; align-items: center; gap: 6px;
       }
+      /* mesma régua de urgência do timer-pag-* (barra), aplicada ao timer
+         dentro do popup forçado. */
+      .pagamento-timer-alerta {
+        border-color: var(--erro); background: linear-gradient(135deg, #2a0a00, #3a0f00);
+      }
+      .pagamento-timer-alerta .timer-label,
+      .pagamento-timer-alerta .timer-num { color: var(--erro); }
+      .pagamento-timer-critico {
+        border-color: var(--erro); background: linear-gradient(135deg, #3a0a00, #4a0f00);
+        animation: pulsa-cd 1s ease-in-out infinite;
+      }
+      .pagamento-timer-critico .timer-label,
+      .pagamento-timer-critico .timer-num,
+      .pagamento-timer-critico .timer-sep { color: var(--erro); }
+      @media (prefers-reduced-motion: reduce) { .pagamento-timer-critico { animation: none; } }
       .pagamento-fechar { width: 100%; justify-content: center; opacity: .6; font-size: 13px; }
 
       .vs { opacity: .6; font-weight: 800; }
