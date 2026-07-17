@@ -1658,7 +1658,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
         adicionados += r.adicionados || 0;
         atualizados += r.atualizados || 0;
         if (rodadaAtualImport < RODADA_HISTORICO_MAX) {
-          await new Promise((resolve) => setTimeout(resolve, 6500));
+          await new Promise((resolve) => setTimeout(resolve, 8000));
         }
       }
       recarregar();
