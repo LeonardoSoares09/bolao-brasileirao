@@ -4,7 +4,7 @@
    Não é parte do bundle — é uma rede de segurança do refactor. */
 
 import { pontosDoPalpite, pontosComPeso, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate, temPlacar, calcularDetalhamento, calcularEvolucao, BONUS_CAMPEAO, BONUS_ARTILHEIRO } from "./ranking.js";
-import { pesoDaRodada, pesoDoJogo, ehClassico } from "../lib/clubes.js";
+import { pesoDaRodada, pesoDoJogo, ehClassico, matchdayHistoricoValido, RODADA_HISTORICO_MIN, RODADA_HISTORICO_MAX } from "../lib/clubes.js";
 
 let falhas = 0;
 const check = (cond, msg) => { if (!cond) { falhas++; console.error("  ✗ " + msg); } };
@@ -227,6 +227,18 @@ check(viuBonus, "cenario deveria ter ao menos um participante com bonus (campea/
   check(pesoDoJogo(37, "Flamengo", "Fluminense") === 3, "clássico NA reta final = 3× (maior dos dois, não soma pra 5×/6×)");
   check(pesoDoJogo(37, "Botafogo", "Santos") === 3, "não-clássico na reta final = 3×");
   check(pesoDoJogo(20, "Botafogo", "Santos") === 1, "não-clássico fora da reta final = 1×");
+
+  check(RODADA_HISTORICO_MIN === 1, "rodada mínima do histórico é 1");
+  check(RODADA_HISTORICO_MAX === 18, "rodada máxima do histórico é 18");
+  check(matchdayHistoricoValido(1) === true, "rodada 1 é válida (início do intervalo)");
+  check(matchdayHistoricoValido(18) === true, "rodada 18 é válida (fim do intervalo)");
+  check(matchdayHistoricoValido(0) === false, "rodada 0 é inválida");
+  check(matchdayHistoricoValido(19) === false, "rodada 19 é inválida (é rodada atual, não histórico)");
+  check(matchdayHistoricoValido(9.5) === false, "rodada não-inteira é inválida");
+  check(matchdayHistoricoValido(null) === false, "rodada nula é inválida");
+  check(matchdayHistoricoValido(undefined) === false, "rodada ausente é inválida");
+  check(matchdayHistoricoValido("7") === true, "string numérica válida é aceita (vem de req.query)");
+  check(matchdayHistoricoValido("abc") === false, "string não-numérica é inválida");
 }
 
 /* ---- calcularDetalhamento (Meu Perfil + Campeão do Bolão) ---- */
