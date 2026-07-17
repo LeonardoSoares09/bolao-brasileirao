@@ -2342,9 +2342,25 @@ function TimerPagamento({ prazo }) {
   const s = seg % 60;
   const pad = (n) => String(n).padStart(2, "0");
 
+  /* urgência escalonada — mesma linguagem visual do countdown de palpites
+     (cd-ok/cd-atencao/cd-alerta/cd-critico), só que em escala de DIAS: o
+     prazo de pagamento é o início de uma rodada inteira, não o kickoff de
+     um jogo só. Fica cada vez mais "ameaçador" conforme o prazo se aproxima. */
+  const estagio =
+    seg <= 6 * 3600 ? "critico" :
+    seg <= 24 * 3600 ? "alerta" :
+    seg <= 3 * 86400 ? "atencao" : "ok";
+
+  const LABEL_POR_ESTAGIO = {
+    ok: "⏰ Prazo pro pix",
+    atencao: "⏰ O prazo do pix tá chegando",
+    alerta: "⚠️ ÚLTIMO DIA pra pagar o pix!",
+    critico: "🚨 PAGA AGORA — faltam poucas horas!",
+  };
+
   return (
-    <div className="timer-pagamento">
-      <span className="timer-label">⏰ Prazo para pagamento</span>
+    <div className={"timer-pagamento timer-pag-" + estagio}>
+      <span className="timer-label">{LABEL_POR_ESTAGIO[estagio]}</span>
       <div className="timer-display">
         <span className="timer-bloco"><span className="timer-num">{pad(h)}</span><span className="timer-unidade">h</span></span>
         <span className="timer-sep">:</span>
@@ -2476,7 +2492,7 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
     return (
       <div>
         {PremioCard}
-        <TimerPagamento prazo={estado.prazoBonus} />
+        <TimerPagamento prazo={estado.prazoPagamento} />
         {BotaoInstalar}
         {estado.participantes.length === 0 && <Vazio texto="Ainda não há participantes." />}
         {estado.participantes.map((p, i) => (
@@ -2507,7 +2523,7 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
         </label>
       </div>
 
-      <TimerPagamento prazo={estado.prazoBonus} />
+      <TimerPagamento prazo={estado.prazoPagamento} />
       {BotaoInstalar}
 
       {aviso && <p className="dica toast" role="status">{aviso}</p>}
@@ -4736,6 +4752,27 @@ function Estilo() {
       .timer-unidade { font-size: 11px; color: #d97706; font-weight: 600; }
       .timer-sep { font-family: 'IBM Plex Mono', monospace; font-size: 22px; color: #92400e; font-weight: 700; padding: 0 2px; }
       .timer-data { font-size: 11px; color: #78350f; }
+
+      /* urgência escalonada do prazo de pagamento — "ok"/"atencao" usam o
+         visual âmbar padrão acima; "alerta"/"critico" ficam progressivamente
+         mais agressivos (vermelho, maior, pulsando), reaproveitando as cores
+         de --erro e a animação pulsa-cd já usadas no countdown de palpites. */
+      .timer-pag-alerta {
+        border-color: var(--erro);
+        background: linear-gradient(135deg, #2a0a00, #3a0f00);
+      }
+      .timer-pag-alerta .timer-label,
+      .timer-pag-alerta .timer-num { color: var(--erro); }
+      .timer-pag-critico {
+        border-color: var(--erro);
+        background: linear-gradient(135deg, #3a0a00, #4a0f00);
+        animation: pulsa-cd 1s ease-in-out infinite;
+      }
+      .timer-pag-critico .timer-label,
+      .timer-pag-critico .timer-num,
+      .timer-pag-critico .timer-sep { color: var(--erro); }
+      .timer-pag-critico .timer-num { font-size: 32px; }
+      @media (prefers-reduced-motion: reduce) { .timer-pag-critico { animation: none; } }
 
       .modal-pagamento { max-width: 340px; }
       .pagamento-corpo {

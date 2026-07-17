@@ -5,7 +5,7 @@
    palpites sempre aparecem. Admin vê tudo (precisa corrigir erros). */
 
 import { sql, autenticar } from "../lib/db.js";
-import { RODADA_LIMITE_ARTILHEIRO } from "../lib/clubes.js";
+import { RODADA_LIMITE_ARTILHEIRO, RODADA_LIMITE_PAGAMENTO } from "../lib/clubes.js";
 
 export default async function handler(req, res) {
   const eu = await autenticar(req.query.t);
@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const [participantes, jogos, contagens, palpitesCampeao, palpitesArtilheiro, resultadoEspecialRows, premiadosArtilheiro, antecedenciaRows, reacoesRows, configRows, prazoRows] = await Promise.all([
+  const [participantes, jogos, contagens, palpitesCampeao, palpitesArtilheiro, resultadoEspecialRows, premiadosArtilheiro, antecedenciaRows, reacoesRows, configRows, prazoRows, prazoPagamentoRows] = await Promise.all([
     sql`SELECT id, nome, is_admin, avatar_emoji, avatar_cor, pagou FROM participantes ORDER BY nome`,
     sql`SELECT id, casa, fora, kickoff, gh, ga, rodada, peso, live FROM jogos ORDER BY kickoff NULLS LAST, id`,
     sql`SELECT jogo_id, COUNT(*)::int AS total FROM palpites GROUP BY jogo_id`,
@@ -45,11 +45,16 @@ export default async function handler(req, res) {
     /* dados "ao vivo" administrados pelo admin: gols atuais dos artilheiros
        escolhidos e times marcados como fora da disputa pelo título. */
     sql`SELECT chave, valor FROM config WHERE chave IN ('artilheiro_gols', 'times_fora_disputa')`,
-    /* prazo do palpite de artilheiro (trava no kickoff do 1º jogo da rodada
-       RODADA_LIMITE_ARTILHEIRO) — reaproveitado também pelo lembrete de
-       pagamento pendente, um único prazo pros dois. NULL se essa rodada
-       ainda não foi cadastrada (cron ainda não chegou nela). */
+    /* prazo do palpite de artilheiro — trava no kickoff do 1º jogo da rodada
+       RODADA_LIMITE_ARTILHEIRO. NULL se essa rodada ainda não foi cadastrada
+       (cron ainda não chegou nela). */
     sql`SELECT MIN(kickoff) AS inicio FROM jogos WHERE rodada = ${RODADA_LIMITE_ARTILHEIRO}`,
+    /* prazo do PAGAMENTO — campo separado do artilheiro, trava no kickoff do
+       1º jogo da rodada RODADA_LIMITE_PAGAMENTO (mais cedo que o artilheiro,
+       de propósito: cobrar o pix logo no começo do turno, não só perto do
+       prazo de escolher o artilheiro). Mesmo NULL-se-rodada-ainda-não-chegou
+       do prazo acima. */
+    sql`SELECT MIN(kickoff) AS inicio FROM jogos WHERE rodada = ${RODADA_LIMITE_PAGAMENTO}`,
   ]);
 
   const cfg = {};
@@ -89,6 +94,7 @@ export default async function handler(req, res) {
     artilheiroGols: cfg.artilheiro_gols && typeof cfg.artilheiro_gols === "object" ? cfg.artilheiro_gols : {},
     timesForaDaDisputa: Array.isArray(cfg.times_fora_disputa) ? cfg.times_fora_disputa : [],
     prazoBonus: prazoRows[0]?.inicio ? new Date(prazoRows[0].inicio).toISOString() : null,
+    prazoPagamento: prazoPagamentoRows[0]?.inicio ? new Date(prazoPagamentoRows[0].inicio).toISOString() : null,
     agora: new Date().toISOString(),
   });
 }
