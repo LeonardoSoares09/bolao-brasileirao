@@ -134,14 +134,8 @@ export default async function handler(req, res) {
   }
 }
 
-export async function acaoJogosHoje() {
-  /* rodada atual da temporada (ex.: 19) — busca TODOS os jogos dela de uma
-     vez, não só os "de hoje". Isso deixa a rodada inteira disponível pra
-     palpitar com antecedência, em vez de ir liberando jogo por jogo
-     conforme cada dia chega. */
-  const rodadaAtual = await matchdayAtual();
-  if (rodadaAtual == null) return { adicionados: 0, atualizados: 0, total: 0 };
-  const relevantes = await buscarPartidas(`matchday=${rodadaAtual}`);
+async function importarRodada(matchday, { comPlacar }) {
+  const relevantes = await buscarPartidas(`matchday=${matchday}`);
 
   /* puxa todos os jogos uma vez só pra evitar N SELECTs no loop */
   const todos = await sql`
@@ -166,14 +160,22 @@ export async function acaoJogosHoje() {
     const peso = pesoDoJogo(rodada, casa, fora);
     if (!casa || !fora) continue;
 
-    /* (a) já carimbado — atualiza kickoff, rodada e peso se mudou */
+    /* comPlacar: jogo de histórico já é FINISHED — grava o placar final direto
+       (acaoPlacares não alcançaria essas rodadas, sua janela é só 14 dias). */
+    const placar = comPlacar && m.status === "FINISHED" ? placarBolao(m.score) : null;
+    const gh = placar ? placar.home : null;
+    const ga = placar ? placar.away : null;
+
+    /* (a) já carimbado — atualiza kickoff, rodada, peso e placar (se veio) */
     const achado = porExt.get(externalId);
     if (achado) {
       const rows = await sql`
         UPDATE jogos
-           SET kickoff = ${kickoff}, rodada = ${rodada}, peso = ${peso}
+           SET kickoff = ${kickoff}, rodada = ${rodada}, peso = ${peso},
+               gh = COALESCE(${gh}, gh), ga = COALESCE(${ga}, ga)
          WHERE id = ${achado.id}
-           AND (kickoff IS DISTINCT FROM ${kickoff} OR rodada IS DISTINCT FROM ${rodada} OR peso IS DISTINCT FROM ${peso})
+           AND (kickoff IS DISTINCT FROM ${kickoff} OR rodada IS DISTINCT FROM ${rodada} OR peso IS DISTINCT FROM ${peso}
+                OR gh IS DISTINCT FROM COALESCE(${gh}, gh) OR ga IS DISTINCT FROM COALESCE(${ga}, ga))
         RETURNING id
       `;
       if (rows.length > 0) atualizados++;
@@ -194,7 +196,9 @@ export async function acaoJogosHoje() {
            SET external_id = ${externalId},
                kickoff = COALESCE(kickoff, ${kickoff}),
                rodada = ${rodada},
-               peso = ${peso}
+               peso = ${peso},
+               gh = COALESCE(gh, ${gh}),
+               ga = COALESCE(ga, ${ga})
          WHERE id = ${cand.id}
       `;
       legados.splice(idx, 1);
@@ -202,16 +206,25 @@ export async function acaoJogosHoje() {
       continue;
     }
 
-    /* (c) novo — a rodada inteira é o escopo da busca, não precisa mais
-       restringir a "hoje": qualquer jogo dela que ainda não existe é novo. */
+    /* (c) novo */
     await sql`
-      INSERT INTO jogos (casa, fora, kickoff, external_id, rodada, peso)
-      VALUES (${casa}, ${fora}, ${kickoff}, ${externalId}, ${rodada}, ${peso})
+      INSERT INTO jogos (casa, fora, kickoff, external_id, rodada, peso, gh, ga)
+      VALUES (${casa}, ${fora}, ${kickoff}, ${externalId}, ${rodada}, ${peso}, ${gh}, ${ga})
     `;
     adicionados++;
   }
 
   return { adicionados, atualizados, total: relevantes.length };
+}
+
+export async function acaoJogosHoje() {
+  /* rodada atual da temporada (ex.: 19) — busca TODOS os jogos dela de uma
+     vez, não só os "de hoje". Isso deixa a rodada inteira disponível pra
+     palpitar com antecedência, em vez de ir liberando jogo por jogo
+     conforme cada dia chega. */
+  const rodadaAtual = await matchdayAtual();
+  if (rodadaAtual == null) return { adicionados: 0, atualizados: 0, total: 0 };
+  return importarRodada(rodadaAtual, { comPlacar: false });
 }
 
 /* acaoPlacares: atualiza FINISHED (placar final) e IN_PLAY/PAUSED/LIVE (placar ao vivo)
