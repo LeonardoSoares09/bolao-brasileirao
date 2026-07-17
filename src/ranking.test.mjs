@@ -3,7 +3,7 @@
    principal. Roda com: node src/ranking.test.mjs
    Não é parte do bundle — é uma rede de segurança do refactor. */
 
-import { pontosDoPalpite, pontosComPeso, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate, temPlacar, calcularDetalhamento, calcularEvolucao, BONUS_CAMPEAO, BONUS_ARTILHEIRO, PTS_EXATO, contaParaRanking } from "./ranking.js";
+import { pontosDoPalpite, pontosComPeso, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate, temPlacar, calcularDetalhamento, calcularEvolucao, BONUS_CAMPEAO, BONUS_ARTILHEIRO, PTS_EXATO, contaParaRanking, rankingOficialComecou } from "./ranking.js";
 import { pesoDaRodada, pesoDoJogo, ehClassico, matchdayHistoricoValido, RODADA_HISTORICO_MIN, RODADA_HISTORICO_MAX } from "../lib/clubes.js";
 
 let falhas = 0;
@@ -295,31 +295,52 @@ check(viuBonus, "cenario deveria ter ao menos um participante com bonus (campea/
 }
 
 /* ---- corte de início do ranking (RODADA_INICIO_RANKING = 20): rodada 19
-   é treino, dá pra palpitar mas não conta ponto — decisão de produto
-   2026-07-17, ver comentário em ranking.js */
+   é treino, dá pra palpitar mas não conta ponto no ranking OFICIAL —
+   decisão de produto 2026-07-17, ver comentário em ranking.js.
+   contaParaRanking/rankingOficialComecou são só os blocos de montar: quem
+   decide QUANDO aplicar o filtro é quem chama (App.jsx), passando
+   opts.jogos já filtrado pra calcularStats/calcularDetalhamento/
+   calcularEvolucao — por isso o teste monta o filtro explicitamente,
+   igual o App.jsx faz de verdade. */
 {
-  check(contaParaRanking({ rodada: 19 }) === false, "rodada 19 não deveria contar pro ranking (é treino)");
-  check(contaParaRanking({ rodada: 20 }) === true, "rodada 20 deveria contar pro ranking");
+  check(contaParaRanking({ rodada: 19 }) === false, "rodada 19 não deveria contar pro ranking oficial (é treino)");
+  check(contaParaRanking({ rodada: 20 }) === true, "rodada 20 deveria contar pro ranking oficial");
   check(contaParaRanking({ rodada: 25 }) === true, "rodada depois do início (25) deveria contar");
   check(contaParaRanking({ rodada: null }) === true, "jogo sem rodada deveria contar (default permissivo)");
   check(contaParaRanking({ rodada: undefined }) === true, "jogo sem campo rodada deveria contar (default permissivo)");
 
   const p = { id: 1, nome: "Teste" };
   const jogosMistos = [
-    { id: 901, rodada: 19, gh: 2, ga: 0 }, // treino — NÃO deveria contar
-    { id: 902, rodada: 20, gh: 1, ga: 1 }, // conta de verdade
-    { id: 903, rodada: null, gh: 3, ga: 3 }, // sem rodada — default permissivo, conta
+    { id: 901, rodada: 19, kickoff: "2026-07-19T20:00:00Z", gh: 2, ga: 0 }, // treino
+    { id: 902, rodada: 20, kickoff: "2026-07-25T21:30:00Z", gh: 1, ga: 1 }, // oficial
+    { id: 903, rodada: null, kickoff: "2026-07-20T20:00:00Z", gh: 3, ga: 3 }, // sem rodada, conta
   ];
   const palpitesMistos = {
-    901: { 1: { h: 2, a: 0 } }, // exato na rodada 19 — não deveria contar
-    902: { 1: { h: 1, a: 1 } }, // exato na rodada 20 — deveria contar
-    903: { 1: { h: 3, a: 3 } }, // exato sem rodada — deveria contar
+    901: { 1: { h: 2, a: 0 } }, // exato na rodada 19
+    902: { 1: { h: 1, a: 1 } }, // exato na rodada 20
+    903: { 1: { h: 3, a: 3 } }, // exato sem rodada
   };
-  const stats = calcularStats(p, {}, palpitesMistos, { jogos: jogosMistos });
-  check(stats.exatos === 2,
-    `rodada 19 não deveria virar "exato" no ranking — esperado 2 exatos (rodada 20 + sem rodada), veio ${stats.exatos}`);
-  check(stats.pontos === PTS_EXATO * 2,
-    `pontos deveriam ignorar a rodada 19 — esperado ${PTS_EXATO * 2}, veio ${stats.pontos}`);
+
+  // rankingOficialComecou: false antes do 1º kickoff da rodada 20, true depois
+  const antesDaRodada20 = new Date("2026-07-20T00:00:00Z").getTime();
+  const depoisDoKickoff20 = new Date("2026-07-25T22:00:00Z").getTime();
+  check(rankingOficialComecou(jogosMistos, antesDaRodada20) === false,
+    "ranking oficial não deveria ter começado antes do kickoff da rodada 20");
+  check(rankingOficialComecou(jogosMistos, depoisDoKickoff20) === true,
+    "ranking oficial deveria ter começado depois do kickoff da rodada 20");
+
+  // modo PROVISÓRIO (antes da rodada 20 começar): calcularStats sem filtro conta tudo, incl. rodada 19
+  const statsProvisorio = calcularStats(p, {}, palpitesMistos, { jogos: jogosMistos });
+  check(statsProvisorio.exatos === 3,
+    `modo provisório deveria contar os 3 exatos (rodada 19 inclusa), veio ${statsProvisorio.exatos}`);
+
+  // modo OFICIAL (depois da rodada 20 começar): App.jsx filtra com contaParaRanking antes de passar
+  const jogosOficiais = jogosMistos.filter(contaParaRanking);
+  const statsOficial = calcularStats(p, {}, palpitesMistos, { jogos: jogosOficiais });
+  check(statsOficial.exatos === 2,
+    `modo oficial deveria ignorar a rodada 19 — esperado 2 exatos (rodada 20 + sem rodada), veio ${statsOficial.exatos}`);
+  check(statsOficial.pontos === PTS_EXATO * 2,
+    `pontos do modo oficial deveriam ignorar a rodada 19 — esperado ${PTS_EXATO * 2}, veio ${statsOficial.pontos}`);
 }
 
 if (falhas === 0) console.log("✓ ranking.test.mjs — todos os cenários passaram (novo == antigo + alinhamento M4 + escala de peso)");

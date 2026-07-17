@@ -9,21 +9,36 @@ export const PTS_RESULTADO = 1;
 export const BONUS_CAMPEAO = 6;
 export const BONUS_ARTILHEIRO = 18;
 
-/* Rodada a partir da qual o ranking (e as estatísticas derivadas dele)
-   passa a contar pontos de verdade. Decisão de produto (2026-07-17): a
-   rodada 19 é "treino" — dá pra palpitar normal, mas não vale nada ainda,
-   pra dar tempo de todo mundo entrar no bolão antes da disputa valer de
-   verdade. Rodada 20 começa em 25/07/2026 às 18h30 (mensagem provisória
-   na aba Ranking, ver componente Ranking em App.jsx). */
+/* Rodada a partir da qual o ranking OFICIAL passa a contar pontos de
+   verdade. Decisão de produto (2026-07-17): a rodada 19 é "treino" — dá
+   pra palpitar normal, e ATÉ a rodada 20 começar (25/07/2026 18h30) o
+   ranking mostrado é PROVISÓRIO e conta TUDO, incluindo a 19 — só pra
+   todo mundo já ver como vai funcionar. No instante em que a rodada 20
+   começa de verdade (primeiro kickoff dela), o app passa a usar só jogos
+   com contaParaRanking(jogo) === true — reset automático pra zero, sem
+   nenhum ponto da rodada 19 sobrevivendo. Essas duas funções são só os
+   BLOCOS DE MONTAR: quem decide QUANDO filtrar (provisório vs oficial) é
+   quem chama — ver rankingOficialComecou + uso em App.jsx. */
 export const RODADA_INICIO_RANKING = 20;
 
-/* Um jogo conta pro ranking se a rodada dele já bateu RODADA_INICIO_RANKING,
-   OU se não tiver rodada definida (cadastro manual antigo sem o campo —
-   mesmo default permissivo usado no resto do app, ver pesoDaRodada em
-   lib/clubes.js). */
+/* Um jogo conta pro ranking OFICIAL se a rodada dele já bateu
+   RODADA_INICIO_RANKING, OU se não tiver rodada definida (cadastro manual
+   antigo sem o campo — mesmo default permissivo usado no resto do app,
+   ver pesoDaRodada em lib/clubes.js). */
 export function contaParaRanking(jogo) {
   const r = jogo?.rodada;
   return r == null || Number(r) >= RODADA_INICIO_RANKING;
+}
+
+/* O ranking oficial "começa" no instante em que o PRIMEIRO jogo da rodada
+   RODADA_INICIO_RANKING (ou depois) tem kickoff já passado — não quando
+   ele TERMINA, nem quando é cadastrado no banco. Antes disso, o ranking é
+   só um preview (provisório) contando tudo. */
+export function rankingOficialComecou(jogos, agoraMs = Date.now()) {
+  return (jogos || []).some((m) => {
+    const r = Number(m?.rodada);
+    return Number.isFinite(r) && r >= RODADA_INICIO_RANKING && m.kickoff && new Date(m.kickoff).getTime() <= agoraMs;
+  });
 }
 
 /* "Tem placar que conta pontos" — INCLUI jogo ao vivo (gh/ga preenchidos).
@@ -93,7 +108,6 @@ export function calcularStats(p, estado, palpitesMap, opts = {}) {
   const { bonus, acertouCampeao, acertouArtilheiro } = calcularBonus(p, estado);
   let pontos = bonus, exatos = 0, resultados = 0, exatosHoje = 0;
   for (const m of jogos) {
-    if (!contaParaRanking(m)) continue;
     const pts = pontosDoPalpite(palpitesMap[m.id]?.[p.id], m);
     /* peso entra SÓ no total de pontos; as contagens de exatos/resultados
        (usadas no desempate) seguem sem peso: 1 exato = 1 exato. */
@@ -112,9 +126,12 @@ export function calcularStats(p, estado, palpitesMap, opts = {}) {
 /* Detalhamento jogo-a-jogo de UM participante (Meu Perfil e Campeão do Bolão
    usam o mesmo cálculo — antes só existia inline dentro do PerfilPicker,
    preso ao participante logado). Sem bônus de propósito: é sobre desempenho
-   nos JOGOS (aproveitamento, melhor/pior), o bônus tem seu próprio bloco. */
-export function calcularDetalhamento(participanteId, estado, palpitesMap) {
-  const jogosEncerrados = (estado.jogos || []).filter((m) => temPlacar(m) && contaParaRanking(m));
+   nos JOGOS (aproveitamento, melhor/pior), o bônus tem seu próprio bloco.
+   opts.jogos: lista de jogos a considerar (default: estado.jogos) — mesmo
+   padrão de calcularStats, usado por quem quer restringir ao ranking oficial. */
+export function calcularDetalhamento(participanteId, estado, palpitesMap, opts = {}) {
+  const { jogos = estado.jogos } = opts;
+  const jogosEncerrados = (jogos || []).filter(temPlacar);
   const temAoVivo = jogosEncerrados.some((m) => m.live);
   const porJogo = jogosEncerrados.map((m) => {
     const palpite = palpitesMap[m.id]?.[participanteId];
@@ -139,10 +156,12 @@ export function calcularDetalhamento(participanteId, estado, palpitesMap) {
 /* Evolução de pontos (COM peso, SEM bônus) de um participante ao longo da
    Copa, em ordem cronológica — usado no gráfico de linha do Campeão do
    Bolão. Palpite ausente/errado soma 0 (a linha nunca cai, só sobe ou
-   estagna: acumulado é sempre não-decrescente). */
-export function calcularEvolucao(participanteId, estado, palpitesMap) {
-  const jogosEncerrados = (estado.jogos || [])
-    .filter((m) => temPlacar(m) && m.kickoff && contaParaRanking(m))
+   estagna: acumulado é sempre não-decrescente).
+   opts.jogos: mesmo padrão de calcularStats/calcularDetalhamento. */
+export function calcularEvolucao(participanteId, estado, palpitesMap, opts = {}) {
+  const { jogos = estado.jogos } = opts;
+  const jogosEncerrados = (jogos || [])
+    .filter((m) => temPlacar(m) && m.kickoff)
     .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
   let acumulado = 0;
   return jogosEncerrados.map((m) => {
