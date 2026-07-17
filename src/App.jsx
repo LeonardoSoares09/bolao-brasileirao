@@ -20,6 +20,15 @@ import { TIMES, CLUBE_INFO, pesoDoJogo as pesoDoJogoBase, RODADA_HISTORICO_MAX }
 /* Constantes do bolão (item P3 — tira números mágicos espalhados). */
 const VALOR_ENTRADA = 10; // R$ por participante
 
+/* Janela de "ao vivo": um jogo sem placar só conta como em andamento até 4h
+   depois do kickoff. Sem isso, um jogo órfão (sem resultado lançado — ex.:
+   adiado pela CBF e a football-data nunca reportou o placar final) fica
+   "ao vivo" pra sempre, sequestrando qualquer lógica de "qual jogo mostrar
+   por padrão" (Jogos.dataFiltro, Palpites.jogoSel) pro passado indefinidamente.
+   Usada tanto pelo polling de placar (App, mais abaixo) quanto por essas
+   duas telas. */
+const JANELA_VIVO = 4 * 60 * 60 * 1000;
+
 /* Lembrete de palpites: só jogos começando em até 26h (jogos do dia + madrugada
    seguinte). Depois de fechado, reaparece faltando 2h e depois 30min pro mais
    próximo (estágios 0=no dia, 1=2h, 2=30min). */
@@ -320,8 +329,9 @@ export default function App() {
      todos os clientes martelarem a football-data eternamente por jogos que nem
      estão acontecendo (combinado com o rate limit, derruba o placar ao vivo). */
   /* 4h dá folga pra não cortar o polling em jogos com muito acréscimo/atraso.
-     Ainda é uma janela fechada, então jogo órfão (passado sem placar) para de pollar. */
-  const JANELA_VIVO = 4 * 60 * 60 * 1000;
+     Ainda é uma janela fechada, então jogo órfão (passado sem placar) para de pollar.
+     JANELA_VIVO é a constante de módulo (topo do arquivo) — compartilhada com
+     Jogos.dataFiltro e Palpites.jogoSel. */
   const temJogoVivo = !!estado && estado.jogos.some((m) => {
     if (!m.kickoff || temResultado(m)) return false;
     const decorrido = (Date.now() + offsetRef.current) - new Date(m.kickoff).getTime();
@@ -1484,9 +1494,15 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
   const [aviso, setAviso] = useState("");
   const [dataFiltro, setDataFiltro] = useState(() => {
     const agora = Date.now() + offsetMs;
-    const aoVivo = estado.jogos.find(
-      (m) => !temResultado(m) && m.kickoff && new Date(m.kickoff).getTime() <= agora
-    );
+    /* "ao vivo" de verdade: kickoff já passou mas ainda dentro da janela de
+       4h (JANELA_VIVO). Sem esse teto, um jogo órfão (sem placar, ex.: adiado
+       pela CBF e nunca atualizado) fica "ao vivo" pra sempre e sequestra este
+       default pro passado indefinidamente. */
+    const aoVivo = estado.jogos.find((m) => {
+      if (temResultado(m) || !m.kickoff) return false;
+      const decorrido = agora - new Date(m.kickoff).getTime();
+      return decorrido >= 0 && decorrido <= JANELA_VIVO;
+    });
     if (aoVivo?.kickoff) return chaveData(aoVivo.kickoff);
     const proximo = [...estado.jogos]
       .filter((m) => !temResultado(m) && m.kickoff && new Date(m.kickoff).getTime() > agora)
@@ -1917,15 +1933,30 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
   const [jogoSel, setJogoSel] = useState(() => {
     if (jogoInicial) return String(jogoInicial);
     const agora = Date.now() + offsetMs;
-    const aoVivo = estado.jogos.find(
-      (m) => !temResultado(m) && m.kickoff && new Date(m.kickoff).getTime() <= agora
-    );
+    /* "ao vivo" de verdade: kickoff já passou mas ainda dentro da janela de
+       4h (JANELA_VIVO). Sem esse teto, um jogo órfão (sem placar, ex.: adiado
+       pela CBF e nunca atualizado) fica "ao vivo" pra sempre e sequestra este
+       default pro passado indefinidamente. */
+    const aoVivo = estado.jogos.find((m) => {
+      if (temResultado(m) || !m.kickoff) return false;
+      const decorrido = agora - new Date(m.kickoff).getTime();
+      return decorrido >= 0 && decorrido <= JANELA_VIVO;
+    });
     if (aoVivo) return String(aoVivo.id);
     const proximo = [...estado.jogos]
       .filter((m) => !temResultado(m) && m.kickoff && new Date(m.kickoff).getTime() > agora)
       .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))[0];
     if (proximo) return String(proximo.id);
-    return estado.jogos[0] ? String(estado.jogos[0].id) : "";
+    /* sem jogo ao vivo nem futuro carregado (ex.: intervalo entre uma rodada
+       terminar e a próxima ser buscada) — mostra o último jogo já concluído,
+       não o primeiro do array (que agora é o mais antigo da rodada 1, desde
+       que o histórico 2026 foi importado). `estado.jogos` vem ordenado por
+       kickoff ASC (api/estado.js), então percorrer de trás pra frente acha o
+       jogo concluído mais recente. */
+    const ultimoConcluido = [...estado.jogos].reverse().find((m) => temResultado(m));
+    if (ultimoConcluido) return String(ultimoConcluido.id);
+    const ultimo = estado.jogos[estado.jogos.length - 1];
+    return ultimo ? String(ultimo.id) : "";
   });
   const jogo = estado.jogos.find((m) => String(m.id) === String(jogoSel)) || estado.jogos[0];
 
