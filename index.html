@@ -11,8 +11,11 @@
     <link rel="manifest" href="/manifest.json" id="pwa-manifest" />
     <script>
       (function () {
+        /* SEM fallback pra localStorage de propósito (ver comentário de
+           lerToken() em src/App.jsx) — sem "?t=" na URL atual, mantém o
+           manifest genérico (start_url sem token) em vez de herdar o
+           token de outro participante testado antes nesse navegador. */
         var t = new URLSearchParams(location.search).get("t");
-        if (!t) { try { t = localStorage.getItem("bolao_token"); } catch (e) {} }
         if (t) {
           document.getElementById("pwa-manifest").href =
             "/api/manifest?t=" + encodeURIComponent(t);

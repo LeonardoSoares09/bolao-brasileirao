@@ -122,14 +122,16 @@ async function api(caminho, opts = {}) {
   return corpo;
 }
 
+/* SEM fallback pra localStorage de propósito: essa chave era global no
+   navegador (não por participante) — qualquer visita ao link de OUTRA
+   pessoa no mesmo navegador/Mac sobrescrevia o valor, e depois disso
+   qualquer acesso sem "?t=" nesse navegador virava aquela outra pessoa
+   (bug real: link padrão da Vercel abrindo no perfil de um participante
+   qualquer, no Mac do admin, que testa vários links). Sem token na URL,
+   sempre pede o link de verdade — nunca herda uma identidade errada. */
 function lerToken() {
   try {
-    const t = new URLSearchParams(window.location.search).get("t");
-    if (t) {
-      localStorage.setItem("bolao_token", t);
-      return t;
-    }
-    return localStorage.getItem("bolao_token") || "";
+    return new URLSearchParams(window.location.search).get("t") || "";
   } catch {
     return "";
   }
