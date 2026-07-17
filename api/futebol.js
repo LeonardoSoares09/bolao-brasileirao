@@ -4,7 +4,7 @@
    Somente admin. Auth via header X-Auth-Token (env FOOTBALL_DATA_KEY). */
 
 import { sql, autenticar } from "../lib/db.js";
-import { traduzirClube, pesoDoJogo } from "../lib/clubes.js";
+import { traduzirClube, pesoDoJogo, matchdayHistoricoValido } from "../lib/clubes.js";
 
 /* normaliza pra comparação: sem acento, sem caixa, sem borda */
 const norm = (s) =>
@@ -123,7 +123,16 @@ export default async function handler(req, res) {
       res.status(200).json(await acaoPlacares());
       return;
     }
-    res.status(400).json({ error: "acao inválida — use 'jogos-hoje', 'resultados' ou 'placar-vivo'" });
+    if (acao === "historico") {
+      const matchday = Number(req.query.matchday);
+      if (!matchdayHistoricoValido(matchday)) {
+        res.status(400).json({ error: "matchday inválido — use um valor entre 1 e 18" });
+        return;
+      }
+      res.status(200).json(await acaoHistorico(matchday));
+      return;
+    }
+    res.status(400).json({ error: "acao inválida — use 'jogos-hoje', 'resultados', 'historico' ou 'placar-vivo'" });
   } catch (e) {
     console.error(e);
     if (e.externo) {
@@ -225,6 +234,13 @@ export async function acaoJogosHoje() {
   const rodadaAtual = await matchdayAtual();
   if (rodadaAtual == null) return { adicionados: 0, atualizados: 0, total: 0 };
   return importarRodada(rodadaAtual, { comPlacar: false });
+}
+
+/* Importa uma rodada já disputada (1-18, o 1º turno) e já grava o placar final —
+   diferente de acaoJogosHoje, que só cadastra o confronto e deixa o placar pra
+   acaoPlacares (janela de 14 dias, não alcançaria rodadas antigas). */
+export async function acaoHistorico(matchday) {
+  return importarRodada(matchday, { comPlacar: true });
 }
 
 /* acaoPlacares: atualiza FINISHED (placar final) e IN_PLAY/PAUSED/LIVE (placar ao vivo)
