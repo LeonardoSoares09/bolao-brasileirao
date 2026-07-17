@@ -2419,7 +2419,20 @@ function Galera({ estado, ehAdmin, token, recarregar, installPrompt, onInstalled
     } catch (e) { setAviso(e.message); }
   };
 
+  /* dupla confirmação de propósito: remover apaga os palpites da pessoa
+     em cascata e não tem desfazer. Um clique sem querer no ✕ já derrubou
+     gente do bolão antes — o segundo passo (digitar o nome) trava contra
+     clique reflexo, coisa que um segundo window.confirm() não segura. */
   const remover = async (id) => {
+    const alvo = lista?.find((p) => p.id === id);
+    const nome = alvo?.nome || "esse participante";
+    if (!window.confirm(`Remover ${nome} do bolão?\n\nIsso apaga TODOS os palpites dele(a) também — não dá pra desfazer.`)) return;
+    const digitado = window.prompt(`Pra confirmar de verdade, digite o nome "${nome}":`);
+    if (digitado === null) return; // cancelou
+    if (digitado.trim().toLowerCase() !== nome.trim().toLowerCase()) {
+      setAviso("Nome não bateu — remoção cancelada.");
+      return;
+    }
     try {
       await api("/api/participante", { method: "DELETE", body: JSON.stringify({ t: token, id }) });
       carregarLista();
