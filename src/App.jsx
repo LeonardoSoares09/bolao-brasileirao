@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import {
   PTS_EXATO, PTS_RESULTADO, temPlacar, BONUS_CAMPEAO, BONUS_ARTILHEIRO,
   pontosDoPalpite, pontosComPeso, pesoDoJogo, rotuloDaFase, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate,
-  calcularDetalhamento, calcularEvolucao, contaParaRanking, RODADA_INICIO_RANKING,
+  calcularDetalhamento, calcularEvolucao, contaParaRanking, RODADA_INICIO_RANKING, rankingOficialComecou,
 } from "./ranking";
 import { TIMES, CLUBE_INFO, pesoDoJogo as pesoDoJogoBase, RODADA_HISTORICO_MAX } from "../lib/clubes.js";
 
@@ -122,16 +122,45 @@ async function api(caminho, opts = {}) {
   return corpo;
 }
 
-/* SEM fallback pra localStorage de propósito: essa chave era global no
-   navegador (não por participante) — qualquer visita ao link de OUTRA
-   pessoa no mesmo navegador/Mac sobrescrevia o valor, e depois disso
-   qualquer acesso sem "?t=" nesse navegador virava aquela outra pessoa
-   (bug real: link padrão da Vercel abrindo no perfil de um participante
-   qualquer, no Mac do admin, que testa vários links). Sem token na URL,
-   sempre pede o link de verdade — nunca herda uma identidade errada. */
+/* Fallback pra localStorage, mas com trava de segurança: só é usado se esse
+   navegador NUNCA viu mais de um token diferente. Isso resolve os dois bugs
+   reais que já aconteceram:
+   1) Sem essa trava (versão antiga): o cache era global no navegador — abrir
+      o link de QUALQUER pessoa sobrescrevia o valor, e depois disso qualquer
+      acesso sem "?t=" nesse navegador virava aquela pessoa (aconteceu no Mac
+      do admin, que testa vários links — abriu no perfil do Alonso).
+   2) Sem NENHUM fallback (correção anterior, boa demais): quem instalou o
+      app na tela de início do iPhone "desmarcando abrir como web app" conta
+      com esse cache pra abrir com o token certo (o ícone abre a URL sem
+      "?t=" na prática) — removendo o fallback, esse método parou de
+      funcionar pra todo mundo que usava assim.
+   Com a lista de tokens já vistos: um celular pessoal (só abre o próprio
+   link, sempre o mesmo token) mantém o fallback funcionando; um navegador
+   que já viu 2+ tokens diferentes (o Mac do admin) desativa o fallback
+   sozinho — nunca mais herda identidade de outra pessoa.
+   IMPORTANTE: exige a lista `bolao_tokens_vistos` EXISTIR de verdade (não só
+   cair no default "[]") — um `bolao_token` salvo de ANTES dessa lista
+   existir (cache do bug do Alonso) não é confiável por si só: pode ser
+   sobra de um navegador que já viu vários tokens, só que só o último
+   sobreviveu no storage antigo. Por segurança, esse cache legado NÃO é
+   reaproveitado — a pessoa precisa abrir o próprio link (de verdade) mais
+   uma vez pra "recadastrar" o token com segurança; a partir daí o fallback
+   volta a funcionar sozinho pro resto da vida do bolão. */
 function lerToken() {
   try {
-    return new URLSearchParams(window.location.search).get("t") || "";
+    const t = new URLSearchParams(window.location.search).get("t");
+    if (t) {
+      const vistos = JSON.parse(localStorage.getItem("bolao_tokens_vistos") || "[]");
+      if (!vistos.includes(t)) {
+        vistos.push(t);
+        localStorage.setItem("bolao_tokens_vistos", JSON.stringify(vistos));
+      }
+      localStorage.setItem("bolao_token", t);
+      return t;
+    }
+    const vistosRaw = localStorage.getItem("bolao_tokens_vistos");
+    const vistos = vistosRaw ? JSON.parse(vistosRaw) : null;
+    return vistos && vistos.length === 1 ? localStorage.getItem("bolao_token") || "" : "";
   } catch {
     return "";
   }
@@ -405,8 +434,17 @@ export default function App() {
   const antecedenciaMap = {};
   for (const r of estado.antecedenciaMedia || []) antecedenciaMap[r.participante_id] = r.segundos;
 
+  /* Ranking PROVISÓRIO até a rodada RODADA_INICIO_RANKING começar de
+     verdade (primeiro kickoff dela) — conta TUDO, incluindo a rodada 19
+     (treino), só pra dar um preview de como o ranking vai funcionar.
+     No instante em que ela começa, reseta sozinho: passa a usar só jogos
+     com contaParaRanking (rodada 19 nunca mais conta). Decisão de produto
+     2026-07-17. */
+  const rankingOficialAtivo = rankingOficialComecou(estado.jogos, Date.now() + offsetRef.current);
+  const jogosParaRanking = rankingOficialAtivo ? estado.jogos.filter(contaParaRanking) : estado.jogos;
+
   const ranking = estado.participantes
-    .map((p) => calcularStats(p, estado, palpitesMap, { jogos: estado.jogos, hojeKey, chaveData }))
+    .map((p) => calcularStats(p, estado, palpitesMap, { jogos: jogosParaRanking, hojeKey, chaveData }))
     .sort((a, b) => compararRanking(a, b, antecedenciaMap));
 
   /* Campeão do bolão: só depois que os DOIS bônus especiais são confirmados
@@ -427,7 +465,7 @@ export default function App() {
     (m) => temResultado(m) && m.kickoff && chaveData(m.kickoff) === hojeKey
   );
   if (temJogoEncerradoHoje) {
-    const jogosAntes = estado.jogos.filter(
+    const jogosAntes = jogosParaRanking.filter(
       (m) => !(m.kickoff && chaveData(m.kickoff) === hojeKey)
     );
     estado.participantes
@@ -519,6 +557,7 @@ export default function App() {
           estado={estado}
           palpitesMap={palpitesMap}
           ranking={ranking}
+          jogosParaRanking={jogosParaRanking}
         />
       )}
 
@@ -547,6 +586,7 @@ export default function App() {
           estado={estado}
           palpitesMap={palpitesMap}
           euId={estado.eu.id}
+          jogosParaRanking={jogosParaRanking}
           onFechar={() => setCampeaoModalAberto(false)}
         />
       )}
@@ -582,10 +622,11 @@ export default function App() {
             posAntes={posAntes}
             onClickParticipante={setParticipanteModal}
             palpitesMap={palpitesMap}
-            jogos={estado.jogos}
+            jogos={jogosParaRanking}
             euId={estado.eu.id}
             campeoes={campeoesDoBolao}
             onAbrirCampeao={() => setCampeaoModalAberto(true)}
+            oficialAtivo={rankingOficialAtivo}
           />
         )}
         {tab === "jogos" && (
@@ -769,12 +810,8 @@ function Podio({ top3, ranking, antecedenciaMap = {}, posAntes, onClick, euId })
   );
 }
 
-function Ranking({ ranking, antecedenciaMap = {}, temJogos, primeiraVez, aoAbrir, posAntes, onClickParticipante, palpitesMap, jogos, euId, campeoes, onAbrirCampeao }) {
+function Ranking({ ranking, antecedenciaMap = {}, temJogos, primeiraVez, aoAbrir, posAntes, onClickParticipante, palpitesMap, jogos, euId, campeoes, onAbrirCampeao, oficialAtivo }) {
   const temAoVivo = (jogos || []).some((m) => m.live && temPlacar(m));
-  /* mensagem provisória (decisão de produto 2026-07-17): a rodada 19 é
-     treino, ninguém pontua por ela ainda — some sozinha assim que o
-     primeiro jogo da rodada 20 (ou depois) tiver placar. */
-  const rankingAindaNaoComecou = !(jogos || []).some((m) => contaParaRanking(m) && temPlacar(m));
   useEffect(() => { aoAbrir(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (ranking.length === 0)
     return <Vazio texto="O organizador ainda não cadastrou os participantes." />;
@@ -792,11 +829,12 @@ function Ranking({ ranking, antecedenciaMap = {}, temJogos, primeiraVez, aoAbrir
     <div>
       {primeiraVez && ranking.some((p) => p.exatosHoje > 0) && <Confete />}
       <BannerCampeaoBolao campeoes={campeoes} onAbrir={onAbrirCampeao} />
-      {rankingAindaNaoComecou && (
+      {!oficialAtivo && (
         <div className="trava-aviso">
           <span>
-            🏆 O ranking oficial começa a valer na <strong>rodada {RODADA_INICIO_RANKING}</strong>,
-            dia 25/07/2026 às 18h30 — a rodada 19 é treino, dá pra palpitar mas ainda não pontua.
+            🏆 Ranking PROVISÓRIO — é só um preview de como vai funcionar. Na
+            rodada <strong>{RODADA_INICIO_RANKING}</strong>, dia 25/07/2026 às 18h30, tudo reseta e o
+            ranking oficial passa a valer de verdade (rodada 19 não conta mais).
           </span>
         </div>
       )}
@@ -917,9 +955,10 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos, euId }) {
   };
 
   /* inclui jogo ao vivo (temPlacar) para o último ponto bater com o ranking — M4.
-     contaParaRanking exclui a rodada 19 (treino, não pontua ainda). */
+     `jogos` já vem filtrado pelo pai conforme o ranking é provisório ou
+     oficial (ver jogosParaRanking no componente App). */
   const jogosEncerrados = jogos
-    .filter((m) => temPlacar(m) && contaParaRanking(m))
+    .filter(temPlacar)
     .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
   const temAoVivo = jogosEncerrados.some((m) => m.live);
 
@@ -1077,7 +1116,8 @@ function GraficoEvolucao({ ranking, palpitesMap, jogos, euId }) {
 function EstatisticasInutils({ ranking, palpitesMap, jogos }) {
   const [aberto, setAberto] = useState(false);
 
-  const jogosEncerrados = jogos.filter((m) => temResultado(m) && contaParaRanking(m));
+  /* `jogos` já vem filtrado pelo pai (provisório vs oficial) — ver jogosParaRanking no App. */
+  const jogosEncerrados = jogos.filter(temResultado);
   if (jogosEncerrados.length < 5 || ranking.length < 2) return null;
 
   const plural = (n) => (n === 1 ? "" : "s");
@@ -3114,7 +3154,7 @@ function BonusEspeciais({ participante, style }) {
   );
 }
 
-function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, onFechar, euId, isAdmin, estado, palpitesMap, ranking }) {
+function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, onFechar, euId, isAdmin, estado, palpitesMap, ranking, jogosParaRanking }) {
   const [emojiSel, setEmojiSel] = useState(emojiInicial || "");
   const [corSel, setCorSel] = useState(corInicial || corDoNome(nome));
   const [salvando, setSalvando] = useState(false);
@@ -3139,7 +3179,7 @@ function PerfilPicker({ nome, emoji: emojiInicial, cor: corInicial, onSalvar, on
     jogosEncerrados, temAoVivo: perfilTemAoVivo, comPalpite,
     apostasFeitas, acertosExatos, acertosResult, erros,
     aproveitamento, melhor, pior,
-  } = calcularDetalhamento(euId, estado || { jogos: [] }, palpitesMap || {});
+  } = calcularDetalhamento(euId, estado || { jogos: [] }, palpitesMap || {}, { jogos: jogosParaRanking ?? estado?.jogos });
 
   const euRanking   = ranking?.find((p) => p.id === euId);
   const posicao     = ranking ? ranking.findIndex((p) => p.id === euId) + 1 : 0;
@@ -4288,7 +4328,7 @@ function ConfeteCampeao() {
    destaque no topo (cerimônia, centralizado), e uma placa única com os dados
    embaixo (fatos, alinhado à esquerda, linhas com divisória — nada de
    cartões soltos espalhados). */
-function ModalCampeaoBolao({ campeoes, estado, palpitesMap, euId, onFechar }) {
+function ModalCampeaoBolao({ campeoes, estado, palpitesMap, euId, jogosParaRanking, onFechar }) {
   return (
     <div className="modal-overlay" onClick={onFechar}>
       <div className="modal-painel modal-campeao-bolao" onClick={(e) => e.stopPropagation()}>
@@ -4298,8 +4338,9 @@ function ModalCampeaoBolao({ campeoes, estado, palpitesMap, euId, onFechar }) {
         </div>
 
         {campeoes.map((c) => {
-          const d = calcularDetalhamento(c.id, estado, palpitesMap);
-          const evolucao = calcularEvolucao(c.id, estado, palpitesMap);
+          const jogosOpt = { jogos: jogosParaRanking ?? estado.jogos };
+          const d = calcularDetalhamento(c.id, estado, palpitesMap, jogosOpt);
+          const evolucao = calcularEvolucao(c.id, estado, palpitesMap, jogosOpt);
           return (
             <div key={c.id} className="campeao-bolao-cartao">
               <ConfeteCampeao />

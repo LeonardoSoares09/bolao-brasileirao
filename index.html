@@ -11,11 +11,18 @@
     <link rel="manifest" href="/manifest.json" id="pwa-manifest" />
     <script>
       (function () {
-        /* SEM fallback pra localStorage de propósito (ver comentário de
-           lerToken() em src/App.jsx) — sem "?t=" na URL atual, mantém o
-           manifest genérico (start_url sem token) em vez de herdar o
-           token de outro participante testado antes nesse navegador. */
+        /* Mesma trava de segurança do lerToken() em src/App.jsx: sem "?t="
+           na URL atual, só usa o último token salvo se esse navegador NUNCA
+           viu mais de um token diferente (celular pessoal = sempre 1 só;
+           navegador que testa vários links = trava sozinho). */
         var t = new URLSearchParams(location.search).get("t");
+        if (!t) {
+          try {
+            var vistosRaw = localStorage.getItem("bolao_tokens_vistos");
+            var vistos = vistosRaw ? JSON.parse(vistosRaw) : null;
+            if (vistos && vistos.length === 1) t = localStorage.getItem("bolao_token") || "";
+          } catch (e) {}
+        }
         if (t) {
           document.getElementById("pwa-manifest").href =
             "/api/manifest?t=" + encodeURIComponent(t);
