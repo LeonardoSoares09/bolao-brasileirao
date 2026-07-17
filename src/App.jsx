@@ -118,11 +118,7 @@ async function api(caminho, opts = {}) {
     ...opts,
   });
   const corpo = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    const err = new Error(corpo.error || "Erro " + r.status);
-    err.status = r.status; // 401/403 = autenticação — carregar() usa isso pra não ficar preso em cache velho
-    throw err;
-  }
+  if (!r.ok) throw new Error(corpo.error || "Erro " + r.status);
   return corpo;
 }
 
@@ -228,16 +224,7 @@ export default function App() {
       try { localStorage.setItem(`bolao-${token}`, JSON.stringify(e)); } catch { /* storage cheio */ }
       setErroAuth("");
     } catch (err) {
-      /* 401/403 = acesso revogado de verdade (bloqueio por pagamento, token
-         trocado, participante removido) — precisa aparecer mesmo se já
-         havia um estado em cache, senão o app fica mostrando dados velhos
-         pra sempre (o polling de 30s nunca atualiza erroAuth nesse caso). */
-      const acessoRevogado = err.status === 401 || err.status === 403;
-      if (acessoRevogado) {
-        setEstado(null);
-        try { localStorage.removeItem(`bolao-${token}`); } catch { /* ignora */ }
-      }
-      if (!estado || acessoRevogado) setErroAuth(err.message);
+      if (!estado) setErroAuth(err.message);
     }
   }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 

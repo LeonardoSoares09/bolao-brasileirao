@@ -4,19 +4,12 @@
    jogo começou (kickoff <= now) ou já tem resultado. Os próprios
    palpites sempre aparecem. Admin vê tudo (precisa corrigir erros). */
 
-import { sql, autenticar, motivoBloqueioPagamento } from "../lib/db.js";
+import { sql, autenticar } from "../lib/db.js";
 import { RODADA_LIMITE_ARTILHEIRO, PRAZO_PAGAMENTO_FIXO } from "../lib/clubes.js";
 
 export default async function handler(req, res) {
   const eu = await autenticar(req.query.t);
   if (!eu) {
-    /* distingue "link nunca existiu" de "bloqueado por falta de pagamento"
-       só aqui (tela inicial) — os outros endpoints ficam com a mensagem
-       genérica, sem problema: nessa altura o usuário nem chega neles. */
-    if (await motivoBloqueioPagamento(req.query.t)) {
-      res.status(403).json({ error: "Seu acesso foi bloqueado por falta de pagamento — fale com o organizador pra reativar." });
-      return;
-    }
     res.status(401).json({ error: "Link inválido — peça seu link ao organizador." });
     return;
   }
