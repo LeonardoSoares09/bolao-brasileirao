@@ -138,14 +138,28 @@ async function api(caminho, opts = {}) {
    link, sempre o mesmo token) mantém o fallback funcionando; um navegador
    que já viu 2+ tokens diferentes (o Mac do admin) desativa o fallback
    sozinho — nunca mais herda identidade de outra pessoa.
-   IMPORTANTE: exige a lista `bolao_tokens_vistos` EXISTIR de verdade (não só
-   cair no default "[]") — um `bolao_token` salvo de ANTES dessa lista
-   existir (cache do bug do Alonso) não é confiável por si só: pode ser
-   sobra de um navegador que já viu vários tokens, só que só o último
-   sobreviveu no storage antigo. Por segurança, esse cache legado NÃO é
-   reaproveitado — a pessoa precisa abrir o próprio link (de verdade) mais
-   uma vez pra "recadastrar" o token com segurança; a partir daí o fallback
-   volta a funcionar sozinho pro resto da vida do bolão. */
+   A lista `bolao_tokens_vistos` foi criada num deploy depois que muita gente
+   já usava o app — quem instalou o app na tela de início do iPhone antes disso
+   tinha só o `bolao_token` salvo, sem a lista, e o ícone (que abre sem "?t=")
+   parou de reconhecer o dono. Pra recuperar essa galera SEM reabrir a porta da
+   impersonação, a contagem de identidades distintas é reconstruída a partir das
+   chaves de cache `bolao-<token>` que já existem no storage (cada link aberto
+   deixa a sua): um celular pessoal tem exatamente 1 (seguro, reaproveita); o
+   Mac do admin tem várias (fallback continua desligado sozinho). */
+function tokensNoCache() {
+  /* tokens distintos que ESTE navegador já abriu, reconstruídos pelas chaves
+     de cache `bolao-<token>`. Exclui `bolao-tab` (preferência de aba, não é
+     token) e as chaves de underscore (`bolao_token`, `bolao_tokens_vistos`). */
+  const set = new Set();
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.slice(0, 6) === "bolao-" && k !== "bolao-tab") set.add(k.slice(6));
+    }
+  } catch { /* storage indisponível */ }
+  return set;
+}
+
 function lerToken() {
   try {
     const t = new URLSearchParams(window.location.search).get("t");
@@ -160,7 +174,21 @@ function lerToken() {
     }
     const vistosRaw = localStorage.getItem("bolao_tokens_vistos");
     const vistos = vistosRaw ? JSON.parse(vistosRaw) : null;
-    return vistos && vistos.length === 1 ? localStorage.getItem("bolao_token") || "" : "";
+    if (vistos && vistos.length === 1) return localStorage.getItem("bolao_token") || "";
+    /* legado: sem a lista (ou vazia), reconstrói pela contagem de caches.
+       Exatamente 1 identidade no storage = celular pessoal, seguro reaproveitar. */
+    const cache = tokensNoCache();
+    if (cache.size === 1) {
+      const unico = [...cache][0];
+      /* "recadastra" o token de forma autoritativa pros próximos acessos
+         (e pro index.html, que também reconstrói igual). */
+      try {
+        localStorage.setItem("bolao_token", unico);
+        localStorage.setItem("bolao_tokens_vistos", JSON.stringify([unico]));
+      } catch { /* storage cheio */ }
+      return unico;
+    }
+    return "";
   } catch {
     return "";
   }

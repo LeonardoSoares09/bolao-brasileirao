@@ -12,15 +12,27 @@
     <script>
       (function () {
         /* Mesma trava de segurança do lerToken() em src/App.jsx: sem "?t="
-           na URL atual, só usa o último token salvo se esse navegador NUNCA
-           viu mais de um token diferente (celular pessoal = sempre 1 só;
-           navegador que testa vários links = trava sozinho). */
+           na URL atual, só usa o token salvo se esse navegador NUNCA viu mais
+           de um token diferente (celular pessoal = sempre 1 só; navegador que
+           testa vários links = trava sozinho). Fallback legado: quando não há
+           a lista `bolao_tokens_vistos` (instalados antes dela existir), a
+           contagem é reconstruída pelas chaves de cache `bolao-<token>`. */
         var t = new URLSearchParams(location.search).get("t");
         if (!t) {
           try {
             var vistosRaw = localStorage.getItem("bolao_tokens_vistos");
             var vistos = vistosRaw ? JSON.parse(vistosRaw) : null;
-            if (vistos && vistos.length === 1) t = localStorage.getItem("bolao_token") || "";
+            if (vistos && vistos.length === 1) {
+              t = localStorage.getItem("bolao_token") || "";
+            } else {
+              var cache = {};
+              for (var i = 0; i < localStorage.length; i++) {
+                var k = localStorage.key(i);
+                if (k && k.slice(0, 6) === "bolao-" && k !== "bolao-tab") cache[k.slice(6)] = 1;
+              }
+              var ids = Object.keys(cache);
+              if (ids.length === 1) t = ids[0];
+            }
           } catch (e) {}
         }
         if (t) {
