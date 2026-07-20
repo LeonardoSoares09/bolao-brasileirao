@@ -5070,6 +5070,7 @@ function Estilo() {
       }
       .clube-badge-img {
         display: inline-block;
+        box-sizing: border-box;
         width: 20px;
         height: 20px;
         object-fit: contain;
@@ -5080,7 +5081,10 @@ function Estilo() {
            que some contra o tema escuro do app sem isso */
         background: rgba(255,255,255,.9);
         border-radius: 50%;
-        padding: 1px;
+        /* padding (com box-sizing) dá uma folga uniforme pra cada escudo
+           respirar dentro da bolinha — sem isso encostam/vazam na borda e
+           parecem desalinhados, porque cada SVG tem proporção diferente */
+        padding: 2.5px;
       }
 
       .jogo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
