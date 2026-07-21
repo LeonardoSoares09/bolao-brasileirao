@@ -3,7 +3,7 @@
    principal. Roda com: node src/ranking.test.mjs
    Não é parte do bundle — é uma rede de segurança do refactor. */
 
-import { pontosDoPalpite, pontosComPeso, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate, temPlacar, calcularDetalhamento, calcularEvolucao, BONUS_CAMPEAO, BONUS_ARTILHEIRO, PTS_EXATO, contaParaRanking, rankingOficialComecou } from "./ranking.js";
+import { pontosDoPalpite, pontosComPeso, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate, temPlacar, calcularDetalhamento, calcularEvolucao, calcularMomentos, BONUS_CAMPEAO, BONUS_ARTILHEIRO, PTS_EXATO, contaParaRanking, rankingOficialComecou } from "./ranking.js";
 import { pesoDaRodada, pesoDoJogo, ehClassico, matchdayHistoricoValido, RODADA_HISTORICO_MIN, RODADA_HISTORICO_MAX } from "../lib/clubes.js";
 
 let falhas = 0;
@@ -341,6 +341,107 @@ check(viuBonus, "cenario deveria ter ao menos um participante com bonus (campea/
     `modo oficial deveria ignorar a rodada 19 — esperado 2 exatos (rodada 20 + sem rodada), veio ${statsOficial.exatos}`);
   check(statsOficial.pontos === PTS_EXATO * 2,
     `pontos do modo oficial deveriam ignorar a rodada 19 — esperado ${PTS_EXATO * 2}, veio ${statsOficial.pontos}`);
+}
+
+/* ---- calcularMomentos: retrospecto pessoal ---- */
+{
+  const chaveDataM = (iso) => (iso ? iso.slice(0, 10) : "__semdata__");
+  const estadoM = {
+    participantes: [
+      { id: 1, nome: "Ana" }, { id: 2, nome: "Bruno" },
+      { id: 3, nome: "Caio" }, { id: 4, nome: "Duda" },
+    ],
+    jogos: [
+      { id: 10, casa: "GRE", fora: "INT", kickoff: "2026-08-14T18:00:00Z", gh: 2, ga: 1, live: false, peso: 1 },
+      { id: 11, casa: "FLA", fora: "PAL", kickoff: "2026-08-14T21:00:00Z", gh: 0, ga: 0, live: false, peso: 1 },
+      { id: 12, casa: "COR", fora: "SAO", kickoff: "2026-08-15T18:00:00Z", gh: 3, ga: 0, live: false, peso: 3 },
+      { id: 13, casa: "CRU", fora: "ATL", kickoff: "2026-08-16T18:00:00Z", gh: 1, ga: 1, live: false, peso: 1 },
+      { id: 14, casa: "BOT", fora: "VAS", kickoff: "2026-08-15T21:00:00Z", gh: 2, ga: 1, live: false, peso: 1 },
+    ],
+    resultadoEspecial: { campeao: { confirmado: true, valor: "FLA" }, artilheiro: { confirmado: true } },
+    palpitesCampeao: [ { participante_id: 1, selecao: "FLA" } ],
+    premiadosArtilheiro: [],
+    antecedenciaMedia: [
+      { participante_id: 1, segundos: 50000 }, // Ana: precavido
+      { participante_id: 2, segundos: 3000 },  // Bruno: afobado
+      { participante_id: 3, segundos: 20000 }, // Caio: equilibrado
+      // Duda: sem dado
+    ],
+  };
+  const palM = {
+    10: { 1: { h: 2, a: 1 }, 2: { h: 1, a: 0 }, 3: { h: 0, a: 2 } },
+    11: { 1: { h: 0, a: 0 }, 2: { h: 1, a: 1 } },
+    12: { 1: { h: 3, a: 0 }, 2: { h: 2, a: 0 }, 3: { h: 1, a: 0 }, 4: { h: 0, a: 1 } },
+    13: { 1: { h: 2, a: 0 }, 2: { h: 1, a: 1 } },
+    14: { 1: { h: 2, a: 0 }, 2: { h: 1, a: 1 }, 3: { h: 3, a: 3 }, 4: { h: 0, a: 2 } },
+  };
+  const mAna = calcularMomentos(1, estadoM, palM, { chaveData: chaveDataM });
+  check(mAna.persona.chave === "precavido", `Ana persona precavido, veio ${mAna.persona.chave}`);
+  check(calcularMomentos(2, estadoM, palM, { chaveData: chaveDataM }).persona.chave === "afobado", "Bruno = afobado");
+  check(calcularMomentos(3, estadoM, palM, { chaveData: chaveDataM }).persona.chave === "equilibrado", "Caio = equilibrado");
+  check(calcularMomentos(4, estadoM, palM, { chaveData: chaveDataM }).persona.chave === null, "Duda sem antecedência = null");
+  check(mAna.cravadas.exatos === 3, `Ana exatos 3, veio ${mAna.cravadas.exatos}`);
+  check(mAna.cravadas.resultados === 1, `Ana resultados 1, veio ${mAna.cravadas.resultados}`);
+  check(mAna.melhorPior.melhor && mAna.melhorPior.melhor.jogo.id === 12, "melhor = jogo 12 (peso 3)");
+  check(mAna.melhorPior.pior && mAna.melhorPior.pior.jogo.id === 13, "pior = jogo 13 (erro)");
+  check(mAna.evolucao.length === 5, `evolução 5 jogos, veio ${mAna.evolucao.length}`);
+  check(mAna.final && mAna.final.pos === 1, "Ana termina em 1º");
+  check(mAna.final.total === 4, "total 4 participantes");
+  check(mAna.final.acertouCampeao === true, "Ana acertou o campeão");
+  check(mAna.arrancada && mAna.arrancada.dataKey === "2026-08-15", `arrancada 2026-08-15, veio ${mAna.arrancada && mAna.arrancada.dataKey}`);
+  check(mAna.arrancada.pts === 10, `arrancada.pts 10, veio ${mAna.arrancada.pts}`);
+  check(mAna.arrancada.nJogos === 2, `arrancada.nJogos 2, veio ${mAna.arrancada.nJogos}`);
+  check(mAna.coragem && mAna.coragem.jogo.id === 12, `coragem jogo 12, veio ${mAna.coragem && mAna.coragem.jogo.id}`);
+  check(mAna.coragem.sameCount === 0, `coragem.sameCount 0, veio ${mAna.coragem.sameCount}`);
+  check(mAna.coragem.totalG === 4, `coragem.totalG 4, veio ${mAna.coragem.totalG}`);
+  const mDuda = calcularMomentos(4, estadoM, palM, { chaveData: chaveDataM });
+  check(mDuda.melhorPior.melhor === null, "Duda sem acerto positivo → melhor null");
+  check(mDuda.cravadas.exatos === 0, "Duda 0 exatos");
+  check(mDuda.arrancada === null, "Duda sem pontuar → arrancada null");
+
+  // opts.jogos filtra (regra rodada 20): excluindo o jogo 12, ele some de tudo.
+  const mFiltrado = calcularMomentos(1, estadoM, palM, { jogos: estadoM.jogos.filter((j) => j.id !== 12), chaveData: chaveDataM });
+  check(mFiltrado.cravadas.exatos === 2, `com jogo 12 fora, Ana exatos 2, veio ${mFiltrado.cravadas.exatos}`);
+  check(mFiltrado.melhorPior.melhor && mFiltrado.melhorPior.melhor.jogo.id !== 12, "com jogo 12 fora, melhor não é o 12");
+  check(mFiltrado.jogosContados === 4, `com jogo 12 fora, 4 jogos contados, veio ${mFiltrado.jogosContados}`);
+}
+
+/* ---- coragem: null quando não há plateia suficiente (totalG < 4) ---- */
+{
+  const chaveDataM = (iso) => (iso ? iso.slice(0, 10) : "__semdata__");
+  const est2 = {
+    participantes: [{ id: 1, nome: "A" }, { id: 2, nome: "B" }, { id: 3, nome: "C" }],
+    jogos: [{ id: 1, casa: "X", fora: "Y", kickoff: "2026-08-14T18:00:00Z", gh: 2, ga: 1, live: false, peso: 1 }],
+    resultadoEspecial: { campeao: { confirmado: false }, artilheiro: { confirmado: false } },
+    palpitesCampeao: [], premiadosArtilheiro: [], antecedenciaMedia: [],
+  };
+  const pal2 = { 1: { 1: { h: 2, a: 1 }, 2: { h: 1, a: 0 }, 3: { h: 0, a: 1 } } };
+  const m2 = calcularMomentos(1, est2, pal2, { chaveData: chaveDataM });
+  check(m2.coragem === null, "coragem null quando só 3 palpitaram (totalG < 4)");
+}
+
+/* ---- coragem: desempate por totalG quando sameCount e exato empatam ---- */
+{
+  const cd = (iso) => (iso ? iso.slice(0, 10) : "__semdata__");
+  const est3 = {
+    participantes: [
+      { id: 1, nome: "A" }, { id: 2, nome: "B" }, { id: 3, nome: "C" },
+      { id: 4, nome: "D" }, { id: 5, nome: "E" },
+    ],
+    jogos: [
+      { id: 20, casa: "P", fora: "Q", kickoff: "2026-08-20T18:00:00Z", gh: 1, ga: 0, live: false, peso: 1 },
+      { id: 21, casa: "R", fora: "S", kickoff: "2026-08-21T18:00:00Z", gh: 2, ga: 0, live: false, peso: 1 },
+    ],
+    resultadoEspecial: { campeao: { confirmado: false }, artilheiro: { confirmado: false } },
+    palpitesCampeao: [], premiadosArtilheiro: [], antecedenciaMedia: [],
+  };
+  const pal3 = {
+    20: { 1: { h: 1, a: 0 }, 2: { h: 0, a: 1 }, 3: { h: 2, a: 2 }, 4: { h: 0, a: 0 } },
+    21: { 1: { h: 2, a: 0 }, 2: { h: 1, a: 1 }, 3: { h: 0, a: 2 }, 4: { h: 3, a: 3 }, 5: { h: 1, a: 0 } },
+  };
+  const m3 = calcularMomentos(1, est3, pal3, { chaveData: cd });
+  check(m3.coragem && m3.coragem.jogo.id === 21, `desempate por totalG → jogo 21, veio ${m3.coragem && m3.coragem.jogo.id}`);
+  check(m3.coragem.totalG === 5, `coragem.totalG 5, veio ${m3.coragem && m3.coragem.totalG}`);
 }
 
 if (falhas === 0) console.log("✓ ranking.test.mjs — todos os cenários passaram (novo == antigo + alinhamento M4 + escala de peso)");
