@@ -5,7 +5,7 @@
    palpites sempre aparecem. Admin vê tudo (precisa corrigir erros). */
 
 import { sql, autenticar } from "../lib/db.js";
-import { RODADA_LIMITE_ARTILHEIRO, PRAZO_PAGAMENTO_FIXO } from "../lib/clubes.js";
+import { PRAZO_PAGAMENTO_FIXO, PRAZO_ARTILHEIRO_FIXO } from "../lib/clubes.js";
 
 export default async function handler(req, res) {
   const eu = await autenticar(req.query.t);
@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const [participantes, jogos, contagens, palpitesCampeao, palpitesArtilheiro, resultadoEspecialRows, premiadosArtilheiro, antecedenciaRows, reacoesRows, configRows, prazoRows] = await Promise.all([
+  const [participantes, jogos, contagens, palpitesCampeao, palpitesArtilheiro, resultadoEspecialRows, premiadosArtilheiro, antecedenciaRows, reacoesRows, configRows] = await Promise.all([
     sql`SELECT id, nome, is_admin, avatar_emoji, avatar_cor, pagou FROM participantes ORDER BY nome`,
     sql`SELECT id, casa, fora, kickoff, gh, ga, rodada, peso, live FROM jogos ORDER BY kickoff NULLS LAST, id`,
     sql`SELECT jogo_id, COUNT(*)::int AS total FROM palpites GROUP BY jogo_id`,
@@ -45,10 +45,6 @@ export default async function handler(req, res) {
     /* dados "ao vivo" administrados pelo admin: gols atuais dos artilheiros
        escolhidos e times marcados como fora da disputa pelo título. */
     sql`SELECT chave, valor FROM config WHERE chave IN ('artilheiro_gols', 'times_fora_disputa')`,
-    /* prazo do palpite de artilheiro — trava no kickoff do 1º jogo da rodada
-       RODADA_LIMITE_ARTILHEIRO. NULL se essa rodada ainda não foi cadastrada
-       (cron ainda não chegou nela). */
-    sql`SELECT MIN(kickoff) AS inicio FROM jogos WHERE rodada = ${RODADA_LIMITE_ARTILHEIRO}`,
   ]);
 
   const cfg = {};
@@ -87,8 +83,8 @@ export default async function handler(req, res) {
     resultadoEspecial: { campeao: reMap.campeao || null, artilheiro: reMap.artilheiro || null },
     artilheiroGols: cfg.artilheiro_gols && typeof cfg.artilheiro_gols === "object" ? cfg.artilheiro_gols : {},
     timesForaDaDisputa: Array.isArray(cfg.times_fora_disputa) ? cfg.times_fora_disputa : [],
-    prazoBonus: prazoRows[0]?.inicio ? new Date(prazoRows[0].inicio).toISOString() : null,
-    /* data fixa (não depende de jogos cadastrados) — ver PRAZO_PAGAMENTO_FIXO em lib/clubes.js */
+    /* datas fixas (não dependem de jogos cadastrados) — ver lib/clubes.js */
+    prazoBonus: new Date(PRAZO_ARTILHEIRO_FIXO).toISOString(),
     prazoPagamento: new Date(PRAZO_PAGAMENTO_FIXO).toISOString(),
     agora: new Date().toISOString(),
   });

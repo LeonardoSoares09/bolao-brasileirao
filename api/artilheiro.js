@@ -2,17 +2,15 @@
    GET  ?t=TOKEN          → palpite próprio + todos os confirmados
    POST { t, jogador }    → salva/atualiza (só se não confirmado e prazo aberto)
    PUT  { t }             → confirma e trava para sempre (só se prazo aberto)
-   Prazo: trava no kickoff do 1º jogo da rodada RODADA_LIMITE_ARTILHEIRO —
-   depois disso nem escolher nem confirmar é mais aceito, mesmo que o
-   participante nunca tenha escolhido nada. */
+   Prazo: mesma data fixa do pagamento (PRAZO_ARTILHEIRO_FIXO) — depois disso
+   nem escolher nem confirmar é mais aceito, mesmo que o participante nunca
+   tenha escolhido nada. */
 
 import { sql, autenticar } from "../lib/db.js";
-import { RODADA_LIMITE_ARTILHEIRO } from "../lib/clubes.js";
+import { PRAZO_ARTILHEIRO_FIXO } from "../lib/clubes.js";
 
-async function prazoEncerrado() {
-  const rows = await sql`SELECT MIN(kickoff) AS inicio FROM jogos WHERE rodada = ${RODADA_LIMITE_ARTILHEIRO}`;
-  const inicio = rows[0]?.inicio;
-  return !!inicio && new Date(inicio).getTime() <= Date.now();
+function prazoEncerrado() {
+  return new Date(PRAZO_ARTILHEIRO_FIXO).getTime() <= Date.now();
 }
 
 export default async function handler(req, res) {
@@ -51,8 +49,8 @@ export default async function handler(req, res) {
       res.status(400).json({ error: "Token mestre não participa do bolão" });
       return;
     }
-    if (await prazoEncerrado()) {
-      res.status(403).json({ error: `Prazo encerrado — o palpite de artilheiro travou no início da rodada ${RODADA_LIMITE_ARTILHEIRO}.` });
+    if (prazoEncerrado()) {
+      res.status(403).json({ error: "Prazo encerrado — o palpite de artilheiro travou junto com o prazo de pagamento." });
       return;
     }
 
@@ -86,8 +84,8 @@ export default async function handler(req, res) {
       res.status(400).json({ error: "Token mestre não participa do bolão" });
       return;
     }
-    if (await prazoEncerrado()) {
-      res.status(403).json({ error: `Prazo encerrado — o palpite de artilheiro travou no início da rodada ${RODADA_LIMITE_ARTILHEIRO}.` });
+    if (prazoEncerrado()) {
+      res.status(403).json({ error: "Prazo encerrado — o palpite de artilheiro travou junto com o prazo de pagamento." });
       return;
     }
 
