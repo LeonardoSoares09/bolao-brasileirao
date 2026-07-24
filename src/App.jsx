@@ -255,7 +255,7 @@ export default function App() {
   const [abrirRegras, setAbrirRegras] = useState(false);
   const [abrirPerfilObrigatorio, setAbrirPerfilObrigatorio] = useState(false);
   const [abrirPagamento, setAbrirPagamento] = useState(false);
-  const [abrirArtilheiro, setAbrirArtilheiro] = useState(false);
+  const [abrirBonus, setAbrirBonus] = useState(false);
   const [abrirLembrete, setAbrirLembrete] = useState(false);
   const [participanteModal, setParticipanteModal] = useState(null);
   const [campeaoModalAberto, setCampeaoModalAberto] = useState(false);
@@ -266,7 +266,7 @@ export default function App() {
   const offsetRef = useRef(0);
   const rankingJaAbriu = useRef(false);
   const pagamentoVerificado = useRef(false);
-  const artilheiroVerificado = useRef(false);
+  const bonusVerificado = useRef(false);
   const perfilVerificado = useRef(false);
   /* estágio de lembrete já fechado por jogo — SÓ nesta sessão (em memória).
      Reabrir/recarregar o app zera, então o popup volta a aparecer. Os limiares
@@ -316,29 +316,32 @@ export default function App() {
     if (euP && !euP.pagou && !estado.eu.isAdmin) setAbrirPagamento(true);
   }, [estado, abrirPerfilObrigatorio]);
 
-  /* abre popup de artilheiro pendente na primeira carga, uma vez por sessão —
-     só se o prazo (kickoff do 1º jogo da rodada limite) ainda não passou; se
-     já passou, o palpite está travado mesmo e o popup não ajuda em nada. */
+  /* abre popup de bônus pendente (campeão e/ou artilheiro) na primeira carga,
+     uma vez por sessão. Campeão não tem prazo (só trava ao confirmar), então
+     conta como pendente enquanto não confirmado. Artilheiro só conta como
+     pendente se o prazo (PRAZO_ARTILHEIRO_FIXO) ainda não passou — depois
+     disso o palpite já está travado mesmo e o popup não ajuda em nada. */
   useEffect(() => {
-    if (!estado || artilheiroVerificado.current || abrirPerfilObrigatorio) return;
-    artilheiroVerificado.current = true;
-    if (estado.eu.isAdmin || !estado.prazoBonus) return;
-    if (new Date(estado.prazoBonus).getTime() <= Date.now() + offsetRef.current) return;
+    if (!estado || bonusVerificado.current || abrirPerfilObrigatorio) return;
+    bonusVerificado.current = true;
+    if (estado.eu.isAdmin) return;
+    const confirmouCampeao = (estado.palpitesCampeao || []).some((p) => p.participante_id === estado.eu.id);
     const confirmouArt = (estado.palpitesArtilheiro || []).some((p) => p.participante_id === estado.eu.id);
-    if (!confirmouArt) setAbrirArtilheiro(true);
+    const prazoArtAberto = !!estado.prazoBonus && new Date(estado.prazoBonus).getTime() > Date.now() + offsetRef.current;
+    if (!confirmouCampeao || (!confirmouArt && prazoArtAberto)) setAbrirBonus(true);
   }, [estado, abrirPerfilObrigatorio]);
 
   /* lembrete de palpites: abre quando o estágio de urgência do jogo pendente
      mais próximo ultrapassa o que o usuário já fechou. Reavalia na carga e a
      cada tick (30s), então escalona sozinho para 2h e 30min. Perfil,
-     pagamento e artilheiro têm prioridade (não empilha). */
+     pagamento e bônus têm prioridade (não empilha). */
   useEffect(() => {
-    if (!estado || abrirPerfilObrigatorio || abrirPagamento || abrirArtilheiro || abrirLembrete) return;
+    if (!estado || abrirPerfilObrigatorio || abrirPagamento || abrirBonus || abrirLembrete) return;
     const { nearest, stage } = analisarLembrete(estado, Date.now() + offsetRef.current);
     if (!nearest || stage < 0) return;
     const jaFechado = lembreteDismiss.current[nearest.id] ?? -1;
     if (stage > jaFechado) setAbrirLembrete(true);
-  }, [estado, tick, abrirPerfilObrigatorio, abrirPagamento, abrirArtilheiro, abrirLembrete]);
+  }, [estado, tick, abrirPerfilObrigatorio, abrirPagamento, abrirBonus, abrirLembrete]);
 
   const fecharLembrete = useCallback(() => {
     setAbrirLembrete(false);
@@ -560,14 +563,24 @@ export default function App() {
         />
       )}
       {abrirPagamento && !abrirPerfilObrigatorio && <ModalPagamento onFechar={() => setAbrirPagamento(false)} prazo={estado.prazoPagamento} />}
-      {abrirArtilheiro && !abrirPerfilObrigatorio && !abrirPagamento && estado.prazoBonus && (
-        <ModalArtilheiroLembrete
-          prazo={estado.prazoBonus}
-          onFechar={() => setAbrirArtilheiro(false)}
-          onEscolher={() => { setAbrirArtilheiro(false); setTab("campeao"); }}
-        />
-      )}
-      {abrirLembrete && !abrirPerfilObrigatorio && !abrirPagamento && !abrirArtilheiro && (() => {
+      {abrirBonus && !abrirPerfilObrigatorio && !abrirPagamento && (() => {
+        const confirmouCampeao = (estado.palpitesCampeao || []).some((p) => p.participante_id === estado.eu.id);
+        const confirmouArt = (estado.palpitesArtilheiro || []).some((p) => p.participante_id === estado.eu.id);
+        const prazoArtAberto = !!estado.prazoBonus && new Date(estado.prazoBonus).getTime() > Date.now() + offsetRef.current;
+        const faltaCampeao = !confirmouCampeao;
+        const faltaArtilheiro = !confirmouArt && prazoArtAberto;
+        if (!faltaCampeao && !faltaArtilheiro) return null;
+        return (
+          <ModalBonusLembrete
+            faltaCampeao={faltaCampeao}
+            faltaArtilheiro={faltaArtilheiro}
+            prazo={faltaArtilheiro ? estado.prazoBonus : null}
+            onFechar={() => setAbrirBonus(false)}
+            onEscolher={() => { setAbrirBonus(false); setTab("campeao"); }}
+          />
+        );
+      })()}
+      {abrirLembrete && !abrirPerfilObrigatorio && !abrirPagamento && !abrirBonus && (() => {
         const { pendentes, nearest } = analisarLembrete(estado, Date.now() + offsetRef.current);
         return nearest ? (
           <ModalLembretePalpites
@@ -3997,13 +4010,13 @@ function ModalLembretePalpites({ pendentes, nearest, offsetMs, onPalpitar, onFec
   );
 }
 
-/* ================= MODAL LEMBRETE DE ARTILHEIRO ================= */
+/* ================= MODAL LEMBRETE DE BÔNUS (CAMPEÃO / ARTILHEIRO) ================= */
 
-function ModalArtilheiroLembrete({ onFechar, onEscolher, prazo }) {
-  const deadlineMs = new Date(prazo).getTime();
-  const [seg, setSeg] = useState(() => Math.max(0, Math.floor((deadlineMs - Date.now()) / 1000)));
+function ModalBonusLembrete({ onFechar, onEscolher, faltaCampeao, faltaArtilheiro, prazo }) {
+  const deadlineMs = prazo ? new Date(prazo).getTime() : null;
+  const [seg, setSeg] = useState(() => (deadlineMs ? Math.max(0, Math.floor((deadlineMs - Date.now()) / 1000)) : 0));
   useEffect(() => {
-    if (seg <= 0) return;
+    if (!deadlineMs || seg <= 0) return;
     const id = setInterval(() => setSeg(Math.max(0, Math.floor((deadlineMs - Date.now()) / 1000))), 1000);
     return () => clearInterval(id);
   }, [deadlineMs]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -4013,23 +4026,35 @@ function ModalArtilheiroLembrete({ onFechar, onEscolher, prazo }) {
   const m = Math.floor((seg % 3600) / 60);
   const s = seg % 60;
 
+  const titulo = faltaCampeao && faltaArtilheiro
+    ? "🏆 Escolha seu campeão e artilheiro!"
+    : faltaCampeao
+    ? "🏆 Escolha seu time campeão!"
+    : "⚽ Escolha seu artilheiro!";
+
+  const aviso = faltaCampeao && faltaArtilheiro
+    ? "Você ainda não escolheu seu time campeão nem confirmou seu artilheiro do turno."
+    : faltaCampeao
+    ? "Você ainda não escolheu seu time campeão do turno."
+    : "Você ainda não confirmou seu palpite de artilheiro do turno.";
+
   return (
     <div className="modal-overlay" onClick={onFechar}>
       <div className="modal-painel modal-pagamento" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-nome">⚽ Escolha seu artilheiro!</div>
+          <div className="modal-nome">{titulo}</div>
           <button className="apagar" onClick={onFechar} aria-label="Fechar">✕</button>
         </div>
 
         <div className="pagamento-corpo">
           <p className="pagamento-aviso">
-            Você ainda não confirmou seu palpite de artilheiro do turno.<br/>
-            Depois do prazo, ninguém mais consegue escolher ou trocar!
+            {aviso}<br/>
+            {faltaArtilheiro ? "Depois do prazo, ninguém mais consegue escolher ou trocar o artilheiro!" : "Dá pra trocar quantas vezes quiser até confirmar."}
           </p>
 
-          {seg > 0 && (
+          {deadlineMs && seg > 0 && (
             <div className="pagamento-timer">
-              <span className="timer-label">⏰ Prazo encerra em</span>
+              <span className="timer-label">⏰ Prazo do artilheiro encerra em</span>
               <div className="timer-display">
                 <span className="timer-bloco"><span className="timer-num">{pad(h)}</span><span className="timer-unidade">h</span></span>
                 <span className="timer-sep">:</span>
