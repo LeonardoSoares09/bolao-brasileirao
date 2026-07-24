@@ -266,7 +266,7 @@ export default function App() {
   const offsetRef = useRef(0);
   const rankingJaAbriu = useRef(false);
   const pagamentoVerificado = useRef(false);
-  const bonusVerificado = useRef(false);
+  const bonusDispensado = useRef(false);
   const perfilVerificado = useRef(false);
   /* estágio de lembrete já fechado por jogo — SÓ nesta sessão (em memória).
      Reabrir/recarregar o app zera, então o popup volta a aparecer. Os limiares
@@ -316,25 +316,44 @@ export default function App() {
     if (euP && !euP.pagou && !estado.eu.isAdmin) setAbrirPagamento(true);
   }, [estado, abrirPerfilObrigatorio]);
 
-  /* abre popup de bônus pendente (campeão e/ou artilheiro) na primeira carga,
-     uma vez por sessão. Campeão não tem prazo (só trava ao confirmar), então
-     conta como pendente enquanto não confirmado. Artilheiro só conta como
-     pendente se o prazo (PRAZO_ARTILHEIRO_FIXO) ainda não passou — depois
-     disso o palpite já está travado mesmo e o popup não ajuda em nada. */
+  /* abre popup de bônus pendente (campeão e/ou artilheiro), uma vez por
+     sessão. Campeão não tem prazo (só trava ao confirmar), então conta como
+     pendente enquanto não confirmado. Artilheiro só conta como pendente se o
+     prazo (PRAZO_ARTILHEIRO_FIXO) ainda não passou — depois disso o palpite
+     já está travado mesmo e o popup não ajuda em nada.
+     NÃO abre (e reavalia a cada tick, tentando de novo depois) se tem jogo
+     perto do kickoff (stage >= 1, dentro de 2h) esperando palpite — o
+     lembrete de palpite é mais urgente e não pode ser atropelado pelo bônus,
+     que pode esperar. Uma vez mostrado (ou dispensado pelo usuário), some
+     pro resto da sessão via bonusDispensado. */
   useEffect(() => {
-    if (!estado || bonusVerificado.current || abrirPerfilObrigatorio) return;
-    bonusVerificado.current = true;
-    if (estado.eu.isAdmin) return;
+    if (!estado || bonusDispensado.current || abrirPerfilObrigatorio || abrirPagamento || abrirBonus || abrirLembrete) return;
+    if (estado.eu.isAdmin) { bonusDispensado.current = true; return; }
     const confirmouCampeao = (estado.palpitesCampeao || []).some((p) => p.participante_id === estado.eu.id);
     const confirmouArt = (estado.palpitesArtilheiro || []).some((p) => p.participante_id === estado.eu.id);
     const prazoArtAberto = !!estado.prazoBonus && new Date(estado.prazoBonus).getTime() > Date.now() + offsetRef.current;
-    if (!confirmouCampeao || (!confirmouArt && prazoArtAberto)) setAbrirBonus(true);
-  }, [estado, abrirPerfilObrigatorio]);
+    const pendente = !confirmouCampeao || (!confirmouArt && prazoArtAberto);
+    if (!pendente) { bonusDispensado.current = true; return; }
+    const { stage } = analisarLembrete(estado, Date.now() + offsetRef.current);
+    if (stage >= 1) return; // jogo perto do kickoff — tenta o bônus de novo no próximo tick
+    setAbrirBonus(true);
+  }, [estado, tick, abrirPerfilObrigatorio, abrirPagamento, abrirBonus, abrirLembrete]);
+
+  /* se um jogo pendente ficar urgente (stage >= 1) enquanto o popup de bônus
+     está aberto, fecha ele na hora pra dar lugar ao lembrete de palpite —
+     sem marcar bonusDispensado, então o bônus volta a ser oferecido depois
+     que a urgência passar (usuário palpitou ou o jogo começou). */
+  useEffect(() => {
+    if (!abrirBonus || !estado) return;
+    const { stage } = analisarLembrete(estado, Date.now() + offsetRef.current);
+    if (stage >= 1) setAbrirBonus(false);
+  }, [tick, abrirBonus, estado]);
 
   /* lembrete de palpites: abre quando o estágio de urgência do jogo pendente
      mais próximo ultrapassa o que o usuário já fechou. Reavalia na carga e a
-     cada tick (30s), então escalona sozinho para 2h e 30min. Perfil,
-     pagamento e bônus têm prioridade (não empilha). */
+     cada tick (30s), então escalona sozinho para 2h e 30min. Perfil e
+     pagamento têm prioridade (não empilha); bônus nunca segura esse
+     lembrete quando o jogo está perto (ver efeitos acima). */
   useEffect(() => {
     if (!estado || abrirPerfilObrigatorio || abrirPagamento || abrirBonus || abrirLembrete) return;
     const { nearest, stage } = analisarLembrete(estado, Date.now() + offsetRef.current);
@@ -575,8 +594,8 @@ export default function App() {
             faltaCampeao={faltaCampeao}
             faltaArtilheiro={faltaArtilheiro}
             prazo={faltaArtilheiro ? estado.prazoBonus : null}
-            onFechar={() => setAbrirBonus(false)}
-            onEscolher={() => { setAbrirBonus(false); setTab("campeao"); }}
+            onFechar={() => { bonusDispensado.current = true; setAbrirBonus(false); }}
+            onEscolher={() => { bonusDispensado.current = true; setAbrirBonus(false); setTab("campeao"); }}
           />
         );
       })()}
