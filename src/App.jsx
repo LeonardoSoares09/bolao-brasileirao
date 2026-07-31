@@ -2117,7 +2117,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                     aria-pressed={filtro === c.id}
                     title={c.title}
                   >
-                    <span aria-hidden="true">{c.icone}</span>
+                    <span className="nav-chip-i" aria-hidden="true">{c.icone}</span>
                     <span className="nav-chip-n">{c.n}</span>
                     {c.texto}
                   </button>
@@ -5785,16 +5785,38 @@ function Estilo() {
 
       /* filtro de adiados: irmão do "Ao vivo", mas apagado — é arquivo, não
          urgência. Ativo herda o âmbar dos outros estados de espera. */
-      /* linha de filtros, logo abaixo do carrossel de datas — ver comentário no
-         JSX: dentro da barra, qualquer chip cortava o label do dia.
-         wrap porque a quantidade de chips varia com o estado do campeonato. */
+      /* Linha de filtros, logo abaixo do carrossel de datas — dentro da barra,
+         qualquer chip cortava o label do dia (medido).
+         ROLAGEM HORIZONTAL, não wrap: os 4 chips somam ~406px contra 328px
+         úteis num celular de 360px, então nunca cabem numa linha. Com wrap a
+         linha quebrava e sobrava um chip solto embaixo, desalinhado; rolando,
+         é sempre uma linha só e a quantidade de chips deixa de importar. O
+         chip cortado na borda é a própria dica de que há mais ao lado.
+         Alinhado à ESQUERDA pra bater com a margem dos cards de jogo. */
       .nav-filtros {
-        display: flex; flex-wrap: wrap; justify-content: flex-end;
-        gap: 7px; margin: -6px 0 12px;
+        display: flex; flex-wrap: nowrap; gap: 6px; margin: -6px 0 12px;
+        overflow-x: auto; overflow-y: hidden;
+        scrollbar-width: none; -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x proximity;
+        /* respiro pra sombra/foco não serem cortados pelo overflow */
+        padding: 2px 0;
+        /* Esmaecimento na borda direita = a dica de que há mais ao lado.
+           Só cortar o chip não bastava: medido, sobravam 9px do próximo, que
+           ninguém lê como "dá pra rolar". Quando os chips cabem inteiros a
+           faixa esmaecida cai em espaço vazio e não aparece nada — então não
+           precisa saber se rola: o efeito se anula sozinho.
+           -webkit- junto por causa do Safari/iOS, que é onde o app mais roda. */
+        -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent);
+        mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent);
       }
+      .nav-filtros::-webkit-scrollbar { display: none; }
       .nav-chip {
-        flex: none; display: inline-flex; align-items: center; gap: 5px;
-        padding: 5px 11px; border-radius: 999px;
+        flex: none; scroll-snap-align: start;
+        display: inline-flex; align-items: center; gap: 5px;
+        /* padding enxuto de propósito: com 11px, o 4º chip ficava 100% fora da
+           tela e nada indicava que dava pra rolar. Com 9px sobra borda dele
+           aparecendo, que é a dica visual de que há mais ao lado. */
+        padding: 5px 9px; border-radius: 999px;
         background: rgba(0,0,0,.3); border: 1.5px dashed rgba(255,255,255,.25);
         color: rgba(255,255,255,.55); cursor: pointer; white-space: nowrap;
         font-size: 12px; line-height: 1;
@@ -5804,6 +5826,13 @@ function Estilo() {
       .nav-chip-ativo {
         border-style: solid; border-color: var(--ambar); color: var(--ambar);
         background: rgba(255,197,61,.12);
+      }
+      /* caixa fixa pro ícone: ⏳, 🎯, ⚔️ e ✍️ têm larguras diferentes, e sem
+         isso o número e o texto começam em posições distintas em cada chip —
+         era o que deixava a fileira com cara de desalinhada. */
+      .nav-chip-i {
+        flex: none; width: 15px; text-align: center;
+        font-size: 12px; line-height: 1;
       }
       .nav-chip-n {
         font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700;
