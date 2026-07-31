@@ -5,7 +5,7 @@ import {
   pontosDoPalpite, pontosComPeso, pesoDoJogo, rotuloDaFase, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate,
   calcularDetalhamento, calcularEvolucao, calcularMomentos, contaParaRanking, RODADA_INICIO_RANKING, rankingOficialComecou,
 } from "./ranking";
-import { TIMES, CLUBE_INFO, pesoDoJogo as pesoDoJogoBase, RODADA_HISTORICO_MAX } from "../lib/clubes.js";
+import { TIMES, CLUBE_INFO, pesoDoJogo as pesoDoJogoBase, RODADA_HISTORICO_MAX, jogoAdiado } from "../lib/clubes.js";
 
 /* ============================================================
    BOLÃO DOS GURIS — Brasileirão 2026/2 (Vercel + Neon)
@@ -557,7 +557,7 @@ export default function App() {
   const jogosParaRanking = rankingOficialAtivo ? estado.jogos.filter(contaParaRanking) : estado.jogos;
 
   const ranking = estado.participantes
-    .map((p) => calcularStats(p, estado, palpitesMap, { jogos: jogosParaRanking, hojeKey, chaveData }))
+    .map((p) => calcularStats(p, estado, palpitesMap, { jogos: jogosParaRanking, hojeKey, chaveData: chaveDia }))
     .sort((a, b) => compararRanking(a, b, antecedenciaMap));
 
   /* Campeão do bolão: só depois que os DOIS bônus especiais são confirmados
@@ -575,11 +575,11 @@ export default function App() {
      gerava setas ↑/↓ falsas entre empatados — item M2 do review. */
   const posAntes = {};
   const temJogoEncerradoHoje = estado.jogos.some(
-    (m) => temResultado(m) && m.kickoff && chaveData(m.kickoff) === hojeKey
+    (m) => temResultado(m) && m.kickoff && chaveDia(m.kickoff) === hojeKey
   );
   if (temJogoEncerradoHoje) {
     const jogosAntes = jogosParaRanking.filter(
-      (m) => !(m.kickoff && chaveData(m.kickoff) === hojeKey)
+      (m) => !(m.kickoff && chaveDia(m.kickoff) === hojeKey)
     );
     estado.participantes
       .map((p) => calcularStats(p, estado, palpitesMap, { jogos: jogosAntes }))
@@ -1439,9 +1439,21 @@ const fmtSP = (ts) =>
     year: "numeric", month: "2-digit", day: "2-digit",
   }).format(new Date(ts));
 
-const chaveData = (iso) => (iso ? fmtSP(new Date(iso).getTime()) : "__semdata__");
+/* Jogo adiado tem chave própria (não cai em "__semdata__") porque o motivo de
+   não ter data é outro: "sem data" é cadastro manual incompleto do admin,
+   "adiado" é partida remarcada pela CBF que ainda vai valer. O grupo dos
+   adiados é fixado no FIM da lista por ordenarGrupos. */
+const CHAVE_ADIADO = "__adiado__";
+
+/* dia (yyyy-mm-dd em SP) de um ISO — usado por quem já sabe que o jogo tem
+   data e só quer comparar dias entre si */
+const chaveDia = (iso) => (iso ? fmtSP(new Date(iso).getTime()) : "__semdata__");
+
+/* chave de agrupamento de um JOGO — leva o status em conta */
+const chaveGrupo = (m) => (jogoAdiado(m) ? CHAVE_ADIADO : chaveDia(m.kickoff));
 
 const labelData = (chave, offsetMs = 0) => {
+  if (chave === CHAVE_ADIADO) return "⏳ Adiados · aguardando nova data";
   if (chave === "__semdata__") return "Sem data definida";
   const agora = Date.now() + offsetMs;
   if (chave === fmtSP(agora))              return `Hoje · ${chave.slice(8)}/${chave.slice(5, 7)}`;
@@ -1453,12 +1465,24 @@ const labelData = (chave, offsetMs = 0) => {
 const agruparPorData = (jogos) => {
   const grupos = new Map();
   for (const m of jogos) {
-    const chave = chaveData(m.kickoff);
+    const chave = chaveGrupo(m);
     if (!grupos.has(chave)) grupos.set(chave, []);
     grupos.get(chave).push(m);
   }
-  return [...grupos.entries()];
+  return ordenarGrupos([...grupos.entries()]);
 };
+
+/* Ordem dos grupos: datas em ordem cronológica, depois "sem data", e os
+   adiados por último — são os que estão parados esperando remarcação e não
+   devem competir por atenção com a próxima rodada. */
+const pesoChaveGrupo = (c) => (c === CHAVE_ADIADO ? 2 : c === "__semdata__" ? 1 : 0);
+const ordenarGrupos = (grupos) =>
+  [...grupos].sort((a, b) => {
+    const pa = pesoChaveGrupo(a[0]);
+    const pb = pesoChaveGrupo(b[0]);
+    if (pa !== pb) return pa - pb;
+    return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0;
+  });
 
 /* rodada de um jogo, como chave de agrupamento — "__semrodada__" pros
    cadastrados na mão sem número de rodada (fallback seguro, não some). */
@@ -1697,15 +1721,17 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
       const decorrido = agora - new Date(m.kickoff).getTime();
       return decorrido >= 0 && decorrido <= JANELA_VIVO;
     });
-    if (aoVivo?.kickoff) return chaveData(aoVivo.kickoff);
+    if (aoVivo?.kickoff) return chaveDia(aoVivo.kickoff);
     const proximo = [...estado.jogos]
       .filter((m) => !temResultado(m) && m.kickoff && new Date(m.kickoff).getTime() > agora)
       .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))[0];
-    if (proximo?.kickoff) return chaveData(proximo.kickoff);
+    if (proximo?.kickoff) return chaveDia(proximo.kickoff);
     const hoje = fmtSP(agora);
     const chaves = agruparPorData(estado.jogos).map(([c]) => c);
     if (chaves.includes(hoje)) return hoje;
-    const futuras = chaves.filter((c) => c > hoje && c !== "__semdata__");
+    /* nunca cair no grupo dos adiados como default: são jogos sem data, e
+       abrir a tela neles esconderia a rodada que está de fato acontecendo */
+    const futuras = chaves.filter((c) => c > hoje && c !== "__semdata__" && c !== CHAVE_ADIADO);
     if (futuras.length > 0) return futuras[0];
     return chaves[chaves.length - 1] || hoje;
   });
@@ -1713,7 +1739,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
 
   const hojeKey = fmtSP(Date.now() + offsetMs);
   const jogosPendentesHoje = estado.jogos.filter(
-    (m) => m.kickoff && chaveData(m.kickoff) === hojeKey && !temResultado(m) && !comecou(m)
+    (m) => m.kickoff && chaveDia(m.kickoff) === hojeKey && !temResultado(m) && !comecou(m)
   ).sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
   const temFaltandoHoje = jogosPendentesHoje.length > 0 && estado.participantes.some(
     (p) => jogosPendentesHoje.some((m) => !palpitesMap[m.id]?.[p.id])
@@ -1828,7 +1854,12 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
   };
 
   const buscarResultados = async () => {
-    const pendentes = estado.jogos.filter((m) => !temResultado(m) && (!m.kickoff || comecou(m)));
+    /* jogo adiado não está "aguardando resultado" — está aguardando data.
+       Sem esse filtro ele entraria aqui pra sempre (kickoff nulo), inflando a
+       contagem e sugerindo que a busca vai resolver alguma coisa. */
+    const pendentes = estado.jogos.filter(
+      (m) => !temResultado(m) && !jogoAdiado(m) && (!m.kickoff || comecou(m))
+    );
     if (pendentes.length === 0) {
       setAviso("Nenhum jogo iniciado aguardando resultado.");
       return;
@@ -1995,7 +2026,11 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
               jogosMostrar.map((m, i) => {
                 const encerrado = temResultado(m);
                 const travado = comecou(m);
-                const faltam = !encerrado ? estado.participantes.length - (contagensMap[m.id] || 0) : 0;
+                const adiado = jogoAdiado(m);
+                /* adiado não tem palpite pendente: a tela de Palpites nem
+                   oferece o jogo, então cobrar "faltam N palpites" seria
+                   cobrar algo que ninguém tem como fazer. */
+                const faltam = !encerrado && !adiado ? estado.participantes.length - (contagensMap[m.id] || 0) : 0;
                 /* começou e ainda plausivelmente rolando (mesma janela de 4h do polling):
                    mostra "ao vivo · a confirmar" enquanto a API não traz o placar, em vez
                    de o card parecer que nem começou. Fora da janela vira jogo órfão. */
@@ -2012,7 +2047,12 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                             {rotuloDaFase(m).texto} · {pesoDoJogo(m)}× pts
                           </span>
                         )}
-                        {!encerrado && travado && <span className="tag tag-travado">🔒 em jogo</span>}
+                        {adiado && (
+                          <span className="tag tag-adiado" title="A CBF adiou este jogo. Ele continua valendo pro bolão: quando a nova data sair, o palpite reabre pra todo mundo ao mesmo tempo e os palpites já feitos continuam valendo.">
+                            ⏳ adiado · nova data a definir
+                          </span>
+                        )}
+                        {!encerrado && !adiado && travado && <span className="tag tag-travado">🔒 em jogo</span>}
                         {noAr && ehAdmin && (
                           <span className="tag tag-aguardando" title="O jogo começou — placar ainda não veio da API. O automático preenche em instantes; se quiser, lance na mão.">
                             ⏳ aguardando placar
@@ -2124,6 +2164,13 @@ function ResultadoAdmin({ jogo, salvar, remover, emAndamento = false }) {
 
 /* ================= PALPITES ================= */
 function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 0, jogoInicial = null, onVerStats }) {
+  /* Jogo adiado fica FORA desta tela inteira: sem data não há prazo, e o
+     servidor recusa o palpite de qualquer jeito (api/palpite.js). Deixá-lo
+     aqui só criaria um campo que não salva. Ele continua visível na aba
+     Jogos, no grupo "⏳ Adiados", e volta pra cá sozinho quando a CBF
+     remarcar — aí o lembrete normal avisa todo mundo. */
+  const jogosPalpitaveis = useMemo(() => estado.jogos.filter((m) => !jogoAdiado(m)), [estado.jogos]);
+
   const [jogoSel, setJogoSel] = useState(() => {
     if (jogoInicial) return String(jogoInicial);
     const agora = Date.now() + offsetMs;
@@ -2131,13 +2178,13 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
        4h (JANELA_VIVO). Sem esse teto, um jogo órfão (sem placar, ex.: adiado
        pela CBF e nunca atualizado) fica "ao vivo" pra sempre e sequestra este
        default pro passado indefinidamente. */
-    const aoVivo = estado.jogos.find((m) => {
+    const aoVivo = jogosPalpitaveis.find((m) => {
       if (temResultado(m) || !m.kickoff) return false;
       const decorrido = agora - new Date(m.kickoff).getTime();
       return decorrido >= 0 && decorrido <= JANELA_VIVO;
     });
     if (aoVivo) return String(aoVivo.id);
-    const proximo = [...estado.jogos]
+    const proximo = [...jogosPalpitaveis]
       .filter((m) => !temResultado(m) && m.kickoff && new Date(m.kickoff).getTime() > agora)
       .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))[0];
     if (proximo) return String(proximo.id);
@@ -2147,22 +2194,22 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
        que o histórico 2026 foi importado). `estado.jogos` vem ordenado por
        kickoff ASC (api/estado.js), então percorrer de trás pra frente acha o
        jogo concluído mais recente. */
-    const ultimoConcluido = [...estado.jogos].reverse().find((m) => temResultado(m));
+    const ultimoConcluido = [...jogosPalpitaveis].reverse().find((m) => temResultado(m));
     if (ultimoConcluido) return String(ultimoConcluido.id);
-    const ultimo = estado.jogos[estado.jogos.length - 1];
+    const ultimo = jogosPalpitaveis[jogosPalpitaveis.length - 1];
     return ultimo ? String(ultimo.id) : "";
   });
-  const jogo = estado.jogos.find((m) => String(m.id) === String(jogoSel)) || estado.jogos[0];
+  const jogo = jogosPalpitaveis.find((m) => String(m.id) === String(jogoSel)) || jogosPalpitaveis[0];
 
   const hoje = fmtSP(Date.now() + offsetMs);
   const [gruposAbertos, setGruposAbertos] = useState(() => {
     const abertos = new Set();
-    for (const [chave] of agruparPorData(estado.jogos)) {
+    for (const [chave] of agruparPorData(jogosPalpitaveis)) {
       if (chave >= hoje || chave === "__semdata__") abertos.add(chave);
     }
     if (jogoInicial) {
-      const j = estado.jogos.find((m) => m.id === jogoInicial);
-      if (j?.kickoff) abertos.add(chaveData(j.kickoff));
+      const j = jogosPalpitaveis.find((m) => m.id === jogoInicial);
+      if (j?.kickoff) abertos.add(chaveDia(j.kickoff));
     }
     return abertos;
   });
@@ -2177,14 +2224,14 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
      quando TODOS os jogos dela já são de dias anteriores a hoje — uma rodada
      em andamento (alguns jogos já jogados, outros no fim de semana) continua
      aberta no topo. */
-  const rodadaPassada = (grupo) => grupo.every((m) => m.kickoff && chaveData(m.kickoff) < hoje);
+  const rodadaPassada = (grupo) => grupo.every((m) => m.kickoff && chaveDia(m.kickoff) < hoje);
   const [rodadasAbertas, setRodadasAbertas] = useState(() => {
     const abertas = new Set();
-    for (const [chave, grupo] of agruparPorRodada(estado.jogos)) {
+    for (const [chave, grupo] of agruparPorRodada(jogosPalpitaveis)) {
       if (!rodadaPassada(grupo)) abertas.add(chave);
     }
     if (jogoInicial) {
-      const j = estado.jogos.find((m) => m.id === jogoInicial);
+      const j = jogosPalpitaveis.find((m) => m.id === jogoInicial);
       if (j) abertas.add(rodadaChave(j));
     }
     return abertas;
@@ -2208,7 +2255,7 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
     });
   };
 
-  if (estado.jogos.length === 0) return <Vazio texto="Ainda não há jogos cadastrados." />;
+  if (jogosPalpitaveis.length === 0) return <Vazio texto="Ainda não há jogos cadastrados." />;
   if (estado.participantes.length === 0) return <Vazio texto="Ainda não há participantes cadastrados." />;
 
   const encerrado = temResultado(jogo);
@@ -2224,7 +2271,7 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
      (recolhidas num único grupo no rodapé), pro mesmo motivo de antes — só
      que agora o nível principal é a RODADA, não o dia: dentro de cada
      rodada os jogos continuam sub-agrupados por data (renderDia). */
-  const rodadas = agruparPorRodada(estado.jogos);
+  const rodadas = agruparPorRodada(jogosPalpitaveis);
   const rodadasAnteriores = rodadas
     .filter(([, g]) => rodadaPassada(g))
     .sort((a, b) => {
@@ -2309,11 +2356,7 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
     const aberta = rodadasAbertas.has(chave);
     const encRodada = grupoRodada.filter(temResultado).length;
     const label = chave === "__semrodada__" ? "Sem rodada definida" : `Rodada ${chave}`;
-    const gruposData = agruparPorData(grupoRodada).sort((a, b) => {
-      if (a[0] === "__semdata__") return 1;
-      if (b[0] === "__semdata__") return -1;
-      return a[0] < b[0] ? -1 : 1;
-    });
+    const gruposData = agruparPorData(grupoRodada);
     return (
       <div key={chave}>
         <button
@@ -4566,7 +4609,7 @@ const MESES_RETRO = ["janeiro","fevereiro","março","abril","maio","junho","julh
 function RetrospectoTemporada({ participanteId, estado, palpitesMap, jogosParaRanking, onFechar }) {
   const participante = estado.participantes.find((p) => p.id === participanteId);
   const m = useMemo(
-    () => calcularMomentos(participanteId, estado, palpitesMap, { jogos: jogosParaRanking, chaveData }),
+    () => calcularMomentos(participanteId, estado, palpitesMap, { jogos: jogosParaRanking, chaveData: chaveDia }),
     [participanteId, estado, palpitesMap, jogosParaRanking]
   );
   const reduzMovimento = typeof window !== "undefined" && window.matchMedia
@@ -5555,6 +5598,9 @@ function Estilo() {
       .tag-travado { background: var(--ambar); color: var(--ambar-escuro); }
       .tag-aguardando { border: 1.5px solid var(--ambar); color: var(--ambar); animation: piscaAguard 1.6s ease-in-out infinite; }
       @keyframes piscaAguard { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+      /* adiado: tracejado pra ler como "provisório", sem piscar — não é
+         urgência, é espera. Sem cor de erro: o jogo não se perdeu, só mudou. */
+      .tag-adiado { border: 1.5px dashed rgba(255,255,255,.45); color: rgba(255,255,255,.7); }
 
       .countdown {
         display: flex; align-items: center; justify-content: space-between; gap: 8px;

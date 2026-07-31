@@ -7,6 +7,7 @@
 
 import { sql, autenticar, intOuNull } from "../lib/db.js";
 import { okEscrita } from "../lib/snapshot.js";
+import { jogoAdiado, jogoCancelado } from "../lib/clubes.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -37,12 +38,27 @@ export default async function handler(req, res) {
     return;
   }
 
-  const jogos = await sql`SELECT id, kickoff, gh, ga FROM jogos WHERE id = ${jid}`;
+  const jogos = await sql`SELECT id, kickoff, gh, ga, status FROM jogos WHERE id = ${jid}`;
   if (jogos.length === 0) {
     res.status(404).json({ error: "Jogo não encontrado" });
     return;
   }
   const jogo = jogos[0];
+
+  /* Jogo adiado não aceita palpite — nem do admin. Não é frescura de tela: a
+     antecedência média (5º critério de desempate) é kickoff menos
+     atualizado_em, então palpite gravado enquanto o jogo está sem data
+     renderia uma antecedência enorme no dia em que a CBF remarcasse. Quem
+     palpitasse em tudo que está adiado ganharia o desempate de graça.
+     Quando a data nova chegar, o jogo reabre pra todos ao mesmo tempo. */
+  if (jogoCancelado(jogo)) {
+    res.status(403).json({ error: "Jogo cancelado — não vale mais pro bolão" });
+    return;
+  }
+  if (jogoAdiado(jogo)) {
+    res.status(403).json({ error: "Jogo adiado ⏳ — palpite reabre quando a nova data sair" });
+    return;
+  }
 
   const comecou = jogo.kickoff && new Date(jogo.kickoff) <= new Date();
   const encerrado = jogo.gh !== null && jogo.ga !== null;

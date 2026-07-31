@@ -5,7 +5,7 @@
 
 import { sql, autenticar } from "../lib/db.js";
 import { invalidarSnapshot } from "../lib/snapshot.js";
-import { traduzirClube, pesoDoJogo, matchdayHistoricoValido } from "../lib/clubes.js";
+import { traduzirClube, pesoDoJogo, matchdayHistoricoValido, jogoAdiado, jogoCancelado } from "../lib/clubes.js";
 
 /* normaliza pra comparação: sem acento, sem caixa, sem borda */
 const norm = (s) =>
@@ -149,7 +149,7 @@ async function importarRodada(matchday, { comPlacar }) {
 
   /* puxa todos os jogos uma vez só pra evitar N SELECTs no loop */
   const todos = await sql`
-    SELECT id, casa, fora, kickoff, external_id FROM jogos
+    SELECT id, casa, fora, kickoff, external_id, status FROM jogos
   `;
   const porExt = new Map();
   const legados = [];
@@ -165,10 +165,19 @@ async function importarRodada(matchday, { comPlacar }) {
     const externalId = String(m.id);
     const casa = traduzirClube(m.homeTeam?.name);
     const fora = traduzirClube(m.awayTeam?.name);
-    const kickoff = m.utcDate;
     const rodada = m.matchday ?? null;
     const peso = pesoDoJogo(rodada, casa, fora);
+    const status = m.status ?? null;
     if (!casa || !fora) continue;
+
+    /* Jogo adiado: a data que a football-data ainda reporta é a ANTIGA, do dia
+       que não aconteceu. Gravar essa data faria o jogo aparecer como "hoje",
+       disparar countdown e lembrete, e depois virar jogo órfão preso no
+       "ao vivo". Zerando o kickoff ele cai no grupo "sem data" e fica fora da
+       tela de palpites até remarcarem — quando a API mandar a data nova, o
+       ramo (a) abaixo atualiza e o jogo volta sozinho, com os palpites que já
+       existiam, porque a linha nunca foi apagada. */
+    const kickoff = jogoAdiado({ status }) ? null : m.utcDate;
 
     /* comPlacar: jogo de histórico já é FINISHED — grava o placar final direto
        (acaoPlacares não alcançaria essas rodadas, sua janela é só 14 dias). */
@@ -176,15 +185,16 @@ async function importarRodada(matchday, { comPlacar }) {
     const gh = placar ? placar.home : null;
     const ga = placar ? placar.away : null;
 
-    /* (a) já carimbado — atualiza kickoff, rodada, peso e placar (se veio) */
+    /* (a) já carimbado — atualiza kickoff, rodada, peso, status e placar */
     const achado = porExt.get(externalId);
     if (achado) {
       const rows = await sql`
         UPDATE jogos
-           SET kickoff = ${kickoff}, rodada = ${rodada}, peso = ${peso},
+           SET kickoff = ${kickoff}, rodada = ${rodada}, peso = ${peso}, status = ${status},
                gh = COALESCE(${gh}, gh), ga = COALESCE(${ga}, ga)
          WHERE id = ${achado.id}
            AND (kickoff IS DISTINCT FROM ${kickoff} OR rodada IS DISTINCT FROM ${rodada} OR peso IS DISTINCT FROM ${peso}
+                OR status IS DISTINCT FROM ${status}
                 OR gh IS DISTINCT FROM COALESCE(${gh}, gh) OR ga IS DISTINCT FROM COALESCE(${ga}, ga))
         RETURNING id
       `;
@@ -192,34 +202,52 @@ async function importarRodada(matchday, { comPlacar }) {
       continue;
     }
 
-    /* (b) adoção de legado — cadastro manual prévio do mesmo confronto */
+    /* (b) adoção — cadastro manual prévio do mesmo confronto, OU remarcação que
+       chegou com external_id novo. O segundo caso é a proteção contra duplicar
+       jogo adiado: não deu pra confirmar na documentação da football-data se a
+       partida remarcada mantém o mesmo id, então se vier um id novo para um
+       confronto que já existe aqui, adotamos a linha existente em vez de
+       inserir — preservando os palpites. Casar por confronto é seguro porque o
+       bolão cobre só o 2º turno (rodadas 19-38), onde cada par casa+fora
+       acontece uma única vez.
+       A comparação de data só se aplica ao legado com data: linha adiada tem
+       kickoff nulo e casa por confronto, que é justamente o que se quer. */
     const idx = legados.findIndex(
       (j) =>
         norm(j.casa) === norm(casa) &&
         norm(j.fora) === norm(fora) &&
         (j.kickoff == null || dataSP(j.kickoff) === dataSP(kickoff))
     );
-    if (idx >= 0) {
-      const cand = legados[idx];
+    const adiadoMesmoConfronto = idx < 0
+      ? todos.find((j) => jogoAdiado(j) && norm(j.casa) === norm(casa) && norm(j.fora) === norm(fora))
+      : null;
+
+    if (idx >= 0 || adiadoMesmoConfronto) {
+      const cand = idx >= 0 ? legados[idx] : adiadoMesmoConfronto;
       await sql`
         UPDATE jogos
            SET external_id = ${externalId},
-               kickoff = COALESCE(kickoff, ${kickoff}),
+               kickoff = COALESCE(${kickoff}, kickoff),
                rodada = ${rodada},
                peso = ${peso},
+               status = ${status},
                gh = COALESCE(gh, ${gh}),
                ga = COALESCE(ga, ${ga})
          WHERE id = ${cand.id}
       `;
-      legados.splice(idx, 1);
+      if (idx >= 0) legados.splice(idx, 1);
       atualizados++;
       continue;
     }
 
-    /* (c) novo */
+    /* (c) novo. Cancelado nunca entra: se o jogo não vai acontecer, criar a
+       linha só devolveria ao organizador o trabalho de apagar — e o próximo
+       cron recriaria. Adiado ENTRA (sem data), porque ainda vai valer. */
+    if (jogoCancelado({ status })) continue;
+
     await sql`
-      INSERT INTO jogos (casa, fora, kickoff, external_id, rodada, peso, gh, ga)
-      VALUES (${casa}, ${fora}, ${kickoff}, ${externalId}, ${rodada}, ${peso}, ${gh}, ${ga})
+      INSERT INTO jogos (casa, fora, kickoff, external_id, rodada, peso, status, gh, ga)
+      VALUES (${casa}, ${fora}, ${kickoff}, ${externalId}, ${rodada}, ${peso}, ${status}, ${gh}, ${ga})
     `;
     adicionados++;
   }
@@ -299,14 +327,53 @@ async function acaoPlacares() {
     const externalId = String(m.id);
     const status = m.status;
 
+    /* Adiado/cancelado detectado pela varredura por DATA (janela de 14 dias).
+       Isso é o que conserta o jogo adiado em cima da hora: importarRodada só
+       enxerga a rodada CORRENTE, então um jogo adiado numa rodada que já
+       passou nunca mais seria revisitado por lá. Aqui ele é alcançado pela
+       data original, marcado, e some da tela de palpites sozinho.
+       Zera o kickoff junto: a data que a API ainda reporta é a do jogo que
+       não aconteceu, e mantê-la faria o jogo virar órfão eterno "ao vivo". */
+    if (status === "POSTPONED" || status === "SUSPENDED" || status === "CANCELLED") {
+      const rows = await sql`
+        UPDATE jogos
+           SET status = ${status}, kickoff = NULL, live = false
+         WHERE external_id = ${externalId}
+           AND (status IS DISTINCT FROM ${status} OR kickoff IS NOT NULL)
+        RETURNING id
+      `;
+      if (rows.length > 0) atualizados++;
+      continue;
+    }
+
+    /* Caminho de VOLTA: a CBF remarcou. Sem isto o jogo adiado ficaria parado
+       no grupo "Adiados" para sempre quando a rodada dele já tivesse saído da
+       rodada corrente — importarRodada não o alcançaria mais, e é justamente
+       o caso dos adiamentos de última hora. Aqui a data nova chega pela
+       varredura por data e o jogo reabre pra palpite sozinho.
+       Só mexe em jogo carimbado (external_id casa), então cadastro manual do
+       admin nunca é sobrescrito. */
+    if (status === "SCHEDULED" || status === "TIMED") {
+      const rows = await sql`
+        UPDATE jogos
+           SET status = ${status}, kickoff = ${m.utcDate}
+         WHERE external_id = ${externalId}
+           AND (status IS DISTINCT FROM ${status} OR kickoff IS DISTINCT FROM ${m.utcDate}::timestamptz)
+           AND gh IS NULL AND ga IS NULL
+        RETURNING id
+      `;
+      if (rows.length > 0) atualizados++;
+      continue;
+    }
+
     if (status === "FINISHED") {
       const { home: gh, away: ga } = placarBolao(m.score);
       if (gh == null || ga == null) continue;
       const rows = await sql`
         UPDATE jogos
-           SET gh = ${gh}, ga = ${ga}, live = false
+           SET gh = ${gh}, ga = ${ga}, live = false, status = ${status}
          WHERE external_id = ${externalId}
-           AND (gh IS DISTINCT FROM ${gh} OR ga IS DISTINCT FROM ${ga} OR live = true)
+           AND (gh IS DISTINCT FROM ${gh} OR ga IS DISTINCT FROM ${ga} OR live = true OR status IS DISTINCT FROM ${status})
         RETURNING id
       `;
       if (rows.length > 0) {
