@@ -1439,21 +1439,11 @@ const fmtSP = (ts) =>
     year: "numeric", month: "2-digit", day: "2-digit",
   }).format(new Date(ts));
 
-/* Jogo adiado tem chave própria (não cai em "__semdata__") porque o motivo de
-   não ter data é outro: "sem data" é cadastro manual incompleto do admin,
-   "adiado" é partida remarcada pela CBF que ainda vai valer. O grupo dos
-   adiados é fixado no FIM da lista por ordenarGrupos. */
-const CHAVE_ADIADO = "__adiado__";
-
 /* dia (yyyy-mm-dd em SP) de um ISO — usado por quem já sabe que o jogo tem
    data e só quer comparar dias entre si */
 const chaveDia = (iso) => (iso ? fmtSP(new Date(iso).getTime()) : "__semdata__");
 
-/* chave de agrupamento de um JOGO — leva o status em conta */
-const chaveGrupo = (m) => (jogoAdiado(m) ? CHAVE_ADIADO : chaveDia(m.kickoff));
-
 const labelData = (chave, offsetMs = 0) => {
-  if (chave === CHAVE_ADIADO) return "⏳ Adiados · aguardando nova data";
   if (chave === "__semdata__") return "Sem data definida";
   const agora = Date.now() + offsetMs;
   if (chave === fmtSP(agora))              return `Hoje · ${chave.slice(8)}/${chave.slice(5, 7)}`;
@@ -1462,24 +1452,25 @@ const labelData = (chave, offsetMs = 0) => {
   return `${DIAS_SEMANA[dow]} · ${chave.slice(8)}/${chave.slice(5, 7)}`;
 };
 
+/* Agrupa por DIA. Jogo adiado não entra aqui — ele não tem data, então não
+   pertence a nenhum dia e não faz sentido no carrossel de datas. Quem chama
+   filtra antes (jogosComData / jogosPalpitaveis) e mostra os adiados na aba
+   própria. */
 const agruparPorData = (jogos) => {
   const grupos = new Map();
   for (const m of jogos) {
-    const chave = chaveGrupo(m);
+    const chave = chaveDia(m.kickoff);
     if (!grupos.has(chave)) grupos.set(chave, []);
     grupos.get(chave).push(m);
   }
   return ordenarGrupos([...grupos.entries()]);
 };
 
-/* Ordem dos grupos: datas em ordem cronológica, depois "sem data", e os
-   adiados por último — são os que estão parados esperando remarcação e não
-   devem competir por atenção com a próxima rodada. */
-const pesoChaveGrupo = (c) => (c === CHAVE_ADIADO ? 2 : c === "__semdata__" ? 1 : 0);
+/* datas em ordem cronológica, "sem data" por último */
 const ordenarGrupos = (grupos) =>
   [...grupos].sort((a, b) => {
-    const pa = pesoChaveGrupo(a[0]);
-    const pb = pesoChaveGrupo(b[0]);
+    const pa = a[0] === "__semdata__" ? 1 : 0;
+    const pb = b[0] === "__semdata__" ? 1 : 0;
     if (pa !== pb) return pa - pb;
     return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0;
   });
@@ -1728,15 +1719,17 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
       .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))[0];
     if (proximo?.kickoff) return chaveDia(proximo.kickoff);
     const hoje = fmtSP(agora);
-    const chaves = agruparPorData(estado.jogos).map(([c]) => c);
+    /* mesmos jogos que o carrossel de datas monta lá embaixo: sem os adiados.
+       Se entrassem aqui, cairiam em "__semdata__" e o fallback do fim poderia
+       abrir a tela num grupo que a renderização nem exibe. */
+    const chaves = agruparPorData(estado.jogos.filter((m) => !jogoAdiado(m))).map(([c]) => c);
     if (chaves.includes(hoje)) return hoje;
-    /* nunca cair no grupo dos adiados como default: são jogos sem data, e
-       abrir a tela neles esconderia a rodada que está de fato acontecendo */
-    const futuras = chaves.filter((c) => c > hoje && c !== "__semdata__" && c !== CHAVE_ADIADO);
+    const futuras = chaves.filter((c) => c > hoje && c !== "__semdata__");
     if (futuras.length > 0) return futuras[0];
     return chaves[chaves.length - 1] || hoje;
   });
   const [aoVivoFiltro, setAoVivoFiltro] = useState(false);
+  const [adiadosFiltro, setAdiadosFiltro] = useState(false);
 
   const hojeKey = fmtSP(Date.now() + offsetMs);
   const jogosPendentesHoje = estado.jogos.filter(
@@ -2010,43 +2003,70 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
       )}
 
       {estado.jogos.length > 0 && (() => {
-        const grupos = agruparPorData(estado.jogos);
+        /* adiado não tem data, então não entra no carrossel de datas — ele é
+           um filtro à parte, irmão do "Ao vivo" */
+        const jogosAdiados = estado.jogos.filter(jogoAdiado);
+        const grupos = agruparPorData(estado.jogos.filter((m) => !jogoAdiado(m)));
         const idxRaw = grupos.findIndex(([c]) => c === dataFiltro);
         const idx = idxRaw === -1 ? Math.max(0, grupos.length - 1) : idxRaw;
         const jogosAoVivo = estado.jogos.filter((m) => !temResultado(m) && comecou(m));
-        const jogosMostrar = aoVivoFiltro ? jogosAoVivo : (grupos[idx]?.[1] ?? []);
+        const jogosMostrar = adiadosFiltro ? jogosAdiados
+          : aoVivoFiltro ? jogosAoVivo
+          : (grupos[idx]?.[1] ?? []);
+        const navDim = aoVivoFiltro || adiadosFiltro;
         return (
           <>
             <div className="nav-data">
               <button
                 className={"nav-ao-vivo" + (aoVivoFiltro ? " nav-ao-vivo-ativo" : "")}
-                onClick={() => setAoVivoFiltro((v) => !v)}
+                onClick={() => { setAdiadosFiltro(false); setAoVivoFiltro((v) => !v); }}
               >
                 Ao vivo
                 <span className="nav-vivo-anel" aria-hidden="true" />
               </button>
+              {/* só aparece quando há adiados: botão morto o campeonato
+                  inteiro seria ruído numa barra que já é apertada */}
+              {jogosAdiados.length > 0 && (
+                <button
+                  className={"nav-adiados" + (adiadosFiltro ? " nav-adiados-ativo" : "")}
+                  onClick={() => { setAoVivoFiltro(false); setAdiadosFiltro((v) => !v); }}
+                  title="Jogos que a CBF adiou. Continuam valendo: quando a nova data sair, voltam pro calendário e reabrem pra palpite."
+                >
+                  ⏳ Adiados <span className="nav-adiados-n">{jogosAdiados.length}</span>
+                </button>
+              )}
               <div className="nav-data-nav">
                 <button
                   className="nav-data-seta"
-                  onClick={() => { setAoVivoFiltro(false); setDataFiltro(grupos[idx - 1][0]); }}
-                  disabled={idx === 0}
+                  onClick={() => { setAoVivoFiltro(false); setAdiadosFiltro(false); setDataFiltro(grupos[idx - 1][0]); }}
+                  disabled={idx <= 0}
                   aria-label="Data anterior"
                 >‹</button>
-                <span className={"nav-data-label" + (aoVivoFiltro ? " nav-data-label-dim" : "")}>
+                <span className={"nav-data-label" + (navDim ? " nav-data-label-dim" : "")}>
                   {labelData(grupos[idx]?.[0] ?? "__semdata__", offsetMs)}
                 </span>
                 <button
                   className="nav-data-seta"
-                  onClick={() => { setAoVivoFiltro(false); setDataFiltro(grupos[idx + 1][0]); }}
+                  onClick={() => { setAoVivoFiltro(false); setAdiadosFiltro(false); setDataFiltro(grupos[idx + 1][0]); }}
                   disabled={idx >= grupos.length - 1}
                   aria-label="Próxima data"
                 >›</button>
               </div>
             </div>
 
+            {adiadosFiltro && (
+              <div className="aviso-adiados">
+                Estes jogos foram adiados e ainda não têm data nova. Eles continuam valendo:
+                quando a CBF remarcar, voltam pro calendário e o palpite reabre pra todo mundo
+                ao mesmo tempo.
+              </div>
+            )}
+
             {jogosMostrar.length === 0 ? (
               <div className="nav-sem-jogos">
-                {aoVivoFiltro
+                {adiadosFiltro
+                  ? "Nenhum jogo adiado no momento."
+                  : aoVivoFiltro
                   ? "Nenhum jogo ao vivo no momento."
                   : "⏳ Aguarde — próximos jogos ainda não foram cadastrados."}
               </div>
@@ -2210,6 +2230,9 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
      aqui só criaria um campo que não salva. Ele continua visível na aba Jogos e
      volta pra cá sozinho quando a data sair — aí o lembrete normal avisa. */
   const jogosPalpitaveis = useMemo(() => estado.jogos.filter(jogoAceitaPalpite), [estado.jogos]);
+  /* mostrados numa seção própria, só pra informar que existem e vão valer —
+     não são selecionáveis, porque não há palpite a fazer sem data */
+  const jogosAdiados = useMemo(() => estado.jogos.filter(jogoAdiado), [estado.jogos]);
 
   const [jogoSel, setJogoSel] = useState(() => {
     if (jogoInicial) return String(jogoInicial);
@@ -2284,6 +2307,7 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
     });
 
   const [anterioresAberto, setAnterioresAberto] = useState(false);
+  const [adiadosAberto, setAdiadosAberto] = useState(false);
   const palpiteRef = useRef(null);
   /* ao escolher um jogo, leva direto para a área do palpite (mesma página) */
   const selecionar = (id) => {
@@ -2295,7 +2319,15 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
     });
   };
 
-  if (jogosPalpitaveis.length === 0) return <Vazio texto="Ainda não há jogos cadastrados." />;
+  /* tudo adiado é diferente de nada cadastrado — dizer "não há jogos" faria
+     parecer que o bolão sumiu, quando na verdade é a CBF que não remarcou */
+  if (jogosPalpitaveis.length === 0) {
+    return (
+      <Vazio texto={jogosAdiados.length > 0
+        ? `Os ${jogosAdiados.length} jogos da vez estão adiados ⏳ — o palpite reabre assim que a nova data sair.`
+        : "Ainda não há jogos cadastrados."} />
+    );
+  }
   if (estado.participantes.length === 0) return <Vazio texto="Ainda não há participantes cadastrados." />;
 
   const encerrado = temResultado(jogo);
@@ -2433,6 +2465,46 @@ function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 
               </span>
             </button>
             {anterioresAberto && rodadasAnteriores.map(([chave, grupo]) => renderRodada(chave, grupo))}
+          </>
+        )}
+
+        {/* Adiados: recolhido por padrão, no rodapé. Aparecem aqui pra ninguém
+            achar que o jogo sumiu do bolão — mas não são clicáveis, porque sem
+            data não há palpite a fazer. */}
+        {jogosAdiados.length > 0 && (
+          <>
+            <button
+              className="seletor-data-header seletor-data-mae"
+              onClick={() => setAdiadosAberto((v) => !v)}
+              aria-expanded={adiadosAberto}
+            >
+              <span>⏳ Adiados</span>
+              <span className="seletor-data-info">
+                <span className="seletor-data-cnt">{jogosAdiados.length}</span>
+                <span className="seletor-data-chevron">{adiadosAberto ? "▾" : "▸"}</span>
+              </span>
+            </button>
+            {adiadosAberto && (
+              <>
+                <p className="aviso-adiados">
+                  Sem data nova ainda. Continuam valendo: quando a CBF remarcar, eles voltam
+                  pra lista acima e o palpite abre pra todo mundo ao mesmo tempo.
+                </p>
+                {jogosAdiados.map((m) => (
+                  <div key={m.id} className="seletor-jogo sj-sofa sj-st-adiado">
+                    <span className="sj-status"><span className="sj-hora">—</span></span>
+                    <span className="sj-times">
+                      <span className="sj-time">{fl(m.casa)}{m.casa}</span>
+                      <span className="sj-time">{fl(m.fora)}{m.fora}</span>
+                    </span>
+                    <span className="sj-gols">
+                      <span className="sj-g">–</span>
+                      <span className="sj-g">–</span>
+                    </span>
+                  </div>
+                ))}
+              </>
+            )}
           </>
         )}
       </div>
@@ -5641,6 +5713,31 @@ function Estilo() {
       /* adiado: tracejado pra ler como "provisório", sem piscar — não é
          urgência, é espera. Sem cor de erro: o jogo não se perdeu, só mudou. */
       .tag-adiado { border: 1.5px dashed rgba(255,255,255,.45); color: rgba(255,255,255,.7); }
+
+      /* filtro de adiados: irmão do "Ao vivo", mas apagado — é arquivo, não
+         urgência. Ativo herda o âmbar dos outros estados de espera. */
+      .nav-adiados {
+        display: inline-flex; align-items: center; gap: 5px;
+        background: none; border: 1.5px dashed rgba(255,255,255,.3);
+        color: rgba(255,255,255,.6); border-radius: 999px;
+        padding: 4px 11px; font-size: 12px; cursor: pointer; white-space: nowrap;
+      }
+      .nav-adiados:hover { border-color: rgba(255,255,255,.55); color: rgba(255,255,255,.85); }
+      .nav-adiados-ativo { border-style: solid; border-color: var(--ambar); color: var(--ambar); }
+      .nav-adiados-n {
+        font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+        opacity: .8; font-variant-numeric: tabular-nums;
+      }
+      .aviso-adiados {
+        margin: 10px 0; padding: 9px 12px;
+        border-left: 3px solid rgba(255,255,255,.25);
+        background: rgba(255,255,255,.04); border-radius: 0 8px 8px 0;
+        font-size: 12.5px; line-height: 1.5; color: rgba(255,255,255,.65);
+      }
+      /* item adiado na lista de palpites: não é botão, então não pode parecer
+         clicável — sem hover, sem cursor de mão */
+      .sj-st-adiado { opacity: .55; cursor: default; }
+      .sj-st-adiado:hover { background: inherit; }
 
       .check-adiado {
         display: inline-flex; align-items: center; gap: 5px;
