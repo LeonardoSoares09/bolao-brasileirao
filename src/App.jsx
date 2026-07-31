@@ -2021,10 +2021,19 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
           (m) => jogoAceitaPalpite(m) && !comecou(m) && !temResultado(m)
             && !palpitesMap[m.id]?.[estado.eu.id]
         );
+        /* "meus acertos": placar exato meu. Usa pontosDoPalpite (a mesma função
+           que o ranking usa pra pontuar) em vez de comparar h/a na mão — assim
+           a definição de "exato" nunca diverge da que vale pontos.
+           Só jogo com temResultado: placar ao vivo ainda muda, e um "acerto"
+           que evapora no gol seguinte seria pior que não mostrar. */
+        const jogosAcertos = estado.eu.id == null ? [] : estado.jogos.filter(
+          (m) => temResultado(m)
+            && pontosDoPalpite(palpitesMap[m.id]?.[estado.eu.id], m) === PTS_EXATO
+        );
 
         const listaFiltrada = {
           vivo: jogosAoVivo, adiados: jogosAdiados,
-          classicos: jogosClassicos, faltando: jogosFaltando,
+          classicos: jogosClassicos, faltando: jogosFaltando, acertos: jogosAcertos,
         };
         const jogosMostrar = filtro ? listaFiltrada[filtro] : (grupos[idx]?.[1] ?? []);
         const vazioFiltro = {
@@ -2032,22 +2041,30 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
           adiados: "Nenhum jogo adiado no momento.",
           classicos: "Nenhum clássico cadastrado ainda.",
           faltando: "Você já palpitou em todos os jogos abertos ✓",
+          acertos: "Nenhum placar exato ainda — a primeira cravada vem.",
         };
 
         /* chips só aparecem quando têm o que mostrar — filtro que sempre volta
-           vazio é ruído, e a linha inteira some quando nenhum se aplica */
+           vazio é ruído, e a linha inteira some quando nenhum se aplica.
+           Ordem: primeiro o que é SOBRE MIM (o que falta fazer, depois como fui),
+           depois o que é sobre o campeonato. */
         const chips = [
-          jogosAdiados.length > 0 && {
-            id: "adiados", icone: "⏳", n: jogosAdiados.length,
-            texto: jogosAdiados.length === 1 ? "adiado" : "adiados",
-            title: "Jogos que a CBF adiou. Continuam valendo: quando a nova data sair, voltam pro calendário e reabrem pra palpite.",
-          },
           jogosFaltando.length > 0 && {
             /* U+FE0F nos dois: sem o seletor de variação, ⚔ cai na
                apresentação de TEXTO e vira um "×" sem graça (visto em teste no
                Chrome/macOS). Com ele, renderiza como emoji em toda plataforma. */
             id: "faltando", icone: "✍️", n: jogosFaltando.length, texto: "sem palpite",
             title: "Jogos ainda abertos em que você não palpitou.",
+          },
+          jogosAcertos.length > 0 && {
+            id: "acertos", icone: "🎯", n: jogosAcertos.length,
+            texto: jogosAcertos.length === 1 ? "acerto" : "acertos",
+            title: `Jogos em que você cravou o placar exato (${PTS_EXATO} pts, ou mais nos que valem 2×/3×).`,
+          },
+          jogosAdiados.length > 0 && {
+            id: "adiados", icone: "⏳", n: jogosAdiados.length,
+            texto: jogosAdiados.length === 1 ? "adiado" : "adiados",
+            title: "Jogos que a CBF adiou. Continuam valendo: quando a nova data sair, voltam pro calendário e reabrem pra palpite.",
           },
           jogosClassicos.length > 0 && {
             id: "classicos", icone: "⚔️", n: jogosClassicos.length, texto: "clássicos",
