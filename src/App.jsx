@@ -2024,17 +2024,6 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                 Ao vivo
                 <span className="nav-vivo-anel" aria-hidden="true" />
               </button>
-              {/* só aparece quando há adiados: botão morto o campeonato
-                  inteiro seria ruído numa barra que já é apertada */}
-              {jogosAdiados.length > 0 && (
-                <button
-                  className={"nav-adiados" + (adiadosFiltro ? " nav-adiados-ativo" : "")}
-                  onClick={() => { setAoVivoFiltro(false); setAdiadosFiltro((v) => !v); }}
-                  title="Jogos que a CBF adiou. Continuam valendo: quando a nova data sair, voltam pro calendário e reabrem pra palpite."
-                >
-                  ⏳ Adiados <span className="nav-adiados-n">{jogosAdiados.length}</span>
-                </button>
-              )}
               <div className="nav-data-nav">
                 <button
                   className="nav-data-seta"
@@ -2053,6 +2042,27 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                 >›</button>
               </div>
             </div>
+
+            {/* Linha própria, ABAIXO da barra. Medido: com este botão dentro
+                de .nav-data, o carrossel caía para 163px e o label do dia
+                ("QUA · 12/08", que precisa de 93px) era cortado com reticências
+                — e o carrossel é o principal desta tela. Aqui embaixo ele fica
+                com a largura inteira. A linha só existe quando há adiado, então
+                não custa altura no dia a dia. */}
+            {jogosAdiados.length > 0 && (
+              <div className="nav-adiados-linha">
+                <button
+                  className={"nav-adiados" + (adiadosFiltro ? " nav-adiados-ativo" : "")}
+                  onClick={() => { setAoVivoFiltro(false); setAdiadosFiltro((v) => !v); }}
+                  aria-pressed={adiadosFiltro}
+                  title="Jogos que a CBF adiou. Continuam valendo: quando a nova data sair, voltam pro calendário e reabrem pra palpite."
+                >
+                  <span aria-hidden="true">⏳</span>
+                  <span className="nav-adiados-n">{jogosAdiados.length}</span>
+                  {jogosAdiados.length === 1 ? "adiado" : "adiados"}
+                </button>
+              </div>
+            )}
 
             {adiadosFiltro && (
               <div className="aviso-adiados">
@@ -5716,17 +5726,25 @@ function Estilo() {
 
       /* filtro de adiados: irmão do "Ao vivo", mas apagado — é arquivo, não
          urgência. Ativo herda o âmbar dos outros estados de espera. */
+      /* linha própria, logo abaixo do carrossel de datas — ver comentário no
+         JSX: dentro da barra, este botão cortava o label do dia */
+      .nav-adiados-linha { display: flex; justify-content: flex-end; margin: -6px 0 12px; }
       .nav-adiados {
-        display: inline-flex; align-items: center; gap: 5px;
-        background: none; border: 1.5px dashed rgba(255,255,255,.3);
-        color: rgba(255,255,255,.6); border-radius: 999px;
-        padding: 4px 11px; font-size: 12px; cursor: pointer; white-space: nowrap;
+        flex: none; display: inline-flex; align-items: center; gap: 5px;
+        padding: 5px 11px; border-radius: 999px;
+        background: rgba(0,0,0,.3); border: 1.5px dashed rgba(255,255,255,.25);
+        color: rgba(255,255,255,.55); cursor: pointer; white-space: nowrap;
+        font-size: 12px; line-height: 1;
+        transition: border-color var(--t), color var(--t), background-color var(--t);
       }
-      .nav-adiados:hover { border-color: rgba(255,255,255,.55); color: rgba(255,255,255,.85); }
-      .nav-adiados-ativo { border-style: solid; border-color: var(--ambar); color: var(--ambar); }
+      .nav-adiados:hover { border-color: rgba(255,255,255,.5); color: rgba(255,255,255,.85); }
+      .nav-adiados-ativo {
+        border-style: solid; border-color: var(--ambar); color: var(--ambar);
+        background: rgba(255,197,61,.12);
+      }
       .nav-adiados-n {
-        font-family: 'IBM Plex Mono', monospace; font-size: 11px;
-        opacity: .8; font-variant-numeric: tabular-nums;
+        font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700;
+        font-variant-numeric: tabular-nums;
       }
       .aviso-adiados {
         margin: 10px 0; padding: 9px 12px;
