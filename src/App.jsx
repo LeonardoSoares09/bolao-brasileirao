@@ -43,6 +43,34 @@ const reduzMovimento = () =>
 
 const temResultado = (m) => m.gh !== null && m.ga !== null && !m.live;
 
+/* Cadência do polling de /api/estado — é a defesa contra estourar a cota do
+   Neon Free. A conta: 100 CU-hours/mês com compute de 0.25 CU = ~400h de banco
+   ACORDADO por mês, num mês de 730h, e o compute só suspende depois de 5 min
+   sem nenhuma query. O poll fixo de 30s que existia aqui antes era menor que
+   esses 5 min, então UMA aba esquecida aberta em qualquer navegador do grupo
+   segurava o banco ligado 24/7 (~182 CU-hours/mês) — foi o que quase derrubou
+   o bolão da Copa no último jogo.
+   Agora o intervalo segue o que está acontecendo, e fora das janelas de jogo
+   devolve null (NENHUM poll): o app atualiza ao abrir e ao voltar pro foco, e
+   o banco dorme de verdade. Só quem enxerga a tela gera tráfego — ver o efeito
+   de polling em Bolao(). */
+function intervaloPoll(estado, nowMs) {
+  if (!estado) return null;
+  let faltaProProximo = Infinity;
+  for (const m of estado.jogos) {
+    if (!m.kickoff || temResultado(m)) continue;
+    const decorrido = nowMs - new Date(m.kickoff).getTime();
+    /* em andamento: mesma janela de 4h do placar ao vivo. 60s (e não 30s)
+       porque o poll de /api/futebol já chama carregar() a cada 60s durante
+       o jogo — este aqui é a rede de segurança se a football-data falhar. */
+    if (decorrido >= 0 && decorrido <= JANELA_VIVO) return 60000;
+    if (decorrido < 0) faltaProProximo = Math.min(faltaProProximo, -decorrido);
+  }
+  /* jogo pertinho: gente entrando pra palpitar de última hora */
+  if (faltaProProximo <= LEMBRETE_2H) return 120000;
+  return null;
+}
+
 function fmtQuando(m) {
   if (!m.kickoff) return "";
   const d = new Date(m.kickoff);
@@ -264,6 +292,9 @@ export default function App() {
   const [jogoPreSel, setJogoPreSel] = useState(null);
   const [statsPreSel, setStatsPreSel] = useState(null);
   const offsetRef = useRef(0);
+  /* quando o último /api/estado foi buscado — o polling adaptativo usa isso
+     pra decidir se já venceu o intervalo devido (ver intervaloPoll). */
+  const ultimoPollRef = useRef(0);
   const rankingJaAbriu = useRef(false);
   const pagamentoVerificado = useRef(false);
   const bonusDispensado = useRef(false);
@@ -277,6 +308,7 @@ export default function App() {
 
   const carregar = useCallback(async () => {
     if (!token) return;
+    ultimoPollRef.current = Date.now(); // marca ANTES: erro também conta, senão retenta em loop
     try {
       const e = await api(`/api/estado?t=${encodeURIComponent(token)}`);
       offsetRef.current = Date.parse(e.agora) - Date.now();
@@ -390,20 +422,44 @@ export default function App() {
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
-  /* carga inicial + polling 30s + refetch ao voltar pra aba */
+  /* carga inicial + relógio local (tick) + refetch ao voltar pra aba.
+     O tick é SÓ UI (countdowns, escalonamento dos popups de lembrete) e não
+     toca a rede — quem decide ir ao banco é o efeito de polling logo abaixo. */
   useEffect(() => { carregar(); }, [carregar]);
   useEffect(() => {
     if (!token) return;
-    const poll = setInterval(carregar, 30000);
-    const tick = setInterval(() => setTick((n) => n + 1), 30000);
-    const onFoco = () => document.visibilityState === "visible" && carregar();
+    const tickId = setInterval(() => setTick((n) => n + 1), 30000);
+    const onFoco = () => {
+      if (document.visibilityState !== "visible") return;
+      /* voltar pro app sempre traz dados frescos, mesmo sem jogo por perto
+         (é o que substitui o poll constante). Piso de 20s pra não martelar
+         quem fica alternando de aba. */
+      if (Date.now() - ultimoPollRef.current > 20000) carregar();
+      setTick((n) => n + 1);
+    };
     document.addEventListener("visibilitychange", onFoco);
     return () => {
-      clearInterval(poll);
-      clearInterval(tick);
+      clearInterval(tickId);
       document.removeEventListener("visibilitychange", onFoco);
     };
   }, [token, carregar]);
+
+  /* Polling adaptativo. Reavalia a cada tick (30s, local e de graça) se já
+     venceu o intervalo devido pro momento — que pode ser "nenhum" fora das
+     janelas de jogo. Duas travas seguram o consumo do Neon:
+     1) aba oculta NUNCA busca (era esse o caso que mantinha o compute
+        acordado a noite inteira por causa de uma aba esquecida);
+     2) sem jogo ao vivo nem kickoff em <2h, intervaloPoll devolve null e
+        ninguém acorda o banco — ele suspende sozinho após 5 min.
+     Depende só de [tick, token]: setEstado dentro de carregar() não pode
+     reagendar o efeito, senão vira loop. */
+  useEffect(() => {
+    if (!token || document.visibilityState !== "visible") return;
+    const ms = intervaloPoll(estado, Date.now() + offsetRef.current);
+    if (ms === null) return;
+    if (Date.now() - ultimoPollRef.current < ms) return;
+    carregar();
+  }, [tick, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* polling de placar ao vivo: 60s quando há jogo em andamento.
      A janela é limitada a ~3h após o kickoff: sem isso, qualquer jogo passado
@@ -421,10 +477,16 @@ export default function App() {
   });
   useEffect(() => {
     if (!token || !temJogoVivo) return;
-    const buscar = () =>
+    /* aba oculta não busca: cada chamada dessas atinge o banco (autenticação
+       + gravação do placar) e ainda encadeia um carregar(). Com a aba em
+       segundo plano isso segurava o compute do Neon acordado sem ninguém
+       olhando — mesma trava do polling de estado. */
+    const buscar = () => {
+      if (document.visibilityState !== "visible") return;
       api(`/api/futebol?t=${encodeURIComponent(token)}&acao=placar-vivo`)
         .then(carregar)
         .catch(() => {});
+    };
     buscar();
     const id = setInterval(buscar, 60000);
     return () => clearInterval(id);
