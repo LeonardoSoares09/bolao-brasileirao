@@ -5,7 +5,7 @@ import {
   pontosDoPalpite, pontosComPeso, pesoDoJogo, rotuloDaFase, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate,
   calcularDetalhamento, calcularEvolucao, calcularMomentos, contaParaRanking, RODADA_INICIO_RANKING, rankingOficialComecou,
 } from "./ranking";
-import { TIMES, CLUBE_INFO, pesoDoJogo as pesoDoJogoBase, RODADA_HISTORICO_MAX, jogoAdiado, jogoAceitaPalpite } from "../lib/clubes.js";
+import { TIMES, CLUBE_INFO, pesoDoJogo as pesoDoJogoBase, RODADA_HISTORICO_MAX, jogoAdiado, jogoAceitaPalpite, ehClassico } from "../lib/clubes.js";
 
 /* ============================================================
    BOLÃO DOS GURIS — Brasileirão 2026/2 (Vercel + Neon)
@@ -1728,8 +1728,11 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
     if (futuras.length > 0) return futuras[0];
     return chaves[chaves.length - 1] || hoje;
   });
-  const [aoVivoFiltro, setAoVivoFiltro] = useState(false);
-  const [adiadosFiltro, setAdiadosFiltro] = useState(false);
+  /* Um único estado em vez de um booleano por filtro: exclusividade sai de
+     graça (nunca dois ligados) e adicionar filtro não exige lembrar de
+     desligar todos os outros em cada onClick. null = navegando por data. */
+  const [filtro, setFiltro] = useState(null); // null | vivo | adiados | classicos | faltando
+  const alternarFiltro = (f) => setFiltro((atual) => (atual === f ? null : f));
 
   const hojeKey = fmtSP(Date.now() + offsetMs);
   const jogosPendentesHoje = estado.jogos.filter(
@@ -2004,22 +2007,61 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
 
       {estado.jogos.length > 0 && (() => {
         /* adiado não tem data, então não entra no carrossel de datas — ele é
-           um filtro à parte, irmão do "Ao vivo" */
+           um filtro à parte */
         const jogosAdiados = estado.jogos.filter(jogoAdiado);
         const grupos = agruparPorData(estado.jogos.filter((m) => !jogoAdiado(m)));
         const idxRaw = grupos.findIndex(([c]) => c === dataFiltro);
         const idx = idxRaw === -1 ? Math.max(0, grupos.length - 1) : idxRaw;
         const jogosAoVivo = estado.jogos.filter((m) => !temResultado(m) && comecou(m));
-        const jogosMostrar = adiadosFiltro ? jogosAdiados
-          : aoVivoFiltro ? jogosAoVivo
-          : (grupos[idx]?.[1] ?? []);
-        const navDim = aoVivoFiltro || adiadosFiltro;
+        const jogosClassicos = estado.jogos.filter((m) => ehClassico(m.casa, m.fora));
+        /* "sem palpite meu": só o que ainda dá pra fazer alguma coisa a
+           respeito — jogo aberto e sem palpite meu. Não faz sentido pro token
+           mestre do organizador, que não participa do bolão (eu.id === null). */
+        const jogosFaltando = estado.eu.id == null ? [] : estado.jogos.filter(
+          (m) => jogoAceitaPalpite(m) && !comecou(m) && !temResultado(m)
+            && !palpitesMap[m.id]?.[estado.eu.id]
+        );
+
+        const listaFiltrada = {
+          vivo: jogosAoVivo, adiados: jogosAdiados,
+          classicos: jogosClassicos, faltando: jogosFaltando,
+        };
+        const jogosMostrar = filtro ? listaFiltrada[filtro] : (grupos[idx]?.[1] ?? []);
+        const vazioFiltro = {
+          vivo: "Nenhum jogo ao vivo no momento.",
+          adiados: "Nenhum jogo adiado no momento.",
+          classicos: "Nenhum clássico cadastrado ainda.",
+          faltando: "Você já palpitou em todos os jogos abertos ✓",
+        };
+
+        /* chips só aparecem quando têm o que mostrar — filtro que sempre volta
+           vazio é ruído, e a linha inteira some quando nenhum se aplica */
+        const chips = [
+          jogosAdiados.length > 0 && {
+            id: "adiados", icone: "⏳", n: jogosAdiados.length,
+            texto: jogosAdiados.length === 1 ? "adiado" : "adiados",
+            title: "Jogos que a CBF adiou. Continuam valendo: quando a nova data sair, voltam pro calendário e reabrem pra palpite.",
+          },
+          jogosFaltando.length > 0 && {
+            /* U+FE0F nos dois: sem o seletor de variação, ⚔ cai na
+               apresentação de TEXTO e vira um "×" sem graça (visto em teste no
+               Chrome/macOS). Com ele, renderiza como emoji em toda plataforma. */
+            id: "faltando", icone: "✍️", n: jogosFaltando.length, texto: "sem palpite",
+            title: "Jogos ainda abertos em que você não palpitou.",
+          },
+          jogosClassicos.length > 0 && {
+            id: "classicos", icone: "⚔️", n: jogosClassicos.length, texto: "clássicos",
+            title: "Clássicos regionais — valem 2× pontos.",
+          },
+        ].filter(Boolean);
+
         return (
           <>
             <div className="nav-data">
               <button
-                className={"nav-ao-vivo" + (aoVivoFiltro ? " nav-ao-vivo-ativo" : "")}
-                onClick={() => { setAdiadosFiltro(false); setAoVivoFiltro((v) => !v); }}
+                className={"nav-ao-vivo" + (filtro === "vivo" ? " nav-ao-vivo-ativo" : "")}
+                onClick={() => alternarFiltro("vivo")}
+                aria-pressed={filtro === "vivo"}
               >
                 Ao vivo
                 <span className="nav-vivo-anel" aria-hidden="true" />
@@ -2027,44 +2069,46 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
               <div className="nav-data-nav">
                 <button
                   className="nav-data-seta"
-                  onClick={() => { setAoVivoFiltro(false); setAdiadosFiltro(false); setDataFiltro(grupos[idx - 1][0]); }}
+                  onClick={() => { setFiltro(null); setDataFiltro(grupos[idx - 1][0]); }}
                   disabled={idx <= 0}
                   aria-label="Data anterior"
                 >‹</button>
-                <span className={"nav-data-label" + (navDim ? " nav-data-label-dim" : "")}>
+                <span className={"nav-data-label" + (filtro ? " nav-data-label-dim" : "")}>
                   {labelData(grupos[idx]?.[0] ?? "__semdata__", offsetMs)}
                 </span>
                 <button
                   className="nav-data-seta"
-                  onClick={() => { setAoVivoFiltro(false); setAdiadosFiltro(false); setDataFiltro(grupos[idx + 1][0]); }}
+                  onClick={() => { setFiltro(null); setDataFiltro(grupos[idx + 1][0]); }}
                   disabled={idx >= grupos.length - 1}
                   aria-label="Próxima data"
                 >›</button>
               </div>
             </div>
 
-            {/* Linha própria, ABAIXO da barra. Medido: com este botão dentro
-                de .nav-data, o carrossel caía para 163px e o label do dia
-                ("QUA · 12/08", que precisa de 93px) era cortado com reticências
-                — e o carrossel é o principal desta tela. Aqui embaixo ele fica
-                com a largura inteira. A linha só existe quando há adiado, então
-                não custa altura no dia a dia. */}
-            {jogosAdiados.length > 0 && (
-              <div className="nav-adiados-linha">
-                <button
-                  className={"nav-adiados" + (adiadosFiltro ? " nav-adiados-ativo" : "")}
-                  onClick={() => { setAoVivoFiltro(false); setAdiadosFiltro((v) => !v); }}
-                  aria-pressed={adiadosFiltro}
-                  title="Jogos que a CBF adiou. Continuam valendo: quando a nova data sair, voltam pro calendário e reabrem pra palpite."
-                >
-                  <span aria-hidden="true">⏳</span>
-                  <span className="nav-adiados-n">{jogosAdiados.length}</span>
-                  {jogosAdiados.length === 1 ? "adiado" : "adiados"}
-                </button>
+            {/* Linha de filtros, ABAIXO da barra. Medido: com um chip dentro de
+                .nav-data, o carrossel caía de 216px para 163px e o label do dia
+                ("QUA · 12/08", que precisa de 93px) era cortado — e o carrossel
+                é o principal desta tela. Aqui embaixo os chips têm a largura
+                inteira e podem quebrar linha. */}
+            {chips.length > 0 && (
+              <div className="nav-filtros">
+                {chips.map((c) => (
+                  <button
+                    key={c.id}
+                    className={"nav-chip" + (filtro === c.id ? " nav-chip-ativo" : "")}
+                    onClick={() => alternarFiltro(c.id)}
+                    aria-pressed={filtro === c.id}
+                    title={c.title}
+                  >
+                    <span aria-hidden="true">{c.icone}</span>
+                    <span className="nav-chip-n">{c.n}</span>
+                    {c.texto}
+                  </button>
+                ))}
               </div>
             )}
 
-            {adiadosFiltro && (
+            {filtro === "adiados" && (
               <div className="aviso-adiados">
                 Estes jogos foram adiados e ainda não têm data nova. Eles continuam valendo:
                 quando a CBF remarcar, voltam pro calendário e o palpite reabre pra todo mundo
@@ -2074,10 +2118,8 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
 
             {jogosMostrar.length === 0 ? (
               <div className="nav-sem-jogos">
-                {adiadosFiltro
-                  ? "Nenhum jogo adiado no momento."
-                  : aoVivoFiltro
-                  ? "Nenhum jogo ao vivo no momento."
+                {filtro
+                  ? vazioFiltro[filtro]
                   : "⏳ Aguarde — próximos jogos ainda não foram cadastrados."}
               </div>
             ) : (
@@ -5726,10 +5768,14 @@ function Estilo() {
 
       /* filtro de adiados: irmão do "Ao vivo", mas apagado — é arquivo, não
          urgência. Ativo herda o âmbar dos outros estados de espera. */
-      /* linha própria, logo abaixo do carrossel de datas — ver comentário no
-         JSX: dentro da barra, este botão cortava o label do dia */
-      .nav-adiados-linha { display: flex; justify-content: flex-end; margin: -6px 0 12px; }
-      .nav-adiados {
+      /* linha de filtros, logo abaixo do carrossel de datas — ver comentário no
+         JSX: dentro da barra, qualquer chip cortava o label do dia.
+         wrap porque a quantidade de chips varia com o estado do campeonato. */
+      .nav-filtros {
+        display: flex; flex-wrap: wrap; justify-content: flex-end;
+        gap: 7px; margin: -6px 0 12px;
+      }
+      .nav-chip {
         flex: none; display: inline-flex; align-items: center; gap: 5px;
         padding: 5px 11px; border-radius: 999px;
         background: rgba(0,0,0,.3); border: 1.5px dashed rgba(255,255,255,.25);
@@ -5737,12 +5783,12 @@ function Estilo() {
         font-size: 12px; line-height: 1;
         transition: border-color var(--t), color var(--t), background-color var(--t);
       }
-      .nav-adiados:hover { border-color: rgba(255,255,255,.5); color: rgba(255,255,255,.85); }
-      .nav-adiados-ativo {
+      .nav-chip:hover { border-color: rgba(255,255,255,.5); color: rgba(255,255,255,.85); }
+      .nav-chip-ativo {
         border-style: solid; border-color: var(--ambar); color: var(--ambar);
         background: rgba(255,197,61,.12);
       }
-      .nav-adiados-n {
+      .nav-chip-n {
         font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700;
         font-variant-numeric: tabular-nums;
       }
