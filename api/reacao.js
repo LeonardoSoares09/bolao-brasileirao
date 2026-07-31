@@ -3,6 +3,7 @@
    (a leitura das reações é coberta pelo /api/estado, não há GET aqui) */
 
 import { sql, autenticar } from "../lib/db.js";
+import { okEscrita } from "../lib/snapshot.js";
 
 const EMOJIS_VALIDOS = ["🔥", "😱", "💀", "🎯", "😂", "🤡", "🐐", "💪", "😭", "🫡", "⚽", "🏆"];
 
@@ -44,7 +45,7 @@ export default async function handler(req, res) {
       `;
     }
 
-    res.status(200).json({ ok: true });
+    await okEscrita(res);
     return;
   }
 

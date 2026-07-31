@@ -5,6 +5,7 @@
 
 import { randomBytes } from "node:crypto";
 import { sql, autenticar, intOuNull } from "../lib/db.js";
+import { okEscrita } from "../lib/snapshot.js";
 
 export default async function handler(req, res) {
   const token = req.method === "GET" ? req.query.t : req.body?.t;
@@ -27,7 +28,7 @@ export default async function handler(req, res) {
       UPDATE participantes SET avatar_emoji = ${emoji}, avatar_cor = ${cor}
       WHERE id = ${eu.id}
     `;
-    res.status(200).json({ ok: true });
+    await okEscrita(res);
     return;
   }
 
@@ -71,12 +72,12 @@ export default async function handler(req, res) {
         res.status(404).json({ error: "Participante não encontrado" });
         return;
       }
-      res.status(200).json({ ok: true, participante: rows[0] });
+      await okEscrita(res, { ok: true, participante: rows[0] });
       return;
     }
     const pagou = req.body?.pagou === true;
     await sql`UPDATE participantes SET pagou = ${pagou} WHERE id = ${id}`;
-    res.status(200).json({ ok: true });
+    await okEscrita(res);
     return;
   }
 
@@ -93,7 +94,7 @@ export default async function handler(req, res) {
       VALUES (${nome}, ${novoToken}, ${ehAdmin})
       RETURNING id, nome, token, is_admin
     `;
-    res.status(200).json({ ok: true, participante: rows[0] });
+    await okEscrita(res, { ok: true, participante: rows[0] });
     return;
   }
 
@@ -104,7 +105,7 @@ export default async function handler(req, res) {
       return;
     }
     await sql`DELETE FROM participantes WHERE id = ${id}`;
-    res.status(200).json({ ok: true });
+    await okEscrita(res);
     return;
   }
 

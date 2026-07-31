@@ -4,6 +4,7 @@
    Somente admin. Auth via header X-Auth-Token (env FOOTBALL_DATA_KEY). */
 
 import { sql, autenticar } from "../lib/db.js";
+import { invalidarSnapshot } from "../lib/snapshot.js";
 import { traduzirClube, pesoDoJogo, matchdayHistoricoValido } from "../lib/clubes.js";
 
 /* normaliza pra comparação: sem acento, sem caixa, sem borda */
@@ -223,6 +224,11 @@ async function importarRodada(matchday, { comPlacar }) {
     adicionados++;
   }
 
+  /* jogos mudaram → snapshot compartilhado está velho. Fica AQUI (e não no
+     handler) porque os crons chamam acaoJogosHoje/acaoHistorico direto, sem
+     passar pelo handler HTTP. */
+  if (adicionados > 0 || atualizados > 0) await invalidarSnapshot();
+
   return { adicionados, atualizados, total: relevantes.length };
 }
 
@@ -339,6 +345,11 @@ async function acaoPlacares() {
       vivos++;
     }
   }
+
+  /* mesmo motivo do importarRodada: cron-resultados chama por fora do handler.
+     Durante jogo ao vivo isso invalida a cada rodada de busca (~1 min), que é
+     exatamente o que se quer — o placar mudou. */
+  if (atualizados > 0 || vivos > 0) await invalidarSnapshot();
 
   return { atualizados, vivos };
 }

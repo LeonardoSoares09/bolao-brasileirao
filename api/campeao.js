@@ -4,6 +4,7 @@
    PUT  { t }             → confirma e trava para sempre */
 
 import { sql, autenticar } from "../lib/db.js";
+import { okEscrita } from "../lib/snapshot.js";
 
 export default async function handler(req, res) {
   const token = req.method === "GET" ? req.query.t : req.body?.t;
@@ -63,7 +64,7 @@ export default async function handler(req, res) {
       DO UPDATE SET selecao = ${selecao}, atualizado_em = now()
     `;
 
-    res.status(200).json({ ok: true });
+    await okEscrita(res);
     return;
   }
 
@@ -92,7 +93,7 @@ export default async function handler(req, res) {
       WHERE participante_id = ${eu.id}
     `;
 
-    res.status(200).json({ ok: true });
+    await okEscrita(res);
     return;
   }
 

@@ -4,6 +4,7 @@
    PUT  { t, tipo }           → confirma e trava para sempre */
 
 import { sql, autenticar, intOuNull } from "../lib/db.js";
+import { okEscrita } from "../lib/snapshot.js";
 
 /* dados "ao vivo" administrados na mão, guardados na tabela config (JSON):
    'artilheiro_gols' (ranking do artilheiro) e 'times_fora_disputa' (visual na
@@ -49,7 +50,7 @@ export default async function handler(req, res) {
         }
       }
       await salvarConfig("artilheiro_gols", limpo);
-      res.status(200).json({ ok: true });
+      await okEscrita(res);
       return;
     }
 
@@ -63,7 +64,7 @@ export default async function handler(req, res) {
         times.filter((c) => typeof c === "string" && c).map((c) => c.slice(0, 60))
       )];
       await salvarConfig("times_fora_disputa", limpo);
-      res.status(200).json({ ok: true });
+      await okEscrita(res);
       return;
     }
 
@@ -83,7 +84,7 @@ export default async function handler(req, res) {
       VALUES (${tipo}, ${valor})
       ON CONFLICT (tipo) DO UPDATE SET valor = ${valor}
     `;
-    res.status(200).json({ ok: true });
+    await okEscrita(res);
     return;
   }
 
@@ -103,7 +104,7 @@ export default async function handler(req, res) {
     } else {
       await sql`UPDATE resultado_especial SET confirmado = TRUE, confirmado_em = now() WHERE tipo = ${tipo}`;
     }
-    res.status(200).json({ ok: true });
+    await okEscrita(res);
     return;
   }
 
@@ -121,7 +122,7 @@ export default async function handler(req, res) {
     } else {
       await sql`INSERT INTO artilheiro_premiado (participante_id) VALUES (${id})`;
     }
-    res.status(200).json({ ok: true });
+    await okEscrita(res);
     return;
   }
 

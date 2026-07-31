@@ -6,6 +6,7 @@
    (participanteId), pra corrigir erro de digitação. */
 
 import { sql, autenticar, intOuNull } from "../lib/db.js";
+import { okEscrita } from "../lib/snapshot.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -57,5 +58,5 @@ export default async function handler(req, res) {
     DO UPDATE SET h = ${h}, a = ${a}, atualizado_em = now()
   `;
 
-  res.status(200).json({ ok: true });
+  await okEscrita(res);
 }

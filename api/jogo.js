@@ -4,6 +4,7 @@
    DELETE { t, jogoId }                → remove jogo (e palpites em cascata) */
 
 import { sql, autenticar, intOuNull } from "../lib/db.js";
+import { okEscrita } from "../lib/snapshot.js";
 import { pesoDoJogo } from "../lib/clubes.js";
 
 export default async function handler(req, res) {
@@ -39,7 +40,7 @@ export default async function handler(req, res) {
       VALUES (${casa}, ${fora}, ${kickoff}, ${rodada}, ${peso})
       RETURNING id
     `;
-    res.status(200).json({ ok: true, id: rows[0].id });
+    await okEscrita(res, { ok: true, id: rows[0].id });
     return;
   }
 
@@ -59,7 +60,7 @@ export default async function handler(req, res) {
        é finalizar, pra clientes antigos / chamadas sem o campo. */
     const live = req.body?.encerrar === false;
     await sql`UPDATE jogos SET gh = ${gh}, ga = ${ga}, live = ${live} WHERE id = ${jid}`;
-    res.status(200).json({ ok: true });
+    await okEscrita(res);
 
     return;
   }
@@ -71,7 +72,7 @@ export default async function handler(req, res) {
       return;
     }
     await sql`DELETE FROM jogos WHERE id = ${jid}`;
-    res.status(200).json({ ok: true });
+    await okEscrita(res);
     return;
   }
 

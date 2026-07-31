@@ -7,6 +7,7 @@
    tenha escolhido nada. */
 
 import { sql, autenticar } from "../lib/db.js";
+import { okEscrita } from "../lib/snapshot.js";
 import { PRAZO_ARTILHEIRO_FIXO } from "../lib/clubes.js";
 
 function prazoEncerrado() {
@@ -75,7 +76,7 @@ export default async function handler(req, res) {
       DO UPDATE SET jogador = ${jogador}, atualizado_em = now()
     `;
 
-    res.status(200).json({ ok: true });
+    await okEscrita(res);
     return;
   }
 
@@ -108,7 +109,7 @@ export default async function handler(req, res) {
       WHERE participante_id = ${eu.id}
     `;
 
-    res.status(200).json({ ok: true });
+    await okEscrita(res);
     return;
   }
 
