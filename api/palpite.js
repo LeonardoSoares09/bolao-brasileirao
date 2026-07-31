@@ -45,7 +45,12 @@ export default async function handler(req, res) {
   }
   const jogo = jogos[0];
 
-  /* Jogo adiado não aceita palpite — nem do admin. Não é frescura de tela: a
+  /* Os três casos abaixo, juntos, são exatamente jogoAceitaPalpite() de
+     lib/clubes.js — a mesma regra que filtra a tela de Palpites. Estão
+     abertos aqui só pra devolver a mensagem certa em cada caso; se mexer em
+     um lado, mexa no outro.
+
+     Jogo adiado não aceita palpite — nem do admin. Não é frescura de tela: a
      antecedência média (5º critério de desempate) é kickoff menos
      atualizado_em, então palpite gravado enquanto o jogo está sem data
      renderia uma antecedência enorme no dia em que a CBF remarcasse. Quem
@@ -57,6 +62,15 @@ export default async function handler(req, res) {
   }
   if (jogoAdiado(jogo)) {
     res.status(403).json({ error: "Jogo adiado ⏳ — palpite reabre quando a nova data sair" });
+    return;
+  }
+  /* Rede de segurança para jogo SEM DATA que não foi marcado como adiado
+     (cadastro manual do organizador, por exemplo): sem kickoff não existe
+     prazo pra fazer valer, e o palpite guardado hoje renderia antecedência
+     enorme no dia em que a data fosse preenchida — a mesma distorção do caso
+     adiado. Sem data, palpite fechado; assim vale pra todo mundo igual. */
+  if (!jogo.kickoff) {
+    res.status(403).json({ error: "Jogo sem data definida — palpite abre quando a data for marcada" });
     return;
   }
 

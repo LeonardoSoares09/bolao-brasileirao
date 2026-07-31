@@ -1,11 +1,12 @@
 /* /api/jogo — gestão de jogos (somente admin)
-   POST   { t, casa, fora, kickoff, rodada, peso? } → cria jogo (peso derivado se omitido)
+   POST   { t, casa, fora, kickoff, rodada, peso?, adiado? } → cria jogo
    PUT    { t, jogoId, gh, ga }        → lança/limpa resultado
+   PATCH  { t, jogoId, adiado }        → marca/desmarca jogo como adiado
    DELETE { t, jogoId }                → remove jogo (e palpites em cascata) */
 
 import { sql, autenticar, intOuNull } from "../lib/db.js";
 import { okEscrita } from "../lib/snapshot.js";
-import { pesoDoJogo } from "../lib/clubes.js";
+import { pesoDoJogo, ADIADO } from "../lib/clubes.js";
 
 export default async function handler(req, res) {
   const eu = await autenticar(req.body?.t);
@@ -21,7 +22,10 @@ export default async function handler(req, res) {
   if (req.method === "POST") {
     const casa = String(req.body?.casa || "").trim();
     const fora = String(req.body?.fora || "").trim();
-    const kickoff = req.body?.kickoff ? new Date(req.body.kickoff) : null;
+    /* adiado nasce SEM data de propósito: a graça do status é justamente não
+       ter data ainda. Se a data já é conhecida, o jogo não está adiado. */
+    const adiado = req.body?.adiado === true;
+    const kickoff = adiado ? null : (req.body?.kickoff ? new Date(req.body.kickoff) : null);
     const rodada = intOuNull(req.body?.rodada);
     /* peso de pontuação: aceita 1..3 explícito; senão deriva de rodada +
        clássico (ver lib/clubes.js:pesoDoJogo). */
@@ -36,11 +40,33 @@ export default async function handler(req, res) {
       return;
     }
     const rows = await sql`
-      INSERT INTO jogos (casa, fora, kickoff, rodada, peso)
-      VALUES (${casa}, ${fora}, ${kickoff}, ${rodada}, ${peso})
+      INSERT INTO jogos (casa, fora, kickoff, rodada, peso, status)
+      VALUES (${casa}, ${fora}, ${kickoff}, ${rodada}, ${peso}, ${adiado ? ADIADO : null})
       RETURNING id
     `;
     await okEscrita(res, { ok: true, id: rows[0].id });
+    return;
+  }
+
+  /* Marca/desmarca jogo já existente como adiado. Existe pra não obrigar o
+     organizador a apagar e recadastrar — apagar cascateia em palpites
+     (schema.sql), e o motivo de todo este recurso é justamente parar de
+     perder palpite por causa de remarcação da CBF.
+     Marcar zera a data: adiado é "sem data conhecida". Desmarcar só limpa o
+     status; a data volta pela tela normal de edição ou pelo import. */
+  if (req.method === "PATCH") {
+    const jid = intOuNull(req.body?.jogoId);
+    if (jid === null) {
+      res.status(400).json({ error: "jogoId obrigatório" });
+      return;
+    }
+    const adiado = req.body?.adiado === true;
+    if (adiado) {
+      await sql`UPDATE jogos SET status = ${ADIADO}, kickoff = NULL, live = false WHERE id = ${jid}`;
+    } else {
+      await sql`UPDATE jogos SET status = NULL WHERE id = ${jid}`;
+    }
+    await okEscrita(res);
     return;
   }
 

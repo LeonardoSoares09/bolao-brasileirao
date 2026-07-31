@@ -5,7 +5,7 @@ import {
   pontosDoPalpite, pontosComPeso, pesoDoJogo, rotuloDaFase, rotuloDoPeso, calcularStats, compararRanking, criterioDesempate,
   calcularDetalhamento, calcularEvolucao, calcularMomentos, contaParaRanking, RODADA_INICIO_RANKING, rankingOficialComecou,
 } from "./ranking";
-import { TIMES, CLUBE_INFO, pesoDoJogo as pesoDoJogoBase, RODADA_HISTORICO_MAX, jogoAdiado } from "../lib/clubes.js";
+import { TIMES, CLUBE_INFO, pesoDoJogo as pesoDoJogoBase, RODADA_HISTORICO_MAX, jogoAdiado, jogoAceitaPalpite } from "../lib/clubes.js";
 
 /* ============================================================
    BOLÃO DOS GURIS — Brasileirão 2026/2 (Vercel + Neon)
@@ -1705,6 +1705,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
   const [casa, setCasa] = useState("");
   const [fora, setFora] = useState("");
   const [kickoff, setKickoff] = useState("");
+  const [novoAdiado, setNovoAdiado] = useState(false);
   const [rodada, setRodada] = useState("");
   const [buscandoJogos, setBuscandoJogos] = useState(false);
   const [buscandoResultados, setBuscandoResultados] = useState(false);
@@ -1806,9 +1807,25 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
       const peso = pesoDoJogoBase(rodada, casa, fora);
       await api("/api/jogo", {
         method: "POST",
-        body: JSON.stringify({ t: token, casa, fora, kickoff: kickoff ? new Date(kickoff).toISOString() : null, rodada: rodada ? Number(rodada) : null, peso }),
+        body: JSON.stringify({
+          t: token, casa, fora,
+          kickoff: kickoff ? new Date(kickoff).toISOString() : null,
+          rodada: rodada ? Number(rodada) : null, peso, adiado: novoAdiado,
+        }),
       });
-      setCasa(""); setFora(""); setKickoff(""); setRodada("");
+      setCasa(""); setFora(""); setKickoff(""); setRodada(""); setNovoAdiado(false);
+      recarregar();
+    } catch (e) { setAviso(e.message); }
+  };
+
+  /* marca/desmarca jogo já cadastrado como adiado — evita apagar e
+     recadastrar, que levaria os palpites junto (ON DELETE CASCADE) */
+  const alternarAdiado = async (jogo) => {
+    try {
+      await api("/api/jogo", {
+        method: "PATCH",
+        body: JSON.stringify({ t: token, jogoId: jogo.id, adiado: !jogoAdiado(jogo) }),
+      });
       recarregar();
     } catch (e) { setAviso(e.message); }
   };
@@ -1968,7 +1985,18 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                 className="input-rodada"
                 aria-label="Rodada do jogo"
               />
-              <input type="datetime-local" value={kickoff} onChange={(e) => setKickoff(e.target.value)} aria-label="Data e hora do jogo" />
+              <input
+                type="datetime-local"
+                value={novoAdiado ? "" : kickoff}
+                onChange={(e) => setKickoff(e.target.value)}
+                disabled={novoAdiado}
+                title={novoAdiado ? "Jogo adiado não tem data — é isso que o status significa" : undefined}
+                aria-label="Data e hora do jogo"
+              />
+              <label className="check-adiado" title="Para jogo que a CBF adiou e ainda não remarcou. Entra sem data, no grupo Adiados, sem aceitar palpite — e reabre sozinho quando a data nova sair.">
+                <input type="checkbox" checked={novoAdiado} onChange={(e) => setNovoAdiado(e.target.checked)} />
+                ⏳ adiado
+              </label>
               <button className="botao" onClick={addJogo}>Adicionar</button>
             </div>
           </div>
@@ -2077,7 +2105,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
                       </div>
                     </div>
                     {ehAdmin ? (
-                      <ResultadoAdmin jogo={m} salvar={salvarResultado} remover={() => delJogo(m.id)} emAndamento={travado && !encerrado} />
+                      <ResultadoAdmin jogo={m} salvar={salvarResultado} remover={() => delJogo(m.id)} emAndamento={travado && !encerrado} onAdiar={() => alternarAdiado(m)} />
                     ) : encerrado ? (
                       <div className="placar-final led-mini">{m.gh} : {m.ga}</div>
                     ) : m.live ? (
@@ -2112,7 +2140,7 @@ function Jogos({ estado, palpitesMap, contagensMap, comecou, ehAdmin, token, rec
   );
 }
 
-function ResultadoAdmin({ jogo, salvar, remover, emAndamento = false }) {
+function ResultadoAdmin({ jogo, salvar, remover, emAndamento = false, onAdiar }) {
   const [gh, setGh] = useState(jogo.gh ?? "");
   const [ga, setGa] = useState(jogo.ga ?? "");
   const timer = useRef(null);
@@ -2157,6 +2185,18 @@ function ResultadoAdmin({ jogo, salvar, remover, emAndamento = false }) {
           title="Finalizar o jogo agora — use só se o automático não fechar sozinho"
         >🏁 Encerrar</button>
       )}
+      {/* Adiar em vez de apagar: apagar cascateia em palpites, e o ponto de
+          todo este recurso é não perder palpite por remarcação da CBF.
+          Só faz sentido enquanto o jogo não tem resultado. */}
+      {onAdiar && !temResultado(jogo) && (
+        <button
+          className={"adiar-jogo" + (jogoAdiado(jogo) ? " adiar-jogo-ativo" : "")}
+          onClick={onAdiar}
+          title={jogoAdiado(jogo)
+            ? "Desmarcar adiamento — o jogo volta a aceitar palpite assim que tiver data"
+            : "Marcar como adiado: tira a data, fecha o palpite e move pro grupo Adiados. Os palpites já feitos ficam guardados."}
+        >⏳</button>
+      )}
       <button className="apagar" onClick={remover} aria-label="Remover jogo">✕</button>
     </div>
   );
@@ -2164,12 +2204,12 @@ function ResultadoAdmin({ jogo, salvar, remover, emAndamento = false }) {
 
 /* ================= PALPITES ================= */
 function Palpites({ estado, palpitesMap, comecou, token, recarregar, offsetMs = 0, jogoInicial = null, onVerStats }) {
-  /* Jogo adiado fica FORA desta tela inteira: sem data não há prazo, e o
-     servidor recusa o palpite de qualquer jeito (api/palpite.js). Deixá-lo
-     aqui só criaria um campo que não salva. Ele continua visível na aba
-     Jogos, no grupo "⏳ Adiados", e volta pra cá sozinho quando a CBF
-     remarcar — aí o lembrete normal avisa todo mundo. */
-  const jogosPalpitaveis = useMemo(() => estado.jogos.filter((m) => !jogoAdiado(m)), [estado.jogos]);
+  /* Jogo SEM DATA fica FORA desta tela inteira — adiado pela CBF ou cadastrado
+     à mão sem horário, dá no mesmo: sem kickoff não há prazo pra fazer valer, e
+     o servidor recusa o palpite de qualquer jeito (api/palpite.js). Deixá-lo
+     aqui só criaria um campo que não salva. Ele continua visível na aba Jogos e
+     volta pra cá sozinho quando a data sair — aí o lembrete normal avisa. */
+  const jogosPalpitaveis = useMemo(() => estado.jogos.filter(jogoAceitaPalpite), [estado.jogos]);
 
   const [jogoSel, setJogoSel] = useState(() => {
     if (jogoInicial) return String(jogoInicial);
@@ -5601,6 +5641,22 @@ function Estilo() {
       /* adiado: tracejado pra ler como "provisório", sem piscar — não é
          urgência, é espera. Sem cor de erro: o jogo não se perdeu, só mudou. */
       .tag-adiado { border: 1.5px dashed rgba(255,255,255,.45); color: rgba(255,255,255,.7); }
+
+      .check-adiado {
+        display: inline-flex; align-items: center; gap: 5px;
+        font-size: 12px; color: rgba(255,255,255,.7); cursor: pointer;
+        white-space: nowrap; user-select: none;
+      }
+      .check-adiado input { width: auto; margin: 0; cursor: pointer; }
+      /* discreto por padrão: adiar é exceção, não deve competir com o placar.
+         Ativo fica âmbar pra deixar claro que o jogo ESTÁ marcado. */
+      .adiar-jogo {
+        background: none; border: 1.5px dashed rgba(255,255,255,.3);
+        color: rgba(255,255,255,.55); border-radius: 8px;
+        padding: 2px 7px; font-size: 13px; cursor: pointer; line-height: 1.4;
+      }
+      .adiar-jogo:hover { border-color: rgba(255,255,255,.6); color: rgba(255,255,255,.9); }
+      .adiar-jogo-ativo { border-style: solid; border-color: var(--ambar); color: var(--ambar); }
 
       .countdown {
         display: flex; align-items: center; justify-content: space-between; gap: 8px;
